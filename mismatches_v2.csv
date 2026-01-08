@@ -1,0 +1,783 @@
+subject_id,id_mri,reason,study_date,found_in_upenn_by_id
+941_S_7106,I1619403,Image ID not found in MRI_PET_IDs,,
+941_S_7087,I1591321,Image ID not found in MRI_PET_IDs,,
+941_S_7085,I1600180,Date mismatch,2022-07-01,True
+941_S_7074,I1588331,Date mismatch,2022-05-03,True
+941_S_7074,I10283169,Date mismatch,2023-09-18,True
+941_S_7074,I11455284,Date mismatch,2025-10-01,True
+941_S_7051,I1553005,Date mismatch,2022-03-07,True
+941_S_7051,I10873191,Date mismatch,2024-07-03,True
+941_S_7051,I11291622,Date mismatch,2025-05-19,True
+941_S_7046,I1553931,Date mismatch,2022-03-08,True
+941_S_7041,I1544467,Date mismatch,2022-02-14,True
+941_S_6998,I1486321,Date mismatch,2021-08-30,True
+941_S_6998,I11438942,Date mismatch,2025-09-12,True
+941_S_6962,I1467526,Date mismatch,2021-07-13,True
+941_S_6854,I1291638,Date mismatch,2020-02-14,True
+941_S_6854,I1428390,Date mismatch,2021-04-05,True
+941_S_6803,I1310783,Date mismatch,2019-09-16,True
+941_S_6607,I1062898,Image ID not found in MRI_PET_IDs,,
+941_S_6581,I1048378,Date mismatch,2018-09-12,True
+941_S_6581,I1343754,Date mismatch,2020-09-25,True
+941_S_6581,I1631084,Date mismatch,2022-10-17,True
+941_S_6580,I1046736,Date mismatch,2018-09-07,True
+941_S_6580,I1226810,Date mismatch,2019-09-13,True
+941_S_6580,I1343715,Date mismatch,2020-09-28,True
+941_S_6580,I1624283,Date mismatch,2022-09-30,True
+941_S_6580,I11076807,Date mismatch,2024-12-13,True
+941_S_6575,I1045984,Date mismatch,2018-09-05,True
+941_S_6575,I1360295,Date mismatch,2020-11-02,True
+941_S_6574,I1046899,Date mismatch,2018-09-07,True
+941_S_6574,I1046901,Date mismatch,2018-09-07,True
+941_S_6574,I1360551,Date mismatch,2020-11-02,True
+941_S_6574,I1641654,Date mismatch,2022-11-14,True
+941_S_6574,I11077428,Date mismatch,2024-12-16,True
+941_S_6570,I1044538,Date mismatch,2018-08-31,True
+941_S_6570,I1621706,Date mismatch,2022-09-20,True
+941_S_6546,I1034852,Date mismatch,2018-08-08,True
+941_S_6546,I1344417,Date mismatch,2020-09-30,True
+941_S_6546,I1624954,Date mismatch,2022-10-03,True
+941_S_6514,I1027315,Date mismatch,2018-07-24,True
+941_S_6499,I1023542,Date mismatch,2018-07-17,True
+941_S_6499,I1621068,Date mismatch,2022-09-16,True
+941_S_6499,I1335865,Date mismatch,2020-09-14,True
+941_S_6496,I1022057,Image ID not found in MRI_PET_IDs,,
+941_S_6495,I1021968,Image ID not found in MRI_PET_IDs,,
+941_S_6471,I1016136,Date mismatch,2018-07-02,True
+941_S_6471,I1332450,Date mismatch,2020-09-01,True
+941_S_6454,I1014117,Date mismatch,2018-06-27,True
+941_S_6454,I1336238,Date mismatch,2020-09-16,True
+941_S_6454,I1615979,Date mismatch,2022-08-22,True
+941_S_6422,I1010650,Date mismatch,2018-06-13,True
+941_S_6422,I1559923,Date mismatch,2020-10-19,True
+941_S_6392,I1005030,Image ID not found in MRI_PET_IDs,,
+941_S_6384,I1005122,Date mismatch,2018-05-30,True
+941_S_6384,I1584280,Date mismatch,2022-05-25,True
+941_S_6384,I10568433,Date mismatch,2024-05-06,True
+941_S_6345,I996464,Date mismatch,2018-05-10,True
+941_S_6345,I1169375,Date mismatch,2019-05-29,True
+941_S_6345,I1335422,Date mismatch,2020-09-08,True
+941_S_6333,I1004681,Date mismatch,2018-05-01,True
+941_S_6333,I1182315,Date mismatch,2019-06-28,True
+941_S_6333,I1332469,Date mismatch,2020-09-01,True
+941_S_6333,I1613052,Date mismatch,2022-08-15,True
+941_S_6333,I10927927,Date mismatch,2024-08-20,True
+941_S_6254,I1170562,Date mismatch,2019-05-15,True
+941_S_6254,I1333802,Date mismatch,2020-09-02,True
+941_S_6254,I1481726,Date mismatch,2021-08-17,True
+941_S_6254,I10251970,Date mismatch,2023-07-28,True
+941_S_6254,I11315036,Date mismatch,2025-06-10,True
+941_S_6094,I921879,Date mismatch,2017-10-23,True
+941_S_6094,I1256397,Date mismatch,2019-11-13,True
+941_S_6094,I10568625,Date mismatch,2024-03-25,True
+941_S_6080,I913233,Date mismatch,2017-09-29,True
+941_S_6080,I1252687,Date mismatch,2019-11-04,True
+941_S_6080,I1515308,Date mismatch,2021-11-12,True
+941_S_6068,I893045,Date mismatch,2017-08-21,True
+941_S_6068,I1038043,Date mismatch,2018-08-17,True
+941_S_6068,I1225855,Date mismatch,2019-09-10,True
+941_S_6068,I1481645,Date mismatch,2021-08-17,True
+941_S_6058,I884964,Date mismatch,2017-08-09,True
+941_S_6058,I1209877,Date mismatch,2019-08-14,True
+941_S_6058,I1476589,Date mismatch,2021-08-04,True
+941_S_6058,I11382571,Date mismatch,2025-07-22,True
+941_S_6054,I880643,Date mismatch,2017-07-28,True
+941_S_6054,I1192854,Date mismatch,2019-07-29,True
+941_S_6054,I1475933,Date mismatch,2021-08-03,True
+941_S_6052,I876884,Date mismatch,2017-07-20,True
+941_S_6052,I1018165,Date mismatch,2018-07-06,True
+941_S_6044,I872975,Date mismatch,2017-07-10,True
+941_S_6044,I874865,Date mismatch,2017-07-17,True
+941_S_6044,I1491890,Date mismatch,2021-09-14,True
+941_S_6017,I852748,Image ID not found in MRI_PET_IDs,,
+941_S_5193,I860955,Subject not found in UPENN,2017-06-09,False
+941_S_5193,I1177263,Subject not found in UPENN,2019-06-19,False
+941_S_5124,I958932,Subject not found in UPENN,2018-01-26,False
+941_S_4376,I1037531,Subject not found in UPENN,2018-08-15,False
+941_S_4376,I1225971,Subject not found in UPENN,2019-09-10,False
+941_S_4365,I896821,Date mismatch,2017-08-28,True
+941_S_4365,I1043570,Date mismatch,2018-08-28,True
+941_S_4365,I1486832,Date mismatch,2021-08-31,True
+941_S_4292,I893552,Subject not found in UPENN,2017-08-21,False
+941_S_4292,I1191372,Subject not found in UPENN,2019-07-24,False
+941_S_4292,I1500470,Subject not found in UPENN,2021-10-05,False
+941_S_4187,I858854,Subject not found in UPENN,2017-06-05,False
+941_S_4187,I1180699,Subject not found in UPENN,2019-06-25,False
+941_S_4187,I1330555,Subject not found in UPENN,2020-08-24,False
+941_S_4187,I1497238,Subject not found in UPENN,2021-09-28,False
+941_S_4187,I1628204,Subject not found in UPENN,2022-10-07,False
+941_S_4100,I923853,Date mismatch,2017-10-27,True
+941_S_4100,I1075536,Date mismatch,2018-11-19,True
+941_S_4036,I939342,Date mismatch,2017-11-27,True
+941_S_4036,I1075497,Date mismatch,2018-11-20,True
+941_S_4036,I1296964,Date mismatch,2020-02-26,True
+941_S_4036,I1425913,Date mismatch,2021-03-26,True
+941_S_1195,I982345,Subject not found in UPENN,2018-04-05,False
+941_S_1195,I1332317,Subject not found in UPENN,2020-08-31,False
+941_S_1195,I1557141,Subject not found in UPENN,2022-03-16,False
+941_S_10893,I11340090,Image ID not found in MRI_PET_IDs,,
+941_S_10659,I11185475,Subject not found in UPENN,2025-04-04,False
+941_S_10534,I11138677,Subject not found in UPENN,2025-02-25,False
+941_S_10484,I11124942,Subject not found in UPENN,2025-02-20,False
+941_S_10470,I11190394,Date mismatch,2025-02-21,True
+941_S_10309,I11058644,Date mismatch,2024-10-24,True
+941_S_10304,I11075847,Date mismatch,2024-12-11,True
+941_S_10279,I11058704,Date mismatch,2024-10-15,True
+941_S_10212,I10927935,Date mismatch,2024-08-19,True
+941_S_10212,I11431538,Date mismatch,2025-09-03,True
+941_S_10198,I10940178,Date mismatch,2024-09-06,True
+941_S_10169,I10883231,Date mismatch,2024-07-17,True
+941_S_10169,I11452789,Date mismatch,2025-09-26,True
+941_S_10148,I10878940,Date mismatch,2024-07-15,True
+941_S_10135,I10676975,Date mismatch,2024-06-18,True
+941_S_10111,I10568492,Date mismatch,2024-05-03,True
+941_S_10111,I11254028,Date mismatch,2025-05-01,True
+941_S_10103,I11445212,Date mismatch,2024-02-06,True
+941_S_10085,I11179008,Date mismatch,2025-03-26,True
+941_S_10085,I11445225,Date mismatch,2023-10-05,True
+941_S_10065,I10568658,Date mismatch,2024-03-22,True
+941_S_10051,I11124066,Date mismatch,2025-02-18,True
+941_S_10051,I10873199,Date mismatch,2023-11-09,True
+941_S_10039,I10568867,Date mismatch,2024-02-12,True
+941_S_10039,I11133785,Date mismatch,2025-02-27,True
+941_S_10038,I10568769,Date mismatch,2024-02-27,True
+941_S_10038,I11123162,Date mismatch,2025-02-18,True
+941_S_10024,I10318624,Image ID not found in MRI_PET_IDs,,
+941_S_10023,I10298439,Date mismatch,2023-11-29,True
+941_S_10015,I10283152,Image ID not found in MRI_PET_IDs,,
+941_S_10012,I10283138,Image ID not found in MRI_PET_IDs,,
+941_S_10012,I10283904,Image ID not found in MRI_PET_IDs,,
+941_S_10011,I10283130,Date mismatch,2023-09-27,True
+941_S_10011,I11058690,Date mismatch,2024-10-22,True
+941_S_10011,I11479979,Date mismatch,2025-10-31,True
+941_S_10010,I10281430,Image ID not found in MRI_PET_IDs,,
+941_S_10004,I10280547,Date mismatch,2023-09-08,True
+941_S_10003,I10263887,Date mismatch,2023-08-25,True
+941_S_10003,I11058732,Date mismatch,2024-10-04,True
+941_S_10003,I11448634,Date mismatch,2025-09-24,True
+941_S_10002,I10263879,Date mismatch,2023-08-23,True
+941_S_10002,I10973565,Date mismatch,2024-10-02,True
+941_S_10002,I11435962,Date mismatch,2025-09-09,True
+941_S_10001,I10280538,Date mismatch,2023-09-06,True
+405_S_10873,I11359993,Subject not found in UPENN,2025-07-21,False
+405_S_10873,I11359994,Subject not found in UPENN,2025-07-21,False
+405_S_10865,I11389611,Subject not found in UPENN,2025-07-25,False
+405_S_10865,I11389616,Subject not found in UPENN,2025-07-25,False
+405_S_10854,I11347300,Subject not found in UPENN,2025-07-15,False
+405_S_10854,I11347301,Subject not found in UPENN,2025-07-15,False
+405_S_10842,I11405257,Subject not found in UPENN,2025-08-04,False
+405_S_10842,I11405258,Subject not found in UPENN,2025-08-04,False
+405_S_10763,I11315026,Subject not found in UPENN,2025-06-11,False
+405_S_10763,I11315027,Subject not found in UPENN,2025-06-11,False
+405_S_10539,I11138657,Subject not found in UPENN,2025-03-03,False
+405_S_10539,I11138658,Subject not found in UPENN,2025-03-03,False
+405_S_10516,I11138667,Subject not found in UPENN,2025-02-21,False
+405_S_10516,I11138668,Subject not found in UPENN,2025-02-21,False
+405_S_10445,I11106144,Subject not found in UPENN,2025-01-27,False
+405_S_10445,I11106145,Subject not found in UPENN,2025-01-27,False
+405_S_10444,I11106158,Subject not found in UPENN,2025-01-27,False
+405_S_10444,I11106159,Subject not found in UPENN,2025-01-27,False
+405_S_10397,I11081294,Date mismatch,2024-12-12,True
+405_S_10397,I11081295,Date mismatch,2024-12-12,True
+404_S_10898,I11427820,Subject not found in UPENN,2025-08-27,False
+404_S_10895,I11418504,Subject not found in UPENN,2025-08-14,False
+404_S_10894,I11435071,Subject not found in UPENN,2025-09-08,False
+404_S_10891,I11431534,Subject not found in UPENN,2025-09-02,False
+404_S_10853,I11425989,Subject not found in UPENN,2025-08-25,False
+404_S_10846,I11418499,Subject not found in UPENN,2025-08-14,False
+389_S_10860,I11340082,Subject not found in UPENN,2025-07-07,False
+389_S_10676,I11283875,Subject not found in UPENN,2025-05-16,False
+389_S_10664,I11254003,Image ID not found in MRI_PET_IDs,,
+389_S_10587,I11224403,Subject not found in UPENN,2025-04-28,False
+389_S_10378,I11071809,Subject not found in UPENN,2024-12-06,False
+389_S_10251,I11048664,Date mismatch,2024-11-12,True
+389_S_10208,I10968685,Date mismatch,2024-09-27,True
+389_S_10183,I10958388,Image ID not found in MRI_PET_IDs,,
+389_S_10156,I10955657,Date mismatch,2024-09-19,True
+389_S_10140,I10899790,Date mismatch,2024-07-31,True
+389_S_10127,I10954739,Date mismatch,2024-07-29,True
+389_S_10122,I11076799,Image ID not found in MRI_PET_IDs,,
+389_S_10115,I10899798,Date mismatch,2024-07-31,True
+389_S_10076,I10443906,Date mismatch,2024-04-19,True
+389_S_10070,I10453678,Date mismatch,2024-03-25,True
+389_S_10070,I11488775,Date mismatch,2025-11-14,True
+381_S_10617,I11165006,Subject not found in UPENN,2025-03-19,False
+381_S_10616,I11197258,Subject not found in UPENN,2025-04-11,False
+381_S_10614,I11197244,Subject not found in UPENN,2025-04-11,False
+381_S_10613,I11164647,Subject not found in UPENN,2025-03-21,False
+381_S_10609,I11199389,Image ID not found in MRI_PET_IDs,,
+381_S_10607,I11192996,Subject not found in UPENN,2025-04-09,False
+381_S_10606,I11190334,Image ID not found in MRI_PET_IDs,,
+381_S_10604,I11190348,Subject not found in UPENN,2025-03-31,False
+381_S_10603,I11164701,Subject not found in UPENN,2025-03-20,False
+381_S_10600,I11224389,Subject not found in UPENN,2025-04-23,False
+381_S_10598,I11164661,Subject not found in UPENN,2025-03-21,False
+381_S_10594,I11190320,Image ID not found in MRI_PET_IDs,,
+381_S_10590,I11164633,Subject not found in UPENN,2025-03-23,False
+381_S_10589,I11164620,Subject not found in UPENN,2025-03-23,False
+381_S_10585,I11190306,Subject not found in UPENN,2025-04-01,False
+381_S_10582,I11164687,Subject not found in UPENN,2025-03-20,False
+381_S_10579,I11165031,Subject not found in UPENN,2025-03-18,False
+381_S_10578,I11165248,Subject not found in UPENN,2025-03-16,False
+381_S_10576,I11165303,Subject not found in UPENN,2025-03-14,False
+381_S_10573,I11190362,Image ID not found in MRI_PET_IDs,,
+381_S_10571,I11165045,Subject not found in UPENN,2025-03-18,False
+381_S_10566,I11165351,Subject not found in UPENN,2025-03-12,False
+381_S_10564,I11190377,Subject not found in UPENN,2025-03-23,False
+381_S_10563,I11165083,Subject not found in UPENN,2025-03-17,False
+381_S_10560,I11190391,Subject not found in UPENN,2025-03-21,False
+381_S_10559,I11165234,Subject not found in UPENN,2025-03-16,False
+381_S_10555,I11165220,Subject not found in UPENN,2025-03-17,False
+381_S_10554,I11165263,Subject not found in UPENN,2025-03-16,False
+381_S_10552,I11165289,Image ID not found in MRI_PET_IDs,,
+381_S_10551,I11165277,Subject not found in UPENN,2025-03-16,False
+381_S_10550,I11165506,Subject not found in UPENN,2025-03-07,False
+381_S_10549,I11190292,Subject not found in UPENN,2025-04-04,False
+381_S_10546,I11164719,Subject not found in UPENN,2025-03-19,False
+381_S_10541,I11165478,Image ID not found in MRI_PET_IDs,,
+381_S_10538,I11165398,Subject not found in UPENN,2025-03-09,False
+381_S_10536,I11165365,Subject not found in UPENN,2025-03-12,False
+381_S_10532,I11165384,Subject not found in UPENN,2025-03-10,False
+381_S_10528,I11142892,Subject not found in UPENN,2025-03-04,False
+381_S_10524,I11165459,Subject not found in UPENN,2025-03-07,False
+381_S_10521,I11140524,Subject not found in UPENN,2025-03-03,False
+381_S_10519,I11165332,Subject not found in UPENN,2025-03-14,False
+381_S_10517,I11165492,Subject not found in UPENN,2025-03-07,False
+381_S_10515,I11140510,Image ID not found in MRI_PET_IDs,,
+381_S_10514,I11140484,Subject not found in UPENN,2025-03-03,False
+381_S_10513,I11140539,Subject not found in UPENN,2025-03-02,False
+381_S_10511,I11140568,Subject not found in UPENN,2025-02-27,False
+381_S_10510,I11165412,Subject not found in UPENN,2025-03-09,False
+381_S_10509,I11138650,Subject not found in UPENN,2025-02-26,False
+381_S_10509,I11140559,Subject not found in UPENN,2025-02-28,False
+381_S_10507,I11165069,Subject not found in UPENN,2025-03-17,False
+381_S_10506,I11140969,Subject not found in UPENN,2025-02-26,False
+381_S_10505,I11165520,Subject not found in UPENN,2025-03-06,False
+381_S_10502,I11141038,Subject not found in UPENN,2025-02-24,False
+381_S_10500,I11141039,Subject not found in UPENN,2025-02-24,False
+381_S_10499,I11141063,Subject not found in UPENN,2025-02-24,False
+381_S_10496,I11140941,Subject not found in UPENN,2025-02-26,False
+381_S_10495,I11141361,Subject not found in UPENN,2025-02-20,False
+381_S_10493,I11140593,Subject not found in UPENN,2025-02-26,False
+381_S_10488,I11165432,Subject not found in UPENN,2025-03-09,False
+381_S_10487,I11141390,Subject not found in UPENN,2025-02-19,False
+381_S_10486,I11141411,Subject not found in UPENN,2025-02-19,False
+341_S_6820,I1231978,Date mismatch,2019-09-25,True
+341_S_6764,I1187874,Subject not found in UPENN,2019-07-16,False
+341_S_6686,I1132977,Subject not found in UPENN,2019-02-20,False
+341_S_6653,I1092019,Date mismatch,2018-12-19,True
+341_S_6605,I1061085,Date mismatch,2018-10-17,True
+341_S_6494,I1056183,Date mismatch,2018-07-23,True
+334_S_10813,I11325622,Subject not found in UPENN,2025-06-06,False
+334_S_10727,I11329794,Subject not found in UPENN,2025-04-30,False
+305_S_6899,I1577482,Date mismatch,2022-05-05,True
+305_S_6899,I1406523,Date mismatch,2021-02-03,True
+305_S_6882,I1604194,Image ID not found in MRI_PET_IDs,,
+305_S_6881,I1330894,Image ID not found in MRI_PET_IDs,,
+305_S_6877,I1323113,Date mismatch,2020-07-23,True
+305_S_6877,I1478935,Date mismatch,2021-08-10,True
+305_S_6871,I1315309,Date mismatch,2020-05-21,True
+305_S_6871,I1454944,Date mismatch,2021-06-14,True
+305_S_6871,I1605436,Date mismatch,2022-07-13,True
+305_S_6871,I10940660,Date mismatch,2024-09-08,True
+305_S_6871,I10940661,Date mismatch,2024-09-08,True
+305_S_6850,I1281963,Date mismatch,2020-01-29,True
+305_S_6845,I1283849,Date mismatch,2020-01-04,True
+305_S_6810,I1252573,Date mismatch,2019-11-02,True
+305_S_6810,I1384753,Date mismatch,2020-12-07,True
+305_S_6744,I1183115,Date mismatch,2019-06-29,True
+305_S_6744,I1476165,Date mismatch,2021-08-03,True
+305_S_6744,I1611750,Date mismatch,2022-08-04,True
+305_S_6744,I11382562,Date mismatch,2025-07-23,True
+305_S_6744,I11382563,Date mismatch,2025-07-23,True
+305_S_6742,I1179350,Date mismatch,2019-06-22,True
+305_S_6742,I1604220,Date mismatch,2020-08-04,True
+305_S_6742,I11038245,Date mismatch,2021-08-11,True
+305_S_6631,I1078744,Image ID not found in MRI_PET_IDs,,
+305_S_6498,I1019281,Date mismatch,2018-07-09,True
+305_S_6498,I1237279,Date mismatch,2019-10-04,True
+305_S_6498,I1603176,Date mismatch,2021-10-06,True
+305_S_6498,I10952545,Date mismatch,2024-09-16,True
+305_S_6498,I10952546,Date mismatch,2024-09-16,True
+305_S_6438,I1010091,Image ID not found in MRI_PET_IDs,,
+305_S_6378,I1000885,Date mismatch,2018-05-19,True
+305_S_6378,I1168378,Date mismatch,2019-05-24,True
+305_S_6378,I1320868,Date mismatch,2020-06-11,True
+305_S_6378,I1604265,Date mismatch,2021-05-24,True
+305_S_6313,I984775,Date mismatch,2018-04-11,True
+305_S_6313,I1315300,Date mismatch,2020-05-06,True
+305_S_6313,I11253978,Date mismatch,2025-04-24,True
+305_S_6313,I11253979,Date mismatch,2025-04-24,True
+305_S_6188,I968581,Date mismatch,2018-02-27,True
+305_S_6188,I1604202,Date mismatch,2020-08-07,True
+305_S_6157,I1293292,Date mismatch,2020-02-19,True
+305_S_6157,I958026,Date mismatch,2018-01-26,True
+305_S_10806,I11315017,Subject not found in UPENN,2025-06-11,False
+305_S_10806,I11315018,Subject not found in UPENN,2025-06-11,False
+305_S_10713,I11311295,Image ID not found in MRI_PET_IDs,,
+305_S_10713,I11311296,Image ID not found in MRI_PET_IDs,,
+305_S_10709,I11328379,Subject not found in UPENN,2025-06-20,False
+305_S_10709,I11328380,Subject not found in UPENN,2025-06-20,False
+305_S_10674,I11261392,Image ID not found in MRI_PET_IDs,,
+305_S_10674,I11261393,Image ID not found in MRI_PET_IDs,,
+305_S_10404,I11081123,Subject not found in UPENN,2024-12-18,False
+305_S_10396,I11143447,Image ID not found in MRI_PET_IDs,,
+305_S_10396,I11143448,Image ID not found in MRI_PET_IDs,,
+305_S_10311,I11049930,Date mismatch,2024-10-31,True
+305_S_10311,I11049931,Date mismatch,2024-10-31,True
+305_S_10282,I11036084,Date mismatch,2024-10-18,True
+305_S_10282,I11036085,Date mismatch,2024-10-18,True
+301_S_6811,I1224533,Date mismatch,2019-09-09,True
+301_S_6811,I11128589,Date mismatch,2025-02-24,True
+301_S_6811,I11128591,Date mismatch,2025-02-24,True
+301_S_6777,I1201782,Date mismatch,2019-08-12,True
+301_S_6698,I1149157,Image ID not found in MRI_PET_IDs,,
+301_S_6615,I1064254,Date mismatch,2018-10-24,True
+301_S_6615,I1262877,Date mismatch,2019-12-06,True
+301_S_6592,I1063917,Date mismatch,2018-10-23,True
+301_S_6592,I1258251,Date mismatch,2019-11-19,True
+301_S_6508,I1032143,Image ID not found in MRI_PET_IDs,,
+301_S_6501,I1020325,Image ID not found in MRI_PET_IDs,,
+301_S_6326,I989757,Date mismatch,2018-04-26,True
+301_S_6326,I1173839,Date mismatch,2019-06-06,True
+301_S_6326,I1316573,Date mismatch,2020-06-10,True
+301_S_6326,I1453802,Date mismatch,2021-06-10,True
+301_S_6297,I981719,Date mismatch,2018-04-05,True
+301_S_6297,I1168933,Date mismatch,2019-05-28,True
+301_S_6297,I1312864,Date mismatch,2020-05-14,True
+301_S_6297,I1431198,Date mismatch,2021-04-13,True
+301_S_6224,I963152,Date mismatch,2018-02-13,True
+301_S_6224,I963153,Date mismatch,2018-02-13,True
+301_S_6224,I1387622,Date mismatch,2020-12-11,True
+301_S_6056,I882167,Date mismatch,2017-08-02,True
+301_S_6056,I1040207,Date mismatch,2018-08-22,True
+301_S_6056,I1224051,Date mismatch,2019-09-06,True
+301_S_6056,I1489819,Date mismatch,2021-09-09,True
+301_S_6056,I11451757,Date mismatch,2025-09-24,True
+301_S_10875,I11359912,Subject not found in UPENN,2025-07-16,False
+301_S_10875,I11359924,Subject not found in UPENN,2025-07-16,False
+301_S_10770,I11342300,Subject not found in UPENN,2025-05-15,False
+301_S_10770,I11342301,Subject not found in UPENN,2025-05-15,False
+301_S_10769,I11282438,Subject not found in UPENN,2025-05-12,False
+301_S_10769,I11282437,Subject not found in UPENN,2025-05-12,False
+301_S_10762,I11253968,Subject not found in UPENN,2025-05-02,False
+301_S_10762,I11253969,Subject not found in UPENN,2025-05-02,False
+301_S_10623,I11164485,Image ID not found in MRI_PET_IDs,,
+301_S_10623,I11164486,Image ID not found in MRI_PET_IDs,,
+301_S_10577,I11165448,Image ID not found in MRI_PET_IDs,,
+301_S_10577,I11165449,Image ID not found in MRI_PET_IDs,,
+301_S_10389,I11067760,Image ID not found in MRI_PET_IDs,,
+301_S_10389,I11067761,Image ID not found in MRI_PET_IDs,,
+301_S_10370,I11061125,Date mismatch,2024-11-21,True
+301_S_10247,I10947564,Date mismatch,2024-09-10,True
+301_S_10247,I10947565,Date mismatch,2024-09-10,True
+301_S_10230,I10939738,Image ID not found in MRI_PET_IDs,,
+301_S_10230,I10939739,Image ID not found in MRI_PET_IDs,,
+301_S_10194,I10913996,Date mismatch,2024-08-09,True
+301_S_10194,I10913997,Date mismatch,2024-08-09,True
+301_S_10139,I10666918,Date mismatch,2024-06-12,True
+301_S_10139,I10666919,Date mismatch,2024-06-12,True
+301_S_10123,I10898951,Date mismatch,2024-05-29,True
+301_S_10123,I11426977,Date mismatch,2025-08-26,True
+301_S_10123,I11426978,Date mismatch,2025-08-26,True
+177_S_6448,I1018523,Subject not found in UPENN,2018-07-03,False
+177_S_6448,I1340855,Subject not found in UPENN,2020-09-16,False
+177_S_6420,I1014139,Image ID not found in MRI_PET_IDs,,
+177_S_6409,I1029048,Date mismatch,2018-06-20,True
+177_S_6409,I1327480,Date mismatch,2020-07-24,True
+177_S_6408,I1008024,Date mismatch,2018-06-06,True
+177_S_6335,I995457,Date mismatch,2018-05-09,True
+177_S_6335,I1327456,Date mismatch,2020-07-22,True
+177_S_6328,I992799,Date mismatch,2018-05-04,True
+168_S_6938,I1444117,Image ID not found in MRI_PET_IDs,,
+168_S_6921,I1428762,Image ID not found in MRI_PET_IDs,,
+168_S_6921,I1622124,Image ID not found in MRI_PET_IDs,,
+168_S_6908,I1416081,Image ID not found in MRI_PET_IDs,,
+168_S_6908,I10888795,Image ID not found in MRI_PET_IDs,,
+168_S_6902,I1406556,Image ID not found in MRI_PET_IDs,,
+168_S_6875,I1319217,Date mismatch,2020-06-29,True
+168_S_6875,I1667251,Date mismatch,2023-02-15,True
+168_S_6875,I1667252,Date mismatch,2023-02-15,True
+168_S_6875,I1667254,Date mismatch,2023-02-15,True
+168_S_6875,I1667255,Date mismatch,2023-02-15,True
+168_S_6875,I1667256,Date mismatch,2023-02-15,True
+168_S_6874,I1318866,Subject not found in UPENN,2020-06-22,False
+168_S_6874,I1667505,Subject not found in UPENN,2023-02-17,False
+168_S_6874,I1667506,Subject not found in UPENN,2023-02-17,False
+168_S_6874,I1667508,Subject not found in UPENN,2023-02-17,False
+168_S_6874,I1667509,Subject not found in UPENN,2023-02-17,False
+168_S_6874,I1667510,Subject not found in UPENN,2023-02-17,False
+168_S_6874,I1667511,Subject not found in UPENN,2023-02-17,False
+168_S_6874,I1667512,Subject not found in UPENN,2023-02-17,False
+168_S_6874,I1667513,Subject not found in UPENN,2023-02-17,False
+168_S_6873,I1318202,Image ID not found in MRI_PET_IDs,,
+168_S_6860,I1300003,Date mismatch,2020-03-05,True
+168_S_6851,I1295865,Image ID not found in MRI_PET_IDs,,
+168_S_6851,I1295866,Image ID not found in MRI_PET_IDs,,
+168_S_6843,I1275415,Date mismatch,2020-01-14,True
+168_S_6828,I1240482,Date mismatch,2019-10-14,True
+168_S_6828,I1398870,Date mismatch,2021-01-11,True
+168_S_6828,I1561917,Date mismatch,2022-03-25,True
+168_S_6828,I1561918,Date mismatch,2022-03-25,True
+168_S_6827,I1239535,Image ID not found in MRI_PET_IDs,,
+168_S_6821,I1244550,Subject not found in UPENN,2019-10-23,False
+168_S_6821,I1390871,Subject not found in UPENN,2020-12-18,False
+168_S_6817,I1236269,Image ID not found in MRI_PET_IDs,,
+168_S_6815,I1233189,Image ID not found in MRI_PET_IDs,,
+168_S_6754,I1181679,Date mismatch,2019-06-27,True
+168_S_6754,I1343923,Date mismatch,2020-09-28,True
+168_S_6754,I1638162,Date mismatch,2022-10-28,True
+168_S_6735,I1175356,Date mismatch,2019-06-07,True
+168_S_6735,I1175362,Date mismatch,2019-06-07,True
+168_S_6634,I1081492,Date mismatch,2018-11-27,True
+168_S_6634,I1296556,Date mismatch,2020-02-26,True
+168_S_6634,I1411687,Date mismatch,2021-02-16,True
+168_S_6634,I10240796,Date mismatch,2023-07-05,True
+168_S_6634,I10240797,Date mismatch,2023-07-05,True
+168_S_6634,I10240800,Date mismatch,2023-07-05,True
+168_S_6634,I10240801,Date mismatch,2023-07-05,True
+168_S_6634,I10240802,Date mismatch,2023-07-05,True
+168_S_6619,I1069896,Date mismatch,2018-11-05,True
+168_S_6619,I1267220,Date mismatch,2019-12-16,True
+168_S_6619,I1382659,Date mismatch,2020-12-07,True
+168_S_6591,I1054570,Date mismatch,2018-10-01,True
+168_S_6591,I1274614,Date mismatch,2020-01-10,True
+168_S_6591,I1378374,Date mismatch,2020-11-25,True
+168_S_6561,I1040031,Image ID not found in MRI_PET_IDs,,
+168_S_6561,I1040036,Image ID not found in MRI_PET_IDs,,
+168_S_6541,I1036163,Date mismatch,2018-08-15,True
+168_S_6541,I1237998,Date mismatch,2019-10-08,True
+168_S_6541,I1385427,Date mismatch,2020-12-10,True
+168_S_6541,I1586427,Date mismatch,2022-06-02,True
+168_S_6492,I1031685,Date mismatch,2018-08-06,True
+168_S_6467,I1017238,Date mismatch,2018-07-05,True
+168_S_6467,I1235482,Date mismatch,2019-10-02,True
+168_S_6426,I1015398,Date mismatch,2018-06-29,True
+168_S_6426,I1241416,Date mismatch,2019-10-16,True
+168_S_6413,I1008547,Date mismatch,2018-06-11,True
+168_S_6413,I1346152,Date mismatch,2020-10-06,True
+168_S_6371,I998432,Date mismatch,2018-05-16,True
+168_S_6371,I998437,Date mismatch,2018-05-16,True
+168_S_6371,I1352191,Date mismatch,2020-10-22,True
+168_S_6371,I10248334,Date mismatch,2023-07-27,True
+168_S_6371,I10248335,Date mismatch,2023-07-27,True
+168_S_6371,I10248336,Date mismatch,2023-07-27,True
+168_S_6371,I10248341,Date mismatch,2023-07-27,True
+168_S_6371,I10248342,Date mismatch,2023-07-27,True
+168_S_6371,I10248343,Date mismatch,2023-07-27,True
+168_S_6371,I10248344,Date mismatch,2023-07-27,True
+168_S_6371,I10248345,Date mismatch,2023-07-27,True
+168_S_6350,I997533,Date mismatch,2018-05-14,True
+168_S_6350,I1381875,Date mismatch,2020-12-03,True
+168_S_6350,I1616503,Date mismatch,2022-08-26,True
+168_S_6321,I992613,Date mismatch,2018-05-03,True
+168_S_6321,I1351301,Date mismatch,2020-10-21,True
+168_S_6321,I1603690,Date mismatch,2022-07-06,True
+168_S_6321,I10867181,Date mismatch,2024-07-01,True
+168_S_6320,I992584,Date mismatch,2018-05-03,True
+168_S_6320,I1349784,Date mismatch,2020-10-15,True
+168_S_6320,I1603670,Date mismatch,2022-07-06,True
+168_S_6320,I10887668,Date mismatch,2024-06-28,True
+168_S_6318,I987768,Date mismatch,2018-04-19,True
+168_S_6285,I986205,Subject not found in UPENN,2018-04-17,False
+168_S_6281,I983641,Subject not found in UPENN,2018-04-09,False
+168_S_6233,I968225,Date mismatch,2018-02-26,True
+168_S_6233,I1348596,Date mismatch,2020-10-13,True
+168_S_6180,I958678,Date mismatch,2018-01-30,True
+168_S_6180,I1151926,Date mismatch,2019-04-08,True
+168_S_6180,I1359777,Date mismatch,2020-10-30,True
+168_S_6180,I1359778,Date mismatch,2020-10-30,True
+168_S_6180,I1610176,Date mismatch,2022-07-28,True
+168_S_6151,I947540,Date mismatch,2017-12-19,True
+168_S_6151,I1304737,Date mismatch,2020-03-18,True
+168_S_6151,I1612776,Date mismatch,2022-08-12,True
+168_S_6142,I946980,Date mismatch,2017-12-18,True
+168_S_6142,I1167318,Date mismatch,2019-05-20,True
+168_S_6142,I1299334,Date mismatch,2020-03-04,True
+168_S_6131,I951181,Image ID not found in MRI_PET_IDs,,
+168_S_6128,I945134,Image ID not found in MRI_PET_IDs,,
+168_S_6121,I944772,Image ID not found in MRI_PET_IDs,,
+168_S_6108,I930626,Image ID not found in MRI_PET_IDs,,
+168_S_6107,I930689,Image ID not found in MRI_PET_IDs,,
+168_S_6098,I925573,Image ID not found in MRI_PET_IDs,,
+168_S_6086,I917090,Image ID not found in MRI_PET_IDs,,
+168_S_6085,I916399,Date mismatch,2017-10-03,True
+168_S_6085,I1304804,Date mismatch,2020-03-19,True
+168_S_6085,I10236661,Date mismatch,2023-06-20,True
+168_S_6085,I10236662,Date mismatch,2023-06-20,True
+168_S_6085,I10236670,Date mismatch,2023-06-20,True
+168_S_6085,I10236671,Date mismatch,2023-06-20,True
+168_S_6085,I10236672,Date mismatch,2023-06-20,True
+168_S_6065,I900796,Date mismatch,2017-09-05,True
+168_S_6065,I1284408,Date mismatch,2020-02-03,True
+168_S_6065,I1609624,Date mismatch,2022-07-27,True
+168_S_6065,I11452781,Date mismatch,2025-09-29,True
+168_S_6064,I899030,Subject not found in UPENN,2017-08-24,False
+168_S_6062,I892771,Date mismatch,2017-08-17,True
+168_S_6062,I1280182,Date mismatch,2020-01-27,True
+168_S_6062,I11438928,Date mismatch,2025-09-12,True
+168_S_6059,I892759,Date mismatch,2017-08-14,True
+168_S_6059,I1256135,Date mismatch,2019-11-13,True
+168_S_6051,I874879,Date mismatch,2017-07-13,True
+168_S_6051,I1252024,Date mismatch,2019-10-31,True
+168_S_6049,I916365,Date mismatch,2017-10-11,True
+168_S_6049,I1348108,Date mismatch,2020-10-12,True
+158_S_10862,I11427784,Subject not found in UPENN,2025-08-07,False
+158_S_10862,I11427785,Subject not found in UPENN,2025-08-07,False
+158_S_10861,I11427814,Subject not found in UPENN,2025-07-21,False
+158_S_10861,I11427815,Subject not found in UPENN,2025-07-21,False
+158_S_10850,I11448624,Subject not found in UPENN,2025-07-18,False
+158_S_10843,I11433172,Subject not found in UPENN,2025-07-18,False
+158_S_10817,I11427802,Subject not found in UPENN,2025-07-22,False
+158_S_10817,I11427803,Subject not found in UPENN,2025-07-22,False
+158_S_10782,I11427808,Subject not found in UPENN,2025-07-22,False
+158_S_10782,I11427809,Subject not found in UPENN,2025-07-22,False
+158_S_10754,I11427790,Subject not found in UPENN,2025-07-25,False
+158_S_10754,I11427791,Subject not found in UPENN,2025-07-25,False
+158_S_10714,I11315011,Subject not found in UPENN,2025-06-04,False
+158_S_10714,I11315012,Subject not found in UPENN,2025-06-04,False
+158_S_10691,I11314994,Image ID not found in MRI_PET_IDs,,
+158_S_10691,I11314995,Image ID not found in MRI_PET_IDs,,
+153_S_6755,I1181918,Date mismatch,2019-06-19,True
+153_S_6679,I1475674,Date mismatch,2021-05-07,True
+153_S_6665,I1116063,Image ID not found in MRI_PET_IDs,,
+153_S_6450,I1017654,Subject not found in UPENN,2018-07-05,False
+153_S_6336,I994530,Date mismatch,2018-05-03,True
+153_S_6336,I1168874,Date mismatch,2019-05-21,True
+153_S_6274,I976984,Date mismatch,2018-03-22,True
+153_S_6237,I970943,Date mismatch,2018-02-27,True
+141_S_7013,I1510289,Date mismatch,2021-10-28,True
+141_S_7013,I1510290,Date mismatch,2021-10-28,True
+141_S_6964,I1466184,Date mismatch,2021-06-23,True
+141_S_6964,I1466185,Date mismatch,2021-06-23,True
+141_S_6872,I1324187,Date mismatch,2020-07-23,True
+141_S_6872,I1324201,Date mismatch,2020-07-23,True
+141_S_6787,I1207265,Image ID not found in MRI_PET_IDs,,
+141_S_6787,I1207290,Image ID not found in MRI_PET_IDs,,
+141_S_6779,I1360614,Date mismatch,2020-10-27,True
+141_S_6779,I1360617,Date mismatch,2020-10-27,True
+141_S_6589,I1072741,Date mismatch,2018-11-07,True
+141_S_6589,I1072748,Date mismatch,2018-11-07,True
+141_S_6423,I1018387,Date mismatch,2018-06-28,True
+141_S_6423,I1018391,Date mismatch,2018-06-28,True
+141_S_6416,I1018186,Date mismatch,2018-06-30,True
+141_S_6416,I1511356,Date mismatch,2021-11-01,True
+141_S_6416,I1511357,Date mismatch,2021-11-01,True
+141_S_6253,I974714,Date mismatch,2018-03-18,True
+141_S_6253,I974718,Date mismatch,2018-03-18,True
+141_S_6253,I1331108,Date mismatch,2020-08-25,True
+141_S_6253,I1331113,Date mismatch,2020-08-25,True
+141_S_6240,I974280,Date mismatch,2018-03-11,True
+141_S_6240,I974282,Date mismatch,2018-03-11,True
+141_S_6178,I961814,Date mismatch,2018-02-08,True
+141_S_6178,I961824,Date mismatch,2018-02-08,True
+141_S_6178,I1136571,Date mismatch,2019-02-27,True
+141_S_6178,I1136580,Date mismatch,2019-02-27,True
+141_S_6178,I1299105,Date mismatch,2020-02-25,True
+141_S_6178,I1299107,Date mismatch,2020-02-25,True
+141_S_6116,I935949,Date mismatch,2017-11-19,True
+141_S_6116,I935952,Date mismatch,2017-11-19,True
+141_S_6116,I1264666,Date mismatch,2019-12-10,True
+141_S_6116,I1264670,Date mismatch,2019-12-10,True
+141_S_6116,I1523003,Date mismatch,2021-12-06,True
+141_S_6116,I1523005,Date mismatch,2021-12-06,True
+141_S_6116,I1562938,Date mismatch,2019-01-02,True
+141_S_6075,I911531,Date mismatch,2017-09-26,True
+141_S_6075,I911540,Date mismatch,2017-09-26,True
+141_S_6075,I1256853,Date mismatch,2019-10-22,True
+141_S_6075,I1256856,Date mismatch,2019-10-22,True
+141_S_6061,I887919,Date mismatch,2017-08-13,True
+141_S_6061,I887923,Date mismatch,2017-08-13,True
+141_S_6061,I1116404,Date mismatch,2019-01-14,True
+141_S_6061,I1116406,Date mismatch,2019-01-14,True
+141_S_6061,I1229457,Date mismatch,2019-09-11,True
+141_S_6061,I1229464,Date mismatch,2019-09-11,True
+141_S_6042,I883189,Image ID not found in MRI_PET_IDs,,
+141_S_6042,I883190,Image ID not found in MRI_PET_IDs,,
+141_S_6041,I871835,Date mismatch,2017-07-06,True
+141_S_6041,I871844,Date mismatch,2017-07-06,True
+141_S_6015,I851352,Date mismatch,2017-05-11,True
+141_S_6015,I851353,Date mismatch,2017-05-11,True
+141_S_6015,I1170887,Date mismatch,2019-05-31,True
+141_S_6015,I1170893,Date mismatch,2019-05-31,True
+141_S_6015,I1472512,Date mismatch,2021-07-22,True
+141_S_6015,I1472513,Date mismatch,2021-07-22,True
+141_S_6008,I839474,Date mismatch,2017-04-12,True
+141_S_6008,I1101652,Date mismatch,2018-12-27,True
+141_S_6008,I1101657,Date mismatch,2018-12-27,True
+141_S_6008,I1170869,Date mismatch,2019-05-24,True
+141_S_6008,I1170878,Date mismatch,2019-05-24,True
+141_S_6008,I1475752,Date mismatch,2021-08-02,True
+141_S_6008,I1475753,Date mismatch,2021-08-02,True
+141_S_4160,I872942,Date mismatch,2017-07-10,True
+141_S_4160,I872948,Date mismatch,2017-07-10,True
+141_S_4160,I1028398,Date mismatch,2018-07-29,True
+141_S_4160,I1028415,Date mismatch,2018-07-29,True
+141_S_2333,I949424,Subject not found in UPENN,2017-12-21,False
+141_S_2333,I949429,Subject not found in UPENN,2017-12-21,False
+141_S_2333,I1270525,Subject not found in UPENN,2019-12-20,False
+141_S_2333,I1270526,Subject not found in UPENN,2019-12-20,False
+141_S_2333,I1100458,Subject not found in UPENN,2018-12-26,False
+141_S_2333,I1100469,Subject not found in UPENN,2018-12-26,False
+141_S_2333,I1473903,Subject not found in UPENN,2021-07-26,False
+141_S_2333,I1473902,Subject not found in UPENN,2021-07-26,False
+141_S_2333,I1473901,Subject not found in UPENN,2021-07-26,False
+141_S_2333,I1473900,Subject not found in UPENN,2021-07-26,False
+141_S_1378,I858503,Subject not found in UPENN,2017-06-03,False
+141_S_1378,I858504,Subject not found in UPENN,2017-06-03,False
+141_S_1378,I1161827,Subject not found in UPENN,2019-05-02,False
+141_S_1378,I1161837,Subject not found in UPENN,2019-05-02,False
+141_S_1052,I842509,Subject not found in UPENN,2017-04-19,False
+141_S_1052,I842513,Subject not found in UPENN,2017-04-19,False
+141_S_1052,I1028485,Subject not found in UPENN,2018-07-28,False
+141_S_1052,I1028491,Subject not found in UPENN,2018-07-28,False
+141_S_1052,I1146962,Subject not found in UPENN,2019-03-25,False
+141_S_1052,I1146964,Subject not found in UPENN,2019-03-25,False
+141_S_1052,I1478685,Subject not found in UPENN,2021-08-09,False
+141_S_1052,I1478686,Subject not found in UPENN,2021-08-09,False
+141_S_0767,I845574,Date mismatch,2017-04-29,True
+141_S_0767,I845577,Date mismatch,2017-04-29,True
+141_S_0767,I1152079,Date mismatch,2019-04-08,True
+141_S_0767,I1152086,Date mismatch,2019-04-08,True
+141_S_0767,I1471354,Date mismatch,2021-07-20,True
+141_S_0767,I1471355,Date mismatch,2021-07-20,True
+137_S_6919,I1439486,Date mismatch,2021-05-05,True
+137_S_6919,I10546553,Date mismatch,2024-02-09,True
+137_S_6919,I11202752,Date mismatch,2025-04-17,True
+137_S_6906,I1454373,Date mismatch,2021-06-14,True
+137_S_6906,I11202739,Date mismatch,2025-04-17,True
+137_S_6903,I1457865,Date mismatch,2021-06-18,True
+137_S_6883,I1356513,Date mismatch,2020-10-28,True
+137_S_6880,I1360078,Date mismatch,2020-10-30,True
+137_S_6826,I1242424,Image ID not found in MRI_PET_IDs,,
+137_S_6812,I1271678,Image ID not found in MRI_PET_IDs,,
+137_S_6794,I1222159,Image ID not found in MRI_PET_IDs,,
+137_S_6693,I1213937,Date mismatch,2019-08-19,True
+137_S_6693,I1417015,Date mismatch,2021-02-22,True
+137_S_6693,I10974329,Date mismatch,2024-10-09,True
+137_S_6685,I1149044,Image ID not found in MRI_PET_IDs,,
+137_S_6659,I1120026,Image ID not found in MRI_PET_IDs,,
+137_S_6654,I1116661,Date mismatch,2018-12-31,True
+137_S_6576,I1052753,Image ID not found in MRI_PET_IDs,,
+137_S_6576,I1052754,Image ID not found in MRI_PET_IDs,,
+137_S_6557,I1043627,Image ID not found in MRI_PET_IDs,,
+137_S_6060,I915810,Image ID not found in MRI_PET_IDs,,
+137_S_4862,I1056754,Subject not found in UPENN,2018-10-05,False
+137_S_4862,I1225162,Subject not found in UPENN,2019-09-10,False
+137_S_4862,I1349925,Subject not found in UPENN,2020-10-16,False
+137_S_4862,I1349926,Subject not found in UPENN,2020-10-16,False
+137_S_4631,I1116491,Date mismatch,2019-01-15,True
+137_S_4631,I1116492,Date mismatch,2019-01-15,True
+137_S_4631,I1282848,Date mismatch,2020-01-30,True
+137_S_4631,I1416995,Date mismatch,2021-03-02,True
+137_S_4536,I925981,Subject not found in UPENN,2017-11-02,False
+137_S_4536,I1070885,Subject not found in UPENN,2018-11-07,False
+137_S_4536,I1070886,Subject not found in UPENN,2018-11-07,False
+137_S_4536,I1257058,Subject not found in UPENN,2019-11-15,False
+137_S_4536,I1370463,Subject not found in UPENN,2020-11-17,False
+137_S_4536,I1370464,Subject not found in UPENN,2020-11-17,False
+137_S_4520,I929121,Subject not found in UPENN,2017-11-08,False
+137_S_4520,I1266559,Subject not found in UPENN,2019-12-13,False
+137_S_4520,I1366966,Subject not found in UPENN,2020-11-12,False
+137_S_4520,I1553534,Subject not found in UPENN,2022-03-07,False
+137_S_4482,I926793,Subject not found in UPENN,2017-11-03,False
+137_S_4482,I1246441,Subject not found in UPENN,2019-10-28,False
+137_S_4466,I942799,Subject not found in UPENN,2017-12-05,False
+137_S_4351,I925099,Date mismatch,2017-10-31,True
+137_S_4351,I1326350,Date mismatch,2020-07-30,True
+137_S_4351,I11436968,Date mismatch,2025-09-11,True
+137_S_4299,I923591,Subject not found in UPENN,2017-10-27,False
+137_S_4299,I1130785,Subject not found in UPENN,2019-02-11,False
+137_S_10671,I11202765,Subject not found in UPENN,2025-04-17,False
+137_S_10670,I11298366,Image ID not found in MRI_PET_IDs,,
+137_S_10447,I11200562,Subject not found in UPENN,2025-04-15,False
+137_S_10428,I11201510,Image ID not found in MRI_PET_IDs,,
+137_S_10285,I11042583,Date mismatch,2024-11-04,True
+137_S_10250,I10988402,Image ID not found in MRI_PET_IDs,,
+137_S_10079,I11095630,Date mismatch,2024-04-02,True
+137_S_10077,I10938775,Date mismatch,2024-09-04,True
+137_S_10058,I10971004,Image ID not found in MRI_PET_IDs,,
+137_S_10057,I10387593,Date mismatch,2024-03-18,True
+137_S_10057,I11261378,Date mismatch,2025-05-07,True
+135_S_7003,I1494216,Date mismatch,2021-09-20,True
+135_S_7003,I1494217,Date mismatch,2021-09-20,True
+135_S_6840,I1263423,Date mismatch,2019-12-05,True
+135_S_6703,I1147711,Date mismatch,2019-03-26,True
+135_S_6703,I1147712,Date mismatch,2019-03-26,True
+135_S_6703,I1326436,Date mismatch,2020-07-30,True
+135_S_6703,I1434111,Date mismatch,2021-04-20,True
+135_S_6703,I1574853,Date mismatch,2022-03-28,True
+135_S_6703,I1691098,Date mismatch,2023-04-17,True
+135_S_6687,I1142635,Date mismatch,2019-03-05,True
+135_S_6622,I1068508,Date mismatch,2018-11-02,True
+135_S_6622,I1251628,Date mismatch,2019-10-31,True
+135_S_6622,I1523844,Date mismatch,2021-12-08,True
+135_S_6586,I1049755,Date mismatch,2018-09-19,True
+135_S_6586,I1349517,Date mismatch,2020-10-15,True
+135_S_6586,I1503691,Date mismatch,2021-10-12,True
+135_S_6586,I1636119,Date mismatch,2022-10-26,True
+135_S_6545,I1039632,Date mismatch,2018-08-21,True
+135_S_6545,I1226543,Date mismatch,2019-09-13,True
+135_S_6544,I1033498,Date mismatch,2018-08-10,True
+135_S_6544,I1235766,Date mismatch,2019-10-02,True
+135_S_6544,I1344372,Date mismatch,2020-09-30,True
+135_S_6544,I1570979,Date mismatch,2021-09-09,True
+135_S_6544,I1672814,Date mismatch,2022-09-27,True
+135_S_6544,I10281597,Date mismatch,2023-10-20,True
+135_S_6544,I11479096,Date mismatch,2025-10-31,True
+135_S_6510,I1023583,Date mismatch,2018-07-19,True
+135_S_6510,I1215774,Date mismatch,2019-08-23,True
+135_S_6510,I1329845,Date mismatch,2020-08-19,True
+135_S_6510,I1615467,Date mismatch,2022-08-24,True
+135_S_6509,I1021751,Date mismatch,2018-07-16,True
+135_S_6509,I1195531,Date mismatch,2019-08-06,True
+135_S_6509,I1328524,Date mismatch,2020-08-12,True
+135_S_6509,I1613196,Date mismatch,2022-08-10,True
+135_S_6473,I1015812,Date mismatch,2018-06-29,True
+135_S_6473,I1637836,Date mismatch,2022-11-01,True
+135_S_6473,I11283861,Date mismatch,2025-04-03,True
+135_S_6446,I1012942,Date mismatch,2018-06-21,True
+135_S_6446,I1185903,Date mismatch,2019-07-11,True
+135_S_6446,I1320847,Date mismatch,2020-07-14,True
+135_S_6446,I1463585,Date mismatch,2021-07-06,True
+135_S_6446,I10243121,Date mismatch,2023-07-12,True
+135_S_6446,I11348868,Date mismatch,2025-07-16,True
+135_S_6411,I1005341,Date mismatch,2018-06-04,True
+135_S_6411,I1331222,Date mismatch,2020-08-26,True
+135_S_6411,I1453160,Date mismatch,2021-06-09,True
+135_S_6411,I1591979,Date mismatch,2022-06-17,True
+135_S_6411,I10238728,Date mismatch,2023-06-23,True
+135_S_6389,I1003730,Date mismatch,2018-05-29,True
+135_S_6389,I1325980,Date mismatch,2020-07-29,True
+135_S_6360,I1000359,Date mismatch,2018-05-21,True
+135_S_6360,I1587380,Date mismatch,2022-06-06,True
+135_S_6359,I996107,Date mismatch,2018-05-10,True
+135_S_6359,I1180846,Date mismatch,2019-06-26,True
+135_S_6284,I991768,Date mismatch,2018-05-02,True
+135_S_6284,I1164436,Date mismatch,2019-05-13,True
+135_S_6110,I931630,Date mismatch,2017-11-15,True
+135_S_6110,I1256452,Date mismatch,2019-11-14,True
+135_S_6110,I1376876,Date mismatch,2020-11-23,True
+135_S_6104,I928920,Date mismatch,2017-11-08,True
+135_S_6104,I1257943,Date mismatch,2019-11-18,True
+135_S_6104,I1512337,Date mismatch,2021-11-03,True
+135_S_5113,I870994,Date mismatch,2017-07-05,True
+135_S_5113,I1188694,Date mismatch,2019-07-18,True
+135_S_5113,I1467439,Date mismatch,2021-07-13,True
+135_S_4723,I862838,Date mismatch,2017-06-21,True
+135_S_4723,I1017893,Date mismatch,2018-07-06,True
+135_S_4723,I1180387,Date mismatch,2019-06-25,True
+135_S_4723,I1319314,Date mismatch,2020-06-30,True
+135_S_4723,I1457424,Date mismatch,2021-06-18,True
+135_S_4723,I1595280,Date mismatch,2022-06-21,True
+135_S_4723,I11224381,Date mismatch,2025-04-28,True
+135_S_4722,I863101,Date mismatch,2017-06-22,True
+135_S_4722,I1017753,Date mismatch,2018-07-06,True
+135_S_4722,I1180418,Date mismatch,2019-06-25,True
+135_S_4722,I1319324,Date mismatch,2020-06-30,True
+135_S_4722,I1456919,Date mismatch,2021-06-17,True
+135_S_4722,I1594276,Date mismatch,2022-06-21,True
+135_S_4722,I11224385,Date mismatch,2025-04-28,True
+135_S_4598,I878250,Date mismatch,2017-07-24,True
+135_S_4598,I1199310,Date mismatch,2019-08-09,True
+135_S_4598,I1471033,Date mismatch,2021-07-20,True

@@ -1,0 +1,611 @@
+subject_id,id_mri,reason,study_date,closest_upenn_date,days_diff
+941_S_7106,I1619403,Image ID not found in MRI_PET_IDs,,,
+941_S_7087,I1591321,Image ID not found in MRI_PET_IDs,,,
+941_S_7074,I1588331,No match within time window,2022-05-03,2023-09-19,504.0
+941_S_7074,I11455284,No match within time window,2025-10-01,2023-09-19,743.0
+941_S_7051,I1553005,No match within time window,2022-03-07,2024-05-29,814.0
+941_S_7051,I11291622,No match within time window,2025-05-19,2024-05-29,355.0
+941_S_6998,I1486321,No match within time window,2021-08-30,2023-09-25,756.0
+941_S_6998,I11438942,No match within time window,2025-09-12,2023-09-25,718.0
+941_S_6854,I1291638,No match within time window,2020-02-14,2022-02-22,739.0
+941_S_6854,I1428390,No match within time window,2021-04-05,2022-02-22,323.0
+941_S_6607,I1062898,Image ID not found in MRI_PET_IDs,,,
+941_S_6581,I1343754,No match within time window,2020-09-25,2018-09-18,738.0
+941_S_6581,I1631084,No match within time window,2022-10-17,2023-12-14,423.0
+941_S_6580,I1046736,No match within time window,2018-09-07,2019-09-24,382.0
+941_S_6580,I1343715,No match within time window,2020-09-28,2019-09-24,370.0
+941_S_6580,I1624283,No match within time window,2022-09-30,2023-10-25,390.0
+941_S_6575,I1045984,No match within time window,2018-09-05,2019-09-16,376.0
+941_S_6575,I1360295,No match within time window,2020-11-02,2019-09-16,413.0
+941_S_6574,I1046899,No match within time window,2018-09-07,2023-11-01,1881.0
+941_S_6574,I1046901,No match within time window,2018-09-07,2023-11-01,1881.0
+941_S_6574,I1360551,No match within time window,2020-11-02,2023-11-01,1094.0
+941_S_6574,I1641654,No match within time window,2022-11-14,2023-11-01,352.0
+941_S_6570,I1621706,No match within time window,2022-09-20,2024-08-26,706.0
+941_S_6546,I1344417,No match within time window,2020-09-30,2018-09-12,749.0
+941_S_6546,I1624954,No match within time window,2022-10-03,2023-11-08,401.0
+941_S_6499,I1621068,No match within time window,2022-09-16,2023-10-17,396.0
+941_S_6499,I1335865,No match within time window,2020-09-14,2018-08-20,756.0
+941_S_6496,I1022057,Image ID not found in MRI_PET_IDs,,,
+941_S_6495,I1021968,Image ID not found in MRI_PET_IDs,,,
+941_S_6471,I1016136,No match within time window,2018-07-02,2022-08-24,1514.0
+941_S_6471,I1332450,No match within time window,2020-09-01,2022-08-24,722.0
+941_S_6454,I1336238,No match within time window,2020-09-16,2018-08-15,763.0
+941_S_6454,I1615979,No match within time window,2022-08-22,2018-08-15,1468.0
+941_S_6422,I1010650,No match within time window,2018-06-13,2022-10-24,1594.0
+941_S_6422,I1559923,No match within time window,2020-10-19,2022-10-24,735.0
+941_S_6392,I1005030,Image ID not found in MRI_PET_IDs,,,
+941_S_6384,I1584280,No match within time window,2022-05-25,2024-04-30,706.0
+941_S_6345,I1169375,No match within time window,2019-05-29,2018-06-04,359.0
+941_S_6345,I1335422,No match within time window,2020-09-08,2018-06-04,827.0
+941_S_6333,I1182315,No match within time window,2019-06-28,2018-05-22,402.0
+941_S_6333,I1332469,No match within time window,2020-09-01,2018-05-22,833.0
+941_S_6333,I1613052,No match within time window,2022-08-15,2024-08-27,743.0
+941_S_6254,I1170562,No match within time window,2019-05-15,2020-08-17,460.0
+941_S_6254,I1481726,No match within time window,2021-08-17,2020-08-17,365.0
+941_S_6254,I11315036,No match within time window,2025-06-10,2023-07-24,687.0
+941_S_6094,I921879,No match within time window,2017-10-23,2022-02-15,1576.0
+941_S_6094,I1256397,No match within time window,2019-11-13,2022-02-15,825.0
+941_S_6080,I1252687,No match within time window,2019-11-04,2017-10-16,749.0
+941_S_6080,I1515308,No match within time window,2021-11-12,2023-11-13,731.0
+941_S_6068,I1038043,No match within time window,2018-08-17,2017-08-31,351.0
+941_S_6068,I1225855,No match within time window,2019-09-10,2017-08-31,740.0
+941_S_6068,I1481645,No match within time window,2021-08-17,2017-08-31,1447.0
+941_S_6058,I1209877,No match within time window,2019-08-14,2017-09-18,695.0
+941_S_6058,I1476589,No match within time window,2021-08-04,2017-09-18,1416.0
+941_S_6058,I11382571,No match within time window,2025-07-22,2017-09-18,2864.0
+941_S_6054,I1192854,No match within time window,2019-07-29,2017-08-17,711.0
+941_S_6054,I1475933,No match within time window,2021-08-03,2024-03-20,960.0
+941_S_6052,I1018165,No match within time window,2018-07-06,2017-07-25,346.0
+941_S_6044,I1491890,No match within time window,2021-09-14,2017-07-24,1513.0
+941_S_6017,I852748,Image ID not found in MRI_PET_IDs,,,
+941_S_5193,I860955,Subject not found in UPENN,2017-06-09,,
+941_S_5193,I1177263,Subject not found in UPENN,2019-06-19,,
+941_S_5124,I958932,Subject not found in UPENN,2018-01-26,,
+941_S_4376,I1037531,Subject not found in UPENN,2018-08-15,,
+941_S_4376,I1225971,Subject not found in UPENN,2019-09-10,,
+941_S_4365,I896821,No match within time window,2017-08-28,2012-06-28,1887.0
+941_S_4365,I1043570,No match within time window,2018-08-28,2012-06-28,2252.0
+941_S_4365,I1486832,No match within time window,2021-08-31,2012-06-28,3351.0
+941_S_4292,I893552,Subject not found in UPENN,2017-08-21,,
+941_S_4292,I1191372,Subject not found in UPENN,2019-07-24,,
+941_S_4292,I1500470,Subject not found in UPENN,2021-10-05,,
+941_S_4187,I858854,Subject not found in UPENN,2017-06-05,,
+941_S_4187,I1180699,Subject not found in UPENN,2019-06-25,,
+941_S_4187,I1330555,Subject not found in UPENN,2020-08-24,,
+941_S_4187,I1497238,Subject not found in UPENN,2021-09-28,,
+941_S_4187,I1628204,Subject not found in UPENN,2022-10-07,,
+941_S_4100,I923853,No match within time window,2017-10-27,2012-05-30,1976.0
+941_S_4100,I1075536,No match within time window,2018-11-19,2012-05-30,2364.0
+941_S_4036,I939342,No match within time window,2017-11-27,2024-03-27,2312.0
+941_S_4036,I1075497,No match within time window,2018-11-20,2024-03-27,1954.0
+941_S_4036,I1296964,No match within time window,2020-02-26,2024-03-27,1491.0
+941_S_4036,I1425913,No match within time window,2021-03-26,2024-03-27,1097.0
+941_S_1195,I982345,Subject not found in UPENN,2018-04-05,,
+941_S_1195,I1332317,Subject not found in UPENN,2020-08-31,,
+941_S_1195,I1557141,Subject not found in UPENN,2022-03-16,,
+941_S_10893,I11340090,Image ID not found in MRI_PET_IDs,,,
+941_S_10659,I11185475,Subject not found in UPENN,2025-04-04,,
+941_S_10534,I11138677,Subject not found in UPENN,2025-02-25,,
+941_S_10484,I11124942,Subject not found in UPENN,2025-02-20,,
+941_S_10212,I11431538,No match within time window,2025-09-03,2024-09-10,358.0
+941_S_10169,I11452789,No match within time window,2025-09-26,2024-08-01,421.0
+941_S_10111,I11254028,No match within time window,2025-05-01,2024-05-28,338.0
+941_S_10085,I11179008,No match within time window,2025-03-26,2024-04-09,351.0
+941_S_10085,I11445225,No match within time window,2023-10-05,2024-04-09,187.0
+941_S_10051,I10873199,No match within time window,2023-11-09,2024-02-20,103.0
+941_S_10024,I10318624,Image ID not found in MRI_PET_IDs,,,
+941_S_10015,I10283152,Image ID not found in MRI_PET_IDs,,,
+941_S_10012,I10283138,Image ID not found in MRI_PET_IDs,,,
+941_S_10012,I10283904,Image ID not found in MRI_PET_IDs,,,
+941_S_10011,I11479979,No match within time window,2025-10-31,2024-10-17,379.0
+941_S_10010,I10281430,Image ID not found in MRI_PET_IDs,,,
+941_S_10003,I11448634,No match within time window,2025-09-24,2024-09-11,378.0
+941_S_10002,I11435962,No match within time window,2025-09-09,2024-09-09,365.0
+405_S_10873,I11359993,Subject not found in UPENN,2025-07-21,,
+405_S_10873,I11359994,Subject not found in UPENN,2025-07-21,,
+405_S_10865,I11389611,Subject not found in UPENN,2025-07-25,,
+405_S_10865,I11389616,Subject not found in UPENN,2025-07-25,,
+405_S_10854,I11347300,Subject not found in UPENN,2025-07-15,,
+405_S_10854,I11347301,Subject not found in UPENN,2025-07-15,,
+405_S_10842,I11405257,Subject not found in UPENN,2025-08-04,,
+405_S_10842,I11405258,Subject not found in UPENN,2025-08-04,,
+405_S_10763,I11315026,Subject not found in UPENN,2025-06-11,,
+405_S_10763,I11315027,Subject not found in UPENN,2025-06-11,,
+405_S_10539,I11138657,Subject not found in UPENN,2025-03-03,,
+405_S_10539,I11138658,Subject not found in UPENN,2025-03-03,,
+405_S_10516,I11138667,Subject not found in UPENN,2025-02-21,,
+405_S_10516,I11138668,Subject not found in UPENN,2025-02-21,,
+405_S_10445,I11106144,Subject not found in UPENN,2025-01-27,,
+405_S_10445,I11106145,Subject not found in UPENN,2025-01-27,,
+405_S_10444,I11106158,Subject not found in UPENN,2025-01-27,,
+405_S_10444,I11106159,Subject not found in UPENN,2025-01-27,,
+404_S_10898,I11427820,Subject not found in UPENN,2025-08-27,,
+404_S_10895,I11418504,Subject not found in UPENN,2025-08-14,,
+404_S_10894,I11435071,Subject not found in UPENN,2025-09-08,,
+404_S_10891,I11431534,Subject not found in UPENN,2025-09-02,,
+404_S_10853,I11425989,Subject not found in UPENN,2025-08-25,,
+404_S_10846,I11418499,Subject not found in UPENN,2025-08-14,,
+389_S_10860,I11340082,Subject not found in UPENN,2025-07-07,,
+389_S_10676,I11283875,Subject not found in UPENN,2025-05-16,,
+389_S_10664,I11254003,Image ID not found in MRI_PET_IDs,,,
+389_S_10587,I11224403,Subject not found in UPENN,2025-04-28,,
+389_S_10378,I11071809,Subject not found in UPENN,2024-12-06,,
+389_S_10183,I10958388,Image ID not found in MRI_PET_IDs,,,
+389_S_10122,I11076799,Image ID not found in MRI_PET_IDs,,,
+389_S_10070,I10453678,No match within time window,2024-03-25,2024-06-25,92.0
+389_S_10070,I11488775,No match within time window,2025-11-14,2024-06-25,507.0
+381_S_10617,I11165006,Subject not found in UPENN,2025-03-19,,
+381_S_10616,I11197258,Subject not found in UPENN,2025-04-11,,
+381_S_10614,I11197244,Subject not found in UPENN,2025-04-11,,
+381_S_10613,I11164647,Subject not found in UPENN,2025-03-21,,
+381_S_10609,I11199389,Image ID not found in MRI_PET_IDs,,,
+381_S_10607,I11192996,Subject not found in UPENN,2025-04-09,,
+381_S_10606,I11190334,Image ID not found in MRI_PET_IDs,,,
+381_S_10604,I11190348,Subject not found in UPENN,2025-03-31,,
+381_S_10603,I11164701,Subject not found in UPENN,2025-03-20,,
+381_S_10600,I11224389,Subject not found in UPENN,2025-04-23,,
+381_S_10598,I11164661,Subject not found in UPENN,2025-03-21,,
+381_S_10594,I11190320,Image ID not found in MRI_PET_IDs,,,
+381_S_10590,I11164633,Subject not found in UPENN,2025-03-23,,
+381_S_10589,I11164620,Subject not found in UPENN,2025-03-23,,
+381_S_10585,I11190306,Subject not found in UPENN,2025-04-01,,
+381_S_10582,I11164687,Subject not found in UPENN,2025-03-20,,
+381_S_10579,I11165031,Subject not found in UPENN,2025-03-18,,
+381_S_10578,I11165248,Subject not found in UPENN,2025-03-16,,
+381_S_10576,I11165303,Subject not found in UPENN,2025-03-14,,
+381_S_10573,I11190362,Image ID not found in MRI_PET_IDs,,,
+381_S_10571,I11165045,Subject not found in UPENN,2025-03-18,,
+381_S_10566,I11165351,Subject not found in UPENN,2025-03-12,,
+381_S_10564,I11190377,Subject not found in UPENN,2025-03-23,,
+381_S_10563,I11165083,Subject not found in UPENN,2025-03-17,,
+381_S_10560,I11190391,Subject not found in UPENN,2025-03-21,,
+381_S_10559,I11165234,Subject not found in UPENN,2025-03-16,,
+381_S_10555,I11165220,Subject not found in UPENN,2025-03-17,,
+381_S_10554,I11165263,Subject not found in UPENN,2025-03-16,,
+381_S_10552,I11165289,Image ID not found in MRI_PET_IDs,,,
+381_S_10551,I11165277,Subject not found in UPENN,2025-03-16,,
+381_S_10550,I11165506,Subject not found in UPENN,2025-03-07,,
+381_S_10549,I11190292,Subject not found in UPENN,2025-04-04,,
+381_S_10546,I11164719,Subject not found in UPENN,2025-03-19,,
+381_S_10541,I11165478,Image ID not found in MRI_PET_IDs,,,
+381_S_10538,I11165398,Subject not found in UPENN,2025-03-09,,
+381_S_10536,I11165365,Subject not found in UPENN,2025-03-12,,
+381_S_10532,I11165384,Subject not found in UPENN,2025-03-10,,
+381_S_10528,I11142892,Subject not found in UPENN,2025-03-04,,
+381_S_10524,I11165459,Subject not found in UPENN,2025-03-07,,
+381_S_10521,I11140524,Subject not found in UPENN,2025-03-03,,
+381_S_10519,I11165332,Subject not found in UPENN,2025-03-14,,
+381_S_10517,I11165492,Subject not found in UPENN,2025-03-07,,
+381_S_10515,I11140510,Image ID not found in MRI_PET_IDs,,,
+381_S_10514,I11140484,Subject not found in UPENN,2025-03-03,,
+381_S_10513,I11140539,Subject not found in UPENN,2025-03-02,,
+381_S_10511,I11140568,Subject not found in UPENN,2025-02-27,,
+381_S_10510,I11165412,Subject not found in UPENN,2025-03-09,,
+381_S_10509,I11138650,Subject not found in UPENN,2025-02-26,,
+381_S_10509,I11140559,Subject not found in UPENN,2025-02-28,,
+381_S_10507,I11165069,Subject not found in UPENN,2025-03-17,,
+381_S_10506,I11140969,Subject not found in UPENN,2025-02-26,,
+381_S_10505,I11165520,Subject not found in UPENN,2025-03-06,,
+381_S_10502,I11141038,Subject not found in UPENN,2025-02-24,,
+381_S_10500,I11141039,Subject not found in UPENN,2025-02-24,,
+381_S_10499,I11141063,Subject not found in UPENN,2025-02-24,,
+381_S_10496,I11140941,Subject not found in UPENN,2025-02-26,,
+381_S_10495,I11141361,Subject not found in UPENN,2025-02-20,,
+381_S_10493,I11140593,Subject not found in UPENN,2025-02-26,,
+381_S_10488,I11165432,Subject not found in UPENN,2025-03-09,,
+381_S_10487,I11141390,Subject not found in UPENN,2025-02-19,,
+381_S_10486,I11141411,Subject not found in UPENN,2025-02-19,,
+341_S_6764,I1187874,Subject not found in UPENN,2019-07-16,,
+341_S_6686,I1132977,Subject not found in UPENN,2019-02-20,,
+341_S_6653,I1092019,No match within time window,2018-12-19,2021-05-26,889.0
+334_S_10813,I11325622,Subject not found in UPENN,2025-06-06,,
+334_S_10727,I11329794,Subject not found in UPENN,2025-04-30,,
+305_S_6899,I1577482,No match within time window,2022-05-05,2021-02-24,435.0
+305_S_6882,I1604194,Image ID not found in MRI_PET_IDs,,,
+305_S_6881,I1330894,Image ID not found in MRI_PET_IDs,,,
+305_S_6877,I1478935,No match within time window,2021-08-10,2020-08-10,365.0
+305_S_6871,I1454944,No match within time window,2021-06-14,2020-06-26,353.0
+305_S_6871,I1605436,No match within time window,2022-07-13,2020-06-26,747.0
+305_S_6850,I1281963,No match within time window,2020-01-29,2021-02-23,391.0
+305_S_6845,I1283849,No match within time window,2020-01-04,2021-01-14,376.0
+305_S_6810,I1252573,No match within time window,2019-11-02,2021-12-06,765.0
+305_S_6810,I1384753,No match within time window,2020-12-07,2021-12-06,364.0
+305_S_6744,I1183115,No match within time window,2019-06-29,2020-07-21,388.0
+305_S_6744,I1476165,No match within time window,2021-08-03,2020-07-21,378.0
+305_S_6744,I1611750,No match within time window,2022-08-04,2020-07-21,744.0
+305_S_6744,I11382562,No match within time window,2025-07-23,2020-07-21,1828.0
+305_S_6744,I11382563,No match within time window,2025-07-23,2020-07-21,1828.0
+305_S_6742,I1604220,No match within time window,2020-08-04,2019-08-12,358.0
+305_S_6742,I11038245,No match within time window,2021-08-11,2019-08-12,730.0
+305_S_6631,I1078744,Image ID not found in MRI_PET_IDs,,,
+305_S_6498,I1237279,No match within time window,2019-10-04,2018-09-26,373.0
+305_S_6498,I1603176,No match within time window,2021-10-06,2018-09-26,1106.0
+305_S_6498,I10952545,No match within time window,2024-09-16,2018-09-26,2182.0
+305_S_6498,I10952546,No match within time window,2024-09-16,2018-09-26,2182.0
+305_S_6438,I1010091,Image ID not found in MRI_PET_IDs,,,
+305_S_6378,I1168378,No match within time window,2019-05-24,2018-06-05,353.0
+305_S_6378,I1320868,No match within time window,2020-06-11,2018-06-05,737.0
+305_S_6378,I1604265,No match within time window,2021-05-24,2018-06-05,1084.0
+305_S_6313,I1315300,No match within time window,2020-05-06,2018-05-02,735.0
+305_S_6313,I11253978,No match within time window,2025-04-24,2018-05-02,2549.0
+305_S_6313,I11253979,No match within time window,2025-04-24,2018-05-02,2549.0
+305_S_6188,I1604202,No match within time window,2020-08-07,2018-03-28,863.0
+305_S_6157,I1293292,No match within time window,2020-02-19,2018-02-22,727.0
+305_S_10806,I11315017,Subject not found in UPENN,2025-06-11,,
+305_S_10806,I11315018,Subject not found in UPENN,2025-06-11,,
+305_S_10713,I11311295,Image ID not found in MRI_PET_IDs,,,
+305_S_10713,I11311296,Image ID not found in MRI_PET_IDs,,,
+305_S_10709,I11328379,Subject not found in UPENN,2025-06-20,,
+305_S_10709,I11328380,Subject not found in UPENN,2025-06-20,,
+305_S_10674,I11261392,Image ID not found in MRI_PET_IDs,,,
+305_S_10674,I11261393,Image ID not found in MRI_PET_IDs,,,
+305_S_10404,I11081123,Subject not found in UPENN,2024-12-18,,
+305_S_10396,I11143447,Image ID not found in MRI_PET_IDs,,,
+305_S_10396,I11143448,Image ID not found in MRI_PET_IDs,,,
+301_S_6811,I11128589,No match within time window,2025-02-24,2019-12-05,1908.0
+301_S_6811,I11128591,No match within time window,2025-02-24,2019-12-05,1908.0
+301_S_6777,I1201782,No match within time window,2019-08-12,2021-09-28,778.0
+301_S_6698,I1149157,Image ID not found in MRI_PET_IDs,,,
+301_S_6615,I1262877,No match within time window,2019-12-06,2018-11-29,372.0
+301_S_6592,I1063917,No match within time window,2018-10-23,2019-11-21,394.0
+301_S_6508,I1032143,Image ID not found in MRI_PET_IDs,,,
+301_S_6501,I1020325,Image ID not found in MRI_PET_IDs,,,
+301_S_6326,I1173839,No match within time window,2019-06-06,2018-06-04,367.0
+301_S_6326,I1316573,No match within time window,2020-06-10,2018-06-04,737.0
+301_S_6326,I1453802,No match within time window,2021-06-10,2018-06-04,1102.0
+301_S_6297,I981719,No match within time window,2018-04-05,2022-04-19,1475.0
+301_S_6297,I1168933,No match within time window,2019-05-28,2022-04-19,1057.0
+301_S_6297,I1312864,No match within time window,2020-05-14,2022-04-19,705.0
+301_S_6297,I1431198,No match within time window,2021-04-13,2022-04-19,371.0
+301_S_6224,I1387622,No match within time window,2020-12-11,2018-03-15,1002.0
+301_S_6056,I882167,No match within time window,2017-08-02,2024-08-26,2581.0
+301_S_6056,I1040207,No match within time window,2018-08-22,2024-08-26,2196.0
+301_S_6056,I1224051,No match within time window,2019-09-06,2024-08-26,1816.0
+301_S_6056,I1489819,No match within time window,2021-09-09,2024-08-26,1082.0
+301_S_6056,I11451757,No match within time window,2025-09-24,2024-08-26,394.0
+301_S_10875,I11359912,Subject not found in UPENN,2025-07-16,,
+301_S_10875,I11359924,Subject not found in UPENN,2025-07-16,,
+301_S_10770,I11342300,Subject not found in UPENN,2025-05-15,,
+301_S_10770,I11342301,Subject not found in UPENN,2025-05-15,,
+301_S_10769,I11282438,Subject not found in UPENN,2025-05-12,,
+301_S_10769,I11282437,Subject not found in UPENN,2025-05-12,,
+301_S_10762,I11253968,Subject not found in UPENN,2025-05-02,,
+301_S_10762,I11253969,Subject not found in UPENN,2025-05-02,,
+301_S_10623,I11164485,Image ID not found in MRI_PET_IDs,,,
+301_S_10623,I11164486,Image ID not found in MRI_PET_IDs,,,
+301_S_10577,I11165448,Image ID not found in MRI_PET_IDs,,,
+301_S_10577,I11165449,Image ID not found in MRI_PET_IDs,,,
+301_S_10389,I11067760,Image ID not found in MRI_PET_IDs,,,
+301_S_10389,I11067761,Image ID not found in MRI_PET_IDs,,,
+301_S_10230,I10939738,Image ID not found in MRI_PET_IDs,,,
+301_S_10230,I10939739,Image ID not found in MRI_PET_IDs,,,
+301_S_10123,I11426977,No match within time window,2025-08-26,2024-06-11,441.0
+301_S_10123,I11426978,No match within time window,2025-08-26,2024-06-11,441.0
+177_S_6448,I1018523,Subject not found in UPENN,2018-07-03,,
+177_S_6448,I1340855,Subject not found in UPENN,2020-09-16,,
+177_S_6420,I1014139,Image ID not found in MRI_PET_IDs,,,
+177_S_6409,I1327480,No match within time window,2020-07-24,2018-07-30,725.0
+177_S_6335,I1327456,No match within time window,2020-07-22,2018-06-26,757.0
+168_S_6938,I1444117,Image ID not found in MRI_PET_IDs,,,
+168_S_6921,I1428762,Image ID not found in MRI_PET_IDs,,,
+168_S_6921,I1622124,Image ID not found in MRI_PET_IDs,,,
+168_S_6908,I1416081,Image ID not found in MRI_PET_IDs,,,
+168_S_6908,I10888795,Image ID not found in MRI_PET_IDs,,,
+168_S_6902,I1406556,Image ID not found in MRI_PET_IDs,,,
+168_S_6875,I1667251,No match within time window,2023-02-15,2020-08-19,910.0
+168_S_6875,I1667252,No match within time window,2023-02-15,2020-08-19,910.0
+168_S_6875,I1667254,No match within time window,2023-02-15,2020-08-19,910.0
+168_S_6875,I1667255,No match within time window,2023-02-15,2020-08-19,910.0
+168_S_6875,I1667256,No match within time window,2023-02-15,2020-08-19,910.0
+168_S_6874,I1318866,Subject not found in UPENN,2020-06-22,,
+168_S_6874,I1667505,Subject not found in UPENN,2023-02-17,,
+168_S_6874,I1667506,Subject not found in UPENN,2023-02-17,,
+168_S_6874,I1667508,Subject not found in UPENN,2023-02-17,,
+168_S_6874,I1667509,Subject not found in UPENN,2023-02-17,,
+168_S_6874,I1667510,Subject not found in UPENN,2023-02-17,,
+168_S_6874,I1667511,Subject not found in UPENN,2023-02-17,,
+168_S_6874,I1667512,Subject not found in UPENN,2023-02-17,,
+168_S_6874,I1667513,Subject not found in UPENN,2023-02-17,,
+168_S_6873,I1318202,Image ID not found in MRI_PET_IDs,,,
+168_S_6860,I1300003,No match within time window,2020-03-05,2020-06-18,105.0
+168_S_6851,I1295865,Image ID not found in MRI_PET_IDs,,,
+168_S_6851,I1295866,Image ID not found in MRI_PET_IDs,,,
+168_S_6843,I1275415,No match within time window,2020-01-14,2020-06-08,146.0
+168_S_6828,I1398870,No match within time window,2021-01-11,2019-10-31,438.0
+168_S_6828,I1561917,No match within time window,2022-03-25,2019-10-31,876.0
+168_S_6828,I1561918,No match within time window,2022-03-25,2019-10-31,876.0
+168_S_6827,I1239535,Image ID not found in MRI_PET_IDs,,,
+168_S_6821,I1244550,Subject not found in UPENN,2019-10-23,,
+168_S_6821,I1390871,Subject not found in UPENN,2020-12-18,,
+168_S_6817,I1236269,Image ID not found in MRI_PET_IDs,,,
+168_S_6815,I1233189,Image ID not found in MRI_PET_IDs,,,
+168_S_6754,I1343923,No match within time window,2020-09-28,2019-09-10,384.0
+168_S_6754,I1638162,No match within time window,2022-10-28,2019-09-10,1144.0
+168_S_6735,I1175356,No match within time window,2019-06-07,2019-09-20,105.0
+168_S_6735,I1175362,No match within time window,2019-06-07,2019-09-20,105.0
+168_S_6634,I1296556,No match within time window,2020-02-26,2019-02-21,370.0
+168_S_6634,I1411687,No match within time window,2021-02-16,2019-02-21,726.0
+168_S_6634,I10240796,No match within time window,2023-07-05,2019-02-21,1595.0
+168_S_6634,I10240797,No match within time window,2023-07-05,2019-02-21,1595.0
+168_S_6634,I10240800,No match within time window,2023-07-05,2019-02-21,1595.0
+168_S_6634,I10240801,No match within time window,2023-07-05,2019-02-21,1595.0
+168_S_6634,I10240802,No match within time window,2023-07-05,2019-02-21,1595.0
+168_S_6619,I1069896,No match within time window,2018-11-05,2024-10-30,2186.0
+168_S_6619,I1267220,No match within time window,2019-12-16,2024-10-30,1780.0
+168_S_6619,I1382659,No match within time window,2020-12-07,2024-10-30,1423.0
+168_S_6591,I1274614,No match within time window,2020-01-10,2018-11-07,429.0
+168_S_6591,I1378374,No match within time window,2020-11-25,2018-11-07,749.0
+168_S_6561,I1040031,Image ID not found in MRI_PET_IDs,,,
+168_S_6561,I1040036,Image ID not found in MRI_PET_IDs,,,
+168_S_6541,I1036163,No match within time window,2018-08-15,2019-09-23,404.0
+168_S_6541,I1385427,No match within time window,2020-12-10,2019-09-23,444.0
+168_S_6541,I1586427,No match within time window,2022-06-02,2019-09-23,983.0
+168_S_6467,I1017238,No match within time window,2018-07-05,2018-10-29,116.0
+168_S_6467,I1235482,No match within time window,2019-10-02,2018-10-29,338.0
+168_S_6426,I1015398,No match within time window,2018-06-29,2018-10-22,115.0
+168_S_6426,I1241416,No match within time window,2019-10-16,2018-10-22,359.0
+168_S_6413,I1346152,No match within time window,2020-10-06,2018-08-23,775.0
+168_S_6371,I1352191,No match within time window,2020-10-22,2018-06-12,863.0
+168_S_6371,I10248334,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6371,I10248335,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6371,I10248336,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6371,I10248341,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6371,I10248342,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6371,I10248343,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6371,I10248344,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6371,I10248345,No match within time window,2023-07-27,2018-06-12,1871.0
+168_S_6350,I1381875,No match within time window,2020-12-03,2018-06-12,905.0
+168_S_6350,I1616503,No match within time window,2022-08-26,2018-06-12,1536.0
+168_S_6321,I992613,No match within time window,2018-05-03,2022-12-01,1673.0
+168_S_6321,I1351301,No match within time window,2020-10-21,2022-12-01,771.0
+168_S_6321,I1603690,No match within time window,2022-07-06,2022-12-01,148.0
+168_S_6320,I992584,No match within time window,2018-05-03,2022-12-01,1673.0
+168_S_6320,I1349784,No match within time window,2020-10-15,2022-12-01,777.0
+168_S_6320,I1603670,No match within time window,2022-07-06,2022-12-01,148.0
+168_S_6285,I986205,Subject not found in UPENN,2018-04-17,,
+168_S_6281,I983641,Subject not found in UPENN,2018-04-09,,
+168_S_6233,I968225,No match within time window,2018-02-26,2018-08-30,185.0
+168_S_6233,I1348596,No match within time window,2020-10-13,2018-08-30,775.0
+168_S_6180,I958678,No match within time window,2018-01-30,2018-06-06,127.0
+168_S_6180,I1151926,No match within time window,2019-04-08,2018-06-06,306.0
+168_S_6180,I1359777,No match within time window,2020-10-30,2018-06-06,877.0
+168_S_6180,I1359778,No match within time window,2020-10-30,2018-06-06,877.0
+168_S_6180,I1610176,No match within time window,2022-07-28,2018-06-06,1513.0
+168_S_6151,I947540,No match within time window,2017-12-19,2018-08-07,231.0
+168_S_6151,I1304737,No match within time window,2020-03-18,2018-08-07,589.0
+168_S_6151,I1612776,No match within time window,2022-08-12,2018-08-07,1466.0
+168_S_6142,I1167318,No match within time window,2019-05-20,2018-01-29,476.0
+168_S_6142,I1299334,No match within time window,2020-03-04,2018-01-29,765.0
+168_S_6131,I951181,Image ID not found in MRI_PET_IDs,,,
+168_S_6128,I945134,Image ID not found in MRI_PET_IDs,,,
+168_S_6121,I944772,Image ID not found in MRI_PET_IDs,,,
+168_S_6108,I930626,Image ID not found in MRI_PET_IDs,,,
+168_S_6107,I930689,Image ID not found in MRI_PET_IDs,,,
+168_S_6098,I925573,Image ID not found in MRI_PET_IDs,,,
+168_S_6086,I917090,Image ID not found in MRI_PET_IDs,,,
+168_S_6085,I916399,No match within time window,2017-10-03,2018-05-01,210.0
+168_S_6085,I1304804,No match within time window,2020-03-19,2018-05-01,688.0
+168_S_6085,I10236661,No match within time window,2023-06-20,2018-05-01,1876.0
+168_S_6085,I10236662,No match within time window,2023-06-20,2018-05-01,1876.0
+168_S_6085,I10236670,No match within time window,2023-06-20,2018-05-01,1876.0
+168_S_6085,I10236671,No match within time window,2023-06-20,2018-05-01,1876.0
+168_S_6085,I10236672,No match within time window,2023-06-20,2018-05-01,1876.0
+168_S_6065,I900796,No match within time window,2017-09-05,2018-02-14,162.0
+168_S_6065,I1284408,No match within time window,2020-02-03,2018-02-14,719.0
+168_S_6065,I1609624,No match within time window,2022-07-27,2018-02-14,1624.0
+168_S_6065,I11452781,No match within time window,2025-09-29,2018-02-14,2784.0
+168_S_6064,I899030,Subject not found in UPENN,2017-08-24,,
+168_S_6062,I892771,No match within time window,2017-08-17,2018-02-26,193.0
+168_S_6062,I1280182,No match within time window,2020-01-27,2018-02-26,700.0
+168_S_6062,I11438928,No match within time window,2025-09-12,2018-02-26,2755.0
+168_S_6059,I892759,No match within time window,2017-08-14,2018-02-05,175.0
+168_S_6059,I1256135,No match within time window,2019-11-13,2018-02-05,646.0
+168_S_6051,I874879,No match within time window,2017-07-13,2019-10-07,816.0
+168_S_6049,I916365,No match within time window,2017-10-11,2018-03-29,169.0
+168_S_6049,I1348108,No match within time window,2020-10-12,2018-03-29,928.0
+158_S_10862,I11427784,Subject not found in UPENN,2025-08-07,,
+158_S_10862,I11427785,Subject not found in UPENN,2025-08-07,,
+158_S_10861,I11427814,Subject not found in UPENN,2025-07-21,,
+158_S_10861,I11427815,Subject not found in UPENN,2025-07-21,,
+158_S_10850,I11448624,Subject not found in UPENN,2025-07-18,,
+158_S_10843,I11433172,Subject not found in UPENN,2025-07-18,,
+158_S_10817,I11427802,Subject not found in UPENN,2025-07-22,,
+158_S_10817,I11427803,Subject not found in UPENN,2025-07-22,,
+158_S_10782,I11427808,Subject not found in UPENN,2025-07-22,,
+158_S_10782,I11427809,Subject not found in UPENN,2025-07-22,,
+158_S_10754,I11427790,Subject not found in UPENN,2025-07-25,,
+158_S_10754,I11427791,Subject not found in UPENN,2025-07-25,,
+158_S_10714,I11315011,Subject not found in UPENN,2025-06-04,,
+158_S_10714,I11315012,Subject not found in UPENN,2025-06-04,,
+158_S_10691,I11314994,Image ID not found in MRI_PET_IDs,,,
+158_S_10691,I11314995,Image ID not found in MRI_PET_IDs,,,
+153_S_6679,I1475674,No match within time window,2021-05-07,2019-03-08,791.0
+153_S_6665,I1116063,Image ID not found in MRI_PET_IDs,,,
+153_S_6450,I1017654,Subject not found in UPENN,2018-07-05,,
+153_S_6336,I1168874,No match within time window,2019-05-21,2018-05-10,376.0
+141_S_6787,I1207265,Image ID not found in MRI_PET_IDs,,,
+141_S_6787,I1207290,Image ID not found in MRI_PET_IDs,,,
+141_S_6589,I1072741,No match within time window,2018-11-07,2019-02-12,97.0
+141_S_6589,I1072748,No match within time window,2018-11-07,2019-02-12,97.0
+141_S_6416,I1511356,No match within time window,2021-11-01,2024-10-31,1095.0
+141_S_6416,I1511357,No match within time window,2021-11-01,2024-10-31,1095.0
+141_S_6253,I1331108,No match within time window,2020-08-25,2018-04-03,875.0
+141_S_6253,I1331113,No match within time window,2020-08-25,2018-04-03,875.0
+141_S_6178,I961814,No match within time window,2018-02-08,2019-02-26,383.0
+141_S_6178,I961824,No match within time window,2018-02-08,2019-02-26,383.0
+141_S_6178,I1299105,No match within time window,2020-02-25,2019-02-26,364.0
+141_S_6178,I1299107,No match within time window,2020-02-25,2019-02-26,364.0
+141_S_6116,I935949,No match within time window,2017-11-19,2018-12-17,393.0
+141_S_6116,I935952,No match within time window,2017-11-19,2018-12-17,393.0
+141_S_6116,I1264666,No match within time window,2019-12-10,2018-12-17,358.0
+141_S_6116,I1264670,No match within time window,2019-12-10,2018-12-17,358.0
+141_S_6116,I1523003,No match within time window,2021-12-06,2024-05-21,897.0
+141_S_6116,I1523005,No match within time window,2021-12-06,2024-05-21,897.0
+141_S_6075,I1256853,No match within time window,2019-10-22,2017-10-23,729.0
+141_S_6075,I1256856,No match within time window,2019-10-22,2017-10-23,729.0
+141_S_6061,I1116404,No match within time window,2019-01-14,2017-09-19,482.0
+141_S_6061,I1116406,No match within time window,2019-01-14,2017-09-19,482.0
+141_S_6061,I1229457,No match within time window,2019-09-11,2017-09-19,722.0
+141_S_6061,I1229464,No match within time window,2019-09-11,2017-09-19,722.0
+141_S_6042,I883189,Image ID not found in MRI_PET_IDs,,,
+141_S_6042,I883190,Image ID not found in MRI_PET_IDs,,,
+141_S_6015,I1170887,No match within time window,2019-05-31,2017-06-01,729.0
+141_S_6015,I1170893,No match within time window,2019-05-31,2017-06-01,729.0
+141_S_6015,I1472512,No match within time window,2021-07-22,2024-09-11,1147.0
+141_S_6015,I1472513,No match within time window,2021-07-22,2024-09-11,1147.0
+141_S_6008,I839474,No match within time window,2017-04-12,2019-05-23,771.0
+141_S_6008,I1101652,No match within time window,2018-12-27,2019-05-23,147.0
+141_S_6008,I1101657,No match within time window,2018-12-27,2019-05-23,147.0
+141_S_6008,I1475752,No match within time window,2021-08-02,2019-05-23,802.0
+141_S_6008,I1475753,No match within time window,2021-08-02,2019-05-23,802.0
+141_S_4160,I872942,No match within time window,2017-07-10,2018-07-10,365.0
+141_S_4160,I872948,No match within time window,2017-07-10,2018-07-10,365.0
+141_S_2333,I949424,Subject not found in UPENN,2017-12-21,,
+141_S_2333,I949429,Subject not found in UPENN,2017-12-21,,
+141_S_2333,I1270525,Subject not found in UPENN,2019-12-20,,
+141_S_2333,I1270526,Subject not found in UPENN,2019-12-20,,
+141_S_2333,I1100458,Subject not found in UPENN,2018-12-26,,
+141_S_2333,I1100469,Subject not found in UPENN,2018-12-26,,
+141_S_2333,I1473903,Subject not found in UPENN,2021-07-26,,
+141_S_2333,I1473902,Subject not found in UPENN,2021-07-26,,
+141_S_2333,I1473901,Subject not found in UPENN,2021-07-26,,
+141_S_2333,I1473900,Subject not found in UPENN,2021-07-26,,
+141_S_1378,I858503,Subject not found in UPENN,2017-06-03,,
+141_S_1378,I858504,Subject not found in UPENN,2017-06-03,,
+141_S_1378,I1161827,Subject not found in UPENN,2019-05-02,,
+141_S_1378,I1161837,Subject not found in UPENN,2019-05-02,,
+141_S_1052,I842509,Subject not found in UPENN,2017-04-19,,
+141_S_1052,I842513,Subject not found in UPENN,2017-04-19,,
+141_S_1052,I1028485,Subject not found in UPENN,2018-07-28,,
+141_S_1052,I1028491,Subject not found in UPENN,2018-07-28,,
+141_S_1052,I1146962,Subject not found in UPENN,2019-03-25,,
+141_S_1052,I1146964,Subject not found in UPENN,2019-03-25,,
+141_S_1052,I1478685,Subject not found in UPENN,2021-08-09,,
+141_S_1052,I1478686,Subject not found in UPENN,2021-08-09,,
+141_S_0767,I845574,No match within time window,2017-04-29,2024-08-21,2671.0
+141_S_0767,I845577,No match within time window,2017-04-29,2024-08-21,2671.0
+141_S_0767,I1152079,No match within time window,2019-04-08,2024-08-21,1962.0
+141_S_0767,I1152086,No match within time window,2019-04-08,2024-08-21,1962.0
+141_S_0767,I1471354,No match within time window,2021-07-20,2024-08-21,1128.0
+141_S_0767,I1471355,No match within time window,2021-07-20,2024-08-21,1128.0
+137_S_6919,I1439486,No match within time window,2021-05-05,2024-01-29,999.0
+137_S_6906,I1454373,No match within time window,2021-06-14,2024-02-28,989.0
+137_S_6906,I11202739,No match within time window,2025-04-17,2024-02-28,414.0
+137_S_6903,I1457865,No match within time window,2021-06-18,2024-04-23,1040.0
+137_S_6826,I1242424,Image ID not found in MRI_PET_IDs,,,
+137_S_6812,I1271678,Image ID not found in MRI_PET_IDs,,,
+137_S_6794,I1222159,Image ID not found in MRI_PET_IDs,,,
+137_S_6693,I1213937,No match within time window,2019-08-19,2019-12-16,119.0
+137_S_6693,I1417015,No match within time window,2021-02-22,2019-12-16,434.0
+137_S_6685,I1149044,Image ID not found in MRI_PET_IDs,,,
+137_S_6659,I1120026,Image ID not found in MRI_PET_IDs,,,
+137_S_6654,I1116661,No match within time window,2018-12-31,2019-05-01,121.0
+137_S_6576,I1052753,Image ID not found in MRI_PET_IDs,,,
+137_S_6576,I1052754,Image ID not found in MRI_PET_IDs,,,
+137_S_6557,I1043627,Image ID not found in MRI_PET_IDs,,,
+137_S_6060,I915810,Image ID not found in MRI_PET_IDs,,,
+137_S_4862,I1056754,Subject not found in UPENN,2018-10-05,,
+137_S_4862,I1225162,Subject not found in UPENN,2019-09-10,,
+137_S_4862,I1349925,Subject not found in UPENN,2020-10-16,,
+137_S_4862,I1349926,Subject not found in UPENN,2020-10-16,,
+137_S_4631,I1116491,No match within time window,2019-01-15,2025-01-09,2186.0
+137_S_4631,I1116492,No match within time window,2019-01-15,2025-01-09,2186.0
+137_S_4631,I1282848,No match within time window,2020-01-30,2025-01-09,1806.0
+137_S_4631,I1416995,No match within time window,2021-03-02,2025-01-09,1409.0
+137_S_4536,I925981,Subject not found in UPENN,2017-11-02,,
+137_S_4536,I1070885,Subject not found in UPENN,2018-11-07,,
+137_S_4536,I1070886,Subject not found in UPENN,2018-11-07,,
+137_S_4536,I1257058,Subject not found in UPENN,2019-11-15,,
+137_S_4536,I1370463,Subject not found in UPENN,2020-11-17,,
+137_S_4536,I1370464,Subject not found in UPENN,2020-11-17,,
+137_S_4520,I929121,Subject not found in UPENN,2017-11-08,,
+137_S_4520,I1266559,Subject not found in UPENN,2019-12-13,,
+137_S_4520,I1366966,Subject not found in UPENN,2020-11-12,,
+137_S_4520,I1553534,Subject not found in UPENN,2022-03-07,,
+137_S_4482,I926793,Subject not found in UPENN,2017-11-03,,
+137_S_4482,I1246441,Subject not found in UPENN,2019-10-28,,
+137_S_4466,I942799,Subject not found in UPENN,2017-12-05,,
+137_S_4351,I925099,No match within time window,2017-10-31,2024-09-17,2513.0
+137_S_4351,I1326350,No match within time window,2020-07-30,2024-09-17,1510.0
+137_S_4351,I11436968,No match within time window,2025-09-11,2024-09-17,359.0
+137_S_4299,I923591,Subject not found in UPENN,2017-10-27,,
+137_S_4299,I1130785,Subject not found in UPENN,2019-02-11,,
+137_S_10671,I11202765,Subject not found in UPENN,2025-04-17,,
+137_S_10670,I11298366,Image ID not found in MRI_PET_IDs,,,
+137_S_10447,I11200562,Subject not found in UPENN,2025-04-15,,
+137_S_10428,I11201510,Image ID not found in MRI_PET_IDs,,,
+137_S_10250,I10988402,Image ID not found in MRI_PET_IDs,,,
+137_S_10079,I11095630,No match within time window,2024-04-02,2024-09-11,162.0
+137_S_10077,I10938775,No match within time window,2024-09-04,2025-01-15,133.0
+137_S_10058,I10971004,Image ID not found in MRI_PET_IDs,,,
+137_S_10057,I11261378,No match within time window,2025-05-07,2024-04-24,378.0
+135_S_6703,I1326436,No match within time window,2020-07-30,2019-04-18,469.0
+135_S_6703,I1434111,No match within time window,2021-04-20,2019-04-18,733.0
+135_S_6703,I1574853,No match within time window,2022-03-28,2024-03-28,731.0
+135_S_6703,I1691098,No match within time window,2023-04-17,2024-03-28,346.0
+135_S_6622,I1251628,No match within time window,2019-10-31,2018-11-29,336.0
+135_S_6622,I1523844,No match within time window,2021-12-08,2018-11-29,1105.0
+135_S_6586,I1049755,No match within time window,2018-09-19,2019-10-25,401.0
+135_S_6586,I1349517,No match within time window,2020-10-15,2019-10-25,356.0
+135_S_6586,I1503691,No match within time window,2021-10-12,2019-10-25,718.0
+135_S_6586,I1636119,No match within time window,2022-10-26,2024-06-05,588.0
+135_S_6545,I1226543,No match within time window,2019-09-13,2018-09-19,359.0
+135_S_6544,I1235766,No match within time window,2019-10-02,2018-09-21,376.0
+135_S_6544,I1344372,No match within time window,2020-09-30,2018-09-21,740.0
+135_S_6544,I1570979,No match within time window,2021-09-09,2018-09-21,1084.0
+135_S_6544,I1672814,No match within time window,2022-09-27,2024-10-29,763.0
+135_S_6544,I10281597,No match within time window,2023-10-20,2024-10-29,375.0
+135_S_6544,I11479096,No match within time window,2025-10-31,2024-10-29,367.0
+135_S_6510,I1215774,No match within time window,2019-08-23,2018-08-27,361.0
+135_S_6510,I1329845,No match within time window,2020-08-19,2018-08-27,723.0
+135_S_6510,I1615467,No match within time window,2022-08-24,2024-08-15,722.0
+135_S_6509,I1021751,No match within time window,2018-07-16,2020-08-13,759.0
+135_S_6509,I1195531,No match within time window,2019-08-06,2020-08-13,373.0
+135_S_6509,I1613196,No match within time window,2022-08-10,2020-08-13,727.0
+135_S_6473,I1015812,No match within time window,2018-06-29,2018-10-16,109.0
+135_S_6473,I1637836,No match within time window,2022-11-01,2018-10-16,1477.0
+135_S_6473,I11283861,No match within time window,2025-04-03,2018-10-16,2361.0
+135_S_6446,I1012942,No match within time window,2018-06-21,2022-07-15,1485.0
+135_S_6446,I1185903,No match within time window,2019-07-11,2022-07-15,1100.0
+135_S_6446,I1320847,No match within time window,2020-07-14,2022-07-15,731.0
+135_S_6446,I1463585,No match within time window,2021-07-06,2022-07-15,374.0
+135_S_6446,I10243121,No match within time window,2023-07-12,2022-07-15,362.0
+135_S_6446,I11348868,No match within time window,2025-07-16,2024-07-10,371.0
+135_S_6411,I1331222,No match within time window,2020-08-26,2018-06-19,799.0
+135_S_6411,I1453160,No match within time window,2021-06-09,2018-06-19,1086.0
+135_S_6411,I1591979,No match within time window,2022-06-17,2018-06-19,1459.0
+135_S_6411,I10238728,No match within time window,2023-06-23,2018-06-19,1830.0
+135_S_6389,I1003730,No match within time window,2018-05-29,2019-07-09,406.0
+135_S_6389,I1325980,No match within time window,2020-07-29,2019-07-09,386.0
+135_S_6360,I1000359,No match within time window,2018-05-21,2019-06-19,394.0
+135_S_6360,I1587380,No match within time window,2022-06-06,2024-06-19,744.0
+135_S_6359,I996107,No match within time window,2018-05-10,2022-06-20,1502.0
+135_S_6359,I1180846,No match within time window,2019-06-26,2022-06-20,1090.0
+135_S_6284,I1164436,No match within time window,2019-05-13,2018-05-11,367.0
+135_S_6110,I931630,No match within time window,2017-11-15,2018-11-15,365.0
+135_S_6110,I1256452,No match within time window,2019-11-14,2018-11-15,364.0
+135_S_6110,I1376876,No match within time window,2020-11-23,2018-11-15,739.0
+135_S_6104,I928920,No match within time window,2017-11-08,2018-11-08,365.0
+135_S_6104,I1257943,No match within time window,2019-11-18,2018-11-08,375.0
+135_S_6104,I1512337,No match within time window,2021-11-03,2018-11-08,1091.0
+135_S_5113,I870994,No match within time window,2017-07-05,2024-07-17,2569.0
+135_S_5113,I1188694,No match within time window,2019-07-18,2024-07-17,1826.0
+135_S_5113,I1467439,No match within time window,2021-07-13,2024-07-17,1100.0
+135_S_4723,I862838,No match within time window,2017-06-21,2024-04-24,2499.0
+135_S_4723,I1017893,No match within time window,2018-07-06,2024-04-24,2119.0
+135_S_4723,I1180387,No match within time window,2019-06-25,2024-04-24,1765.0
+135_S_4723,I1319314,No match within time window,2020-06-30,2024-04-24,1394.0
+135_S_4723,I1457424,No match within time window,2021-06-18,2024-04-24,1041.0
+135_S_4723,I1595280,No match within time window,2022-06-21,2024-04-24,673.0
+135_S_4723,I11224381,No match within time window,2025-04-28,2024-04-24,369.0
+135_S_4722,I863101,No match within time window,2017-06-22,2024-04-24,2498.0
+135_S_4722,I1017753,No match within time window,2018-07-06,2024-04-24,2119.0
+135_S_4722,I1180418,No match within time window,2019-06-25,2024-04-24,1765.0
+135_S_4722,I1319324,No match within time window,2020-06-30,2024-04-24,1394.0
+135_S_4722,I1456919,No match within time window,2021-06-17,2024-04-24,1042.0
+135_S_4722,I1594276,No match within time window,2022-06-21,2024-04-24,673.0
+135_S_4722,I11224385,No match within time window,2025-04-28,2024-04-24,369.0
+135_S_4598,I878250,No match within time window,2017-07-24,2024-09-17,2612.0
+135_S_4598,I1199310,No match within time window,2019-08-09,2024-09-17,1866.0
+135_S_4598,I1471033,No match within time window,2021-07-20,2024-09-17,1155.0

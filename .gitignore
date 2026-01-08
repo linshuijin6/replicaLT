@@ -1,0 +1,16 @@
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+BiomedCLIP/
+generative/
+monai/
+statist*/
+Xftp*/
+*.png
+*.log
+*.svg
+# *.csv
+runs/
+adapter_finetune/runs/

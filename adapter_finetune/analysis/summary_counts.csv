@@ -1,0 +1,17 @@
+,0
+mri_total,48328
+mri_out_not_phase,15357
+mri_out_not_t1w,29602
+mri_phase_t1,3369
+mri_dup_groups,442
+mri_repeat_removed,9
+mri_final,3360
+pet_total,6244
+pet_out_other_tracers,953
+pet_final,5291
+pairs_rows,3360
+pairs_has_any_pet,2481
+pairs_has_fdg,419
+pairs_has_av45,1375
+pairs_has_av1451,2102
+pairs_no_pet,879

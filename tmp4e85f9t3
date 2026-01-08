@@ -1,0 +1,16 @@
+eval "$(/home/pnxc/Anaconda3/bin/conda shell.posix hook)"
+conda activate  /home/pnxc/Anaconda3/envs/xc
+bash -lc '
+export TMPDIR=/home/ssddata/linshuijin/tmp
+export FSLDIR=/home/ssddata/linshuijin/fsl_shim
+source "$FSLDIR/etc/fslconf/fsl.sh"
+export FSLOUTPUTTYPE=NIFTI_GZ
+export PATH=/home/ssddata/linshuijin/.local/bin:$FSLDIR/bin:$PATH
+python adapter_finetune/dataprocess/pipeline_reuse_mri_pet.py \
+  --pairs_csv adapter_finetune/data_csv/pairs0106.csv \
+  --nifti_root /mnt/nfsdata/nfsdata/ADNI/ADNI0103/NIFTI \
+  --source_mri_root /mnt/nfsdata/nfsdata/LorenzoT/processed \
+  --target_root /mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration \
+  --logs_root /mnt/nfsdata/nfsdata/ADNI/ADNI0103/logs_pipeline0106 \
+  --tmp_root /mnt/nfsdata/nfsdata/ADNI/ADNI0103/tmp_pipeline0106
+'

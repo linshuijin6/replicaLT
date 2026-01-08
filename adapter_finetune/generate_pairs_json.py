@@ -5,11 +5,11 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-MRI_ROOT = Path("/mnt/nfsdata/nfsdata/ADNI/processed/MRI")
+MRI_ROOT = Path("/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/MRI")
 PET_ROOTS: Dict[str, Path] = {
-    "FDG": Path("/mnt/nfsdata/nfsdata/ADNI/processed/PET/FDG"),
-    "AV45": Path("/mnt/nfsdata/nfsdata/ADNI/processed/PET/AV45"),
-    "AV1451": Path("/mnt/nfsdata/nfsdata/ADNI/processed/PET/AV1451"),
+    "FDG": Path("/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/FDG"),
+    "AV45": Path("/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45"),
+    "AV1451": Path("/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV1451"),
 }
 
 DEFAULTS = {
@@ -24,7 +24,7 @@ DEFAULTS = {
 
 
 def build_path(root: Path, subject_id: str, image_id: Optional[str]) -> Optional[str]:
-    if image_id is None or str(image_id).strip() == "":
+    if image_id is None or str(image_id) == "":
         return None
     return str(root / f"{subject_id}__{image_id}.nii.gz")
 
@@ -44,7 +44,7 @@ def make_description(age: Optional[float], weight: float, mmse: int, gdscale: in
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate JSON pairs from CSV with modality paths.")
-    parser.add_argument("--input", type=str, default="adapter_finetune/pairs_mri_with_pet_types_p1_subset.csv", help="Input pairs CSV")
+    parser.add_argument("--input", type=str, default="/home/ssddata/linshuijin/replicaLT/adapter_finetune/data_csv/pairs0106_filtered.csv", help="Input pairs CSV")
     parser.add_argument("--output", type=str, default="adapter_finetune/pairs_generated.json", help="Output JSON path")
     args = parser.parse_args()
 
@@ -53,11 +53,11 @@ def main() -> None:
 
     records = []
     for _, row in df.iterrows():
-        subject_id = str(row.get("subject_id", "")).strip()
+        subject_id = str(row.get("ptid", "")).strip()
         if subject_id == "":
             continue
 
-        age = row.get("age_mri")
+        age = row.get("examdate")
         try:
             age = float(age)
         except Exception:
@@ -71,10 +71,10 @@ def main() -> None:
         faq = DEFAULTS["faq"]
         npiq = DEFAULTS["npiq"]
 
-        id_mri = row.get("id_mri") if isinstance(row.get("id_mri"), str) else None
-        id_fdg = row.get("id_fdg") if isinstance(row.get("id_fdg"), str) else None
-        id_av45 = row.get("id_av45") if isinstance(row.get("id_av45"), str) else None
-        id_av1451 = row.get("id_av1451") if isinstance(row.get("id_av1451"), str) else None
+        id_mri = str(int(row.get("id_mri"))) if row.get("id_mri") ==row.get("id_mri") else None
+        id_fdg = str(int(row.get("id_fdg"))) if row.get("id_fdg") == row.get("id_fdg") else None
+        id_av45 = str(int(row.get("id_av45"))) if row.get("id_av45") == row.get("id_av45") else None
+        id_av1451 = str(int(row.get("id_av1451"))) if row.get("id_av1451") == row.get("id_av1451") else None
 
         mri_path = build_path(MRI_ROOT, subject_id, id_mri)
         fdg_path = build_path(PET_ROOTS["FDG"], subject_id, id_fdg)
