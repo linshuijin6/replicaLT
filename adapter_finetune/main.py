@@ -1,5 +1,5 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '5'
 import argparse
 import sys
 import json
@@ -7,7 +7,7 @@ import random
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Tuple
-
+from report_error import email_on_error
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -86,14 +86,14 @@ def positive_pair_alignment_loss(image_feats: torch.Tensor, text_feats: torch.Te
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Adapter-based finetuning for BiomedCLIP")
-    parser.add_argument("--model-path", type=str, default="./BiomedCLIP", help="Path to BiomedCLIP weights")
+    parser.add_argument("--model-path", type=str, default="/mnt/nfsdata/nfsdata/lsj.14/replicaLT/BiomedCLIP", help="Path to BiomedCLIP weights")
     parser.add_argument("--root", type=str, default="./synthetic_pet", help="Root directory containing modality folders")
-    parser.add_argument("--link-csv", type=str, default="adapter_finetune/pairs_mri_with_pet_types_p1_subset.csv", help="CSV linking modality IDs")
-    parser.add_argument("--plasma-csv", type=str, default="adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv", help="CSV with plasma biomarkers")
-    parser.add_argument("--mri-csv", type=str, default="adapter_finetune/MRI_PET_IDs.csv", help="CSV with MRI Study Date for examdate inference")
+    parser.add_argument("--link-csv", type=str, default="/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/data_csv/pairs_withPlasma.csv", help="CSV linking modality IDs")
+    parser.add_argument("--plasma-csv", type=str, default="/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv", help="CSV with plasma biomarkers")
+    parser.add_argument("--mri-csv", type=str, default="/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/MRI_PET_IDs.csv", help="CSV with MRI Study Date for examdate inference")
     parser.add_argument("--yaml", type=str, default=None, help="YAML with common texts and thresholds")
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=5e-4)
+    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--lambda1", type=float, default=0.5, help="Weight for bounded text loss")
     parser.add_argument("--lambda2", type=float, default=0.2, help="Weight for modality classifier")
     parser.add_argument("--delta-min", type=float, default=0.4)
@@ -120,7 +120,7 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
+@email_on_error()
 def main() -> None:
     args = parse_args()
     device = torch.device(args.device)

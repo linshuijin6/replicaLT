@@ -204,9 +204,10 @@ class PETAdapterDataset(torch.utils.data.Dataset):
         if synthetic:
             self.samples = self._build_synthetic_samples(synthetic_count)
         else:
-            if self.link_csv is None or self.plasma_csv is None:
-                raise ValueError("link_csv and plasma_csv are required when synthetic=False")
-            self.plasma_table = self._load_plasma_table(self.plasma_csv)
+            if self.link_csv is None:
+                raise ValueError("link_csv is required when synthetic=False")
+            # plasma_csv 可为空：若 link_csv 已整合血浆列，则直接使用 link_csv
+            self.plasma_table = self._load_plasma_table(self.plasma_csv) if self.plasma_csv else None
             self.samples = self._build_real_samples()
 
     def _build_synthetic_samples(self, count: int) -> List[Dict]:
@@ -218,12 +219,53 @@ class PETAdapterDataset(torch.utils.data.Dataset):
         return samples
 
     def _load_plasma_table(self, path: Path) -> pd.DataFrame:
-        df = pd.read_csv(path)
+        df = pd.read_csv(path, low_memory=False)
         # 统一列名小写
         df.columns = [c.lower() for c in df.columns]
+        # 统一日期
         if "examdate" in df.columns:
             df["examdate"] = pd.to_datetime(df["examdate"], errors="coerce")
+
+        # 兼容两类来源：
+        # 1) 原始 UPENN（列名：ab42_ab40_f, pt217_f, pt217_ab42_f, nfl_q, gfap_q）
+        # 2) 已整合的 pairs_withPlasma（列名：ab42_ab40, pt217, pt217_ab42, nfl, gfap）
+        has_integrated = all(col in df.columns for col in ["ab42_ab40", "pt217", "pt217_ab42"]) and "ptid" in df.columns
+        if has_integrated:
+            # 复制一份到标准键，后续统一从标准键读取
+            rename_map = {
+                "ab42_ab40": "ab42_ab40_f",
+                "pt217": "pt217_f",
+                "pt217_ab42": "pt217_ab42_f",
+                "nfl": "nfl_q",
+                "gfap": "gfap_q",
+            }
+            for src, dst in rename_map.items():
+                if src in df.columns and dst not in df.columns:
+                    df[dst] = df[src]
         return df
+
+    def _extract_plasma_from_row(self, row: Dict) -> Dict[str, float]:
+        """优先从 link_csv 的行内直接读取已整合的血浆列。缺失时返回 {}。"""
+        needed = {
+            "ab42_ab40_f": "ab42_ab40",
+            "pt217_f": "pt217",
+            "pt217_ab42_f": "pt217_ab42",
+            "nfl_q": "nfl",
+            "gfap_q": "gfap",
+        }
+        have_any = False
+        data = {}
+        for dst, src in needed.items():
+            val = row.get(src)
+            if isinstance(val, str) and val.strip() == "":
+                val = None
+            if val is not None and not (isinstance(val, float) and math.isnan(val)):
+                try:
+                    data[dst] = float(val)
+                except Exception:
+                    data[dst] = val
+                have_any = True
+        return {k.upper(): v for k, v in data.items()} if have_any else {}
 
     def _load_mri_table(self, path: Path) -> pd.DataFrame:
         df = pd.read_csv(path)
@@ -237,29 +279,48 @@ class PETAdapterDataset(torch.utils.data.Dataset):
         return df
 
     def _pick_plasma(self, ptid: str, examdate: Optional[str]) -> Dict[str, float]:
+        if self.plasma_table is None:
+            return {}
         df = self.plasma_table
         ptid_col = "ptid"
         exam_col = "examdate"
-        if exam_col not in df.columns:
-            # 若无 examdate 列，则仅按 ptid 取第一条
-            hit = df[df[ptid_col] == ptid]
-        else:
-            examdate_ts = pd.to_datetime(examdate) if examdate else None
-            hit = df[df[ptid_col] == ptid].copy()
-            if examdate_ts is not None and not hit.empty:
-                hit["_diff_days"] = (hit[exam_col] - examdate_ts).abs().dt.days
-                hit = hit[hit["_diff_days"] <= 90].sort_values("_diff_days")
-            else:
-                hit = hit
+        hit = df[df[ptid_col] == ptid].copy()
         if hit.empty:
             return {}
+
+        # 优先精确匹配 examdate（已在 _load_plasma_table 统一为 datetime）
+        if exam_col in hit.columns:
+            exam_ts = pd.to_datetime(examdate) if examdate else None
+            if exam_ts is not None:
+                exact = hit[hit[exam_col] == exam_ts]
+                if not exact.empty:
+                    hit = exact
+                else:
+                    # 无精确匹配则退化为“最近一条”（不再强制 90 天窗口）
+                    hit["_diff_days"] = (hit[exam_col] - exam_ts).abs().dt.days
+                    hit = hit.sort_values("_diff_days")
+
         row = hit.iloc[0]
         data = row.to_dict()
-        for k in ["ab42_ab40_f", "pt217_ab42_f", "nfl_q", "gfap_q", "ab42_f", "ab40_f", "pt217_f"]:
+        # 将整合或原始列统一映射为标准键
+        numeric_cols = [
+            "ab42_ab40_f",
+            "pt217_f",
+            "pt217_ab42_f",
+            "nfl_q",
+            "gfap_q",
+        ]
+        for k in numeric_cols:
             if k in data:
                 try:
-                    data[k] = float(data[k])
+                    # 将空字符串等转换为缺失
+                    val = data[k]
+                    if isinstance(val, str) and val.strip() == "":
+                        data[k] = float("nan")
+                    else:
+                        data[k] = float(val)
                 except Exception:
+                    # 保持原样（可能为 NaN 或无法解析的字符串）
                     pass
         # 统一键为大写，方便后续取值
         data = {k.upper(): v for k, v in data.items()}
@@ -297,7 +358,10 @@ class PETAdapterDataset(torch.utils.data.Dataset):
         for _, row in link_df.iterrows():
             ptid = str(row.get("subject_id", row.iloc[0]))
             examdate = row.get("examdate") if "examdate" in row else None
-            plasma_row = self._pick_plasma(ptid, examdate)
+            # 先尝试直接从 link_csv 行读取血浆值（针对已整合的 pairs_withPlasma）
+            plasma_row = self._extract_plasma_from_row(row)
+            if not plasma_row:
+                plasma_row = self._pick_plasma(ptid, examdate)
             ids: Dict[str, Optional[str]] = {}
             for modality, col in MODALITY_ID_COL.items():
                 ids[modality] = None

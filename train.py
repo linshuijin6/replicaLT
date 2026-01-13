@@ -43,7 +43,9 @@ def main():
     # 0.训练参数设置
     base_dir = "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration"
     cache_dir = '/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Cache'
-    device_id = [2,3]
+    plasma_csv_path = "adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
+
+    device_id = [5,7]
     # 定义裁剪的最小值和最大值
     clip_sample_min = 0  # 设置合适的最小值
     clip_sample_max = 1   # 设置合适的最大值
@@ -78,7 +80,7 @@ def main():
     print(f"Switched to CUDA device: {current_device}")
 
     # 1. 加载 BiomedCLIP 模型和处理器
-    local_model_path = "/home/ssddata/linshuijin/replicaLT/BiomedCLIP"
+    local_model_path = "./BiomedCLIP"
     processor = AutoProcessor.from_pretrained(local_model_path, trust_remote_code=True)
     bio_model = AutoModel.from_pretrained(local_model_path, trust_remote_code=True)
 
@@ -149,7 +151,6 @@ def main():
 
     from adapter_finetune.dataset import build_plasma_text as build_plasma_text_ds, _default_config
 
-    plasma_csv_path = "adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     def _load_plasma_table(path: str) -> pd.DataFrame:
         df = pd.read_csv(path)
@@ -207,11 +208,11 @@ def main():
     av45_dir = os.path.join(base_dir, "PET_MNI", 'AV45')
     fdg_dir = os.path.join(base_dir, "PET_MNI", 'FDG')
     tau_dir = os.path.join(base_dir, "PET_MNI", 'TAU')
-    csv_path = '/home/ssddata/linshuijin/replicaLT/filtered_subjects_with_description.csv'
+    csv_path = 'filtered_subjects_with_description.csv'
 
     # JSON 文件保存路径（保持不变）
-    train_json_path = "/home/ssddata/linshuijin/replicaLT/adapter_finetune/json/train_data_with_description.json"
-    val_json_path = "/home/ssddata/linshuijin/replicaLT/adapter_finetune/json/val_data_with_description.json"
+    train_json_path = "adapter_finetune/json/train_data_with_description.json"
+    val_json_path = "adapter_finetune/json/val_data_with_description.json"
 
     # 加载 CSV 文件（保持不变）
     csv_data = pd.read_csv(csv_path)
@@ -363,6 +364,60 @@ def main():
                     d[key] = np.zeros_like(ref)
             return d
 
+    class DebugShape(mt.MapTransform):
+        """调试用：打印各键的数组形状与类型"""
+        def __init__(self, keys):
+            super().__init__(keys)
+        def __call__(self, data):
+            d = dict(data)
+            try:
+                for k in self.keys:
+                    v = d.get(k)
+                    if v is None:
+                        print(f"[DebugShape] {k}: None")
+                    else:
+                        if hasattr(v, 'shape'):
+                            print(f"[DebugShape] {k}: shape={v.shape}, dtype={getattr(v, 'dtype', type(v))}")
+                        else:
+                            print(f"[DebugShape] {k}: type={type(v)}")
+            except Exception as e:
+                print(f"[DebugShape] error: {e}")
+            return d
+
+    class ReduceTo3D(mt.MapTransform):
+        """将可能的 4D 体积 (H, W, D, T) 沿最后一维聚合为 3D (H, W, D)。"""
+        def __init__(self, keys, reduce='mean'):
+            super().__init__(keys)
+            self.reduce = reduce
+        def __call__(self, data):
+            d = dict(data)
+            for k in self.keys:
+                v = d.get(k)
+                if isinstance(v, np.ndarray):
+                    if v.ndim == 4:
+                        if self.reduce == 'mean':
+                            d[k] = v.mean(axis=-1)
+                        elif self.reduce == 'max':
+                            d[k] = v.max(axis=-1)
+                        elif self.reduce == 'mid':
+                            mid = v.shape[-1] // 2
+                            d[k] = v[..., mid]
+                        else:
+                            d[k] = v.mean(axis=-1)
+                elif hasattr(v, 'ndim') and v.ndim == 4:
+                    # torch.Tensor case
+                    import torch
+                    if self.reduce == 'mean':
+                        d[k] = v.mean(dim=-1)
+                    elif self.reduce == 'max':
+                        d[k] = torch.max(v, dim=-1).values
+                    elif self.reduce == 'mid':
+                        mid = v.shape[-1] // 2
+                        d[k] = v[..., mid]
+                    else:
+                        d[k] = v.mean(dim=-1)
+            return d
+
     # 定义 transform 函数
     def fdg_index_transform(x):
         text_feat = fdg_text_features[x].unsqueeze(0)
@@ -437,10 +492,13 @@ def main():
     # 定义训练集数据增强流程
     train_transforms = mt.Compose([
         mt.Lambdad(keys=pet_keys, func=mat_load),  # 加载 NIfTI 文件
+        ReduceTo3D(keys=pet_keys, reduce='mean'),
+        DebugShape(keys=pet_keys),
         FillMissingPET(keys=pet_keys, ref_key="mri"),
-        mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
-        mt.Orientationd(keys=pet_keys, axcodes="LPI"),
+        DebugShape(keys=pet_keys),
         mt.CropForegroundd(keys=pet_keys, source_key="mri"),
+        DebugShape(keys=pet_keys),
+        mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
         mt.HistogramNormalized(keys=["mri"]),
         mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
@@ -454,10 +512,13 @@ def main():
     # 定义验证集数据增强流程（通常与训练集一致，但不含随机性增强）
     val_transforms = mt.Compose([
         mt.Lambdad(keys=pet_keys, func=mat_load),
+        ReduceTo3D(keys=pet_keys, reduce='mean'),
+        DebugShape(keys=pet_keys),
         FillMissingPET(keys=pet_keys, ref_key="mri"),
-        mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
-        mt.Orientationd(keys=pet_keys, axcodes="LPI"),
+        DebugShape(keys=pet_keys),
         mt.CropForegroundd(keys=pet_keys, source_key="mri"),
+        DebugShape(keys=pet_keys),
+        mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
         mt.HistogramNormalized(keys=["mri"]),
         mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
@@ -484,9 +545,9 @@ def main():
     # train_ds = CacheDataset(data=train_data, transform=train_transforms, num_workers=0)
     train_ds = PersistentDataset(data=train_data, transform=train_transforms, cache_dir=os.path.join(cache_dir, "train"))
     # # ⭐ 遍历所有样本以触发缓存生成
-    # for i in range(len(train_ds)):
-    #     _ = train_ds[i]
-    # print("✅ 全部样本缓存生成完成！")
+    for i in range(len(train_ds)):
+        _ = train_ds[i]
+    print("✅ 全部样本缓存生成完成！")
     # # benchmark_dataloader(train_ds, batch_size=1, num_workers_list=[0,2,4,8])
     #
     train_loader = DataLoader(train_ds, batch_size=1, shuffle=True, num_workers=0)    #shuffle=True
@@ -494,9 +555,9 @@ def main():
     # val_ds = CacheDataset(data=val_data, transform=val_transforms, num_workers=0, )
     val_ds = PersistentDataset(data=val_data, transform=val_transforms, cache_dir=os.path.join(cache_dir, "val"))
     # ⭐ 遍历所有样本以触发缓存生成
-    # for i in range(len(val_ds)):
-    #     _ = val_ds[i]
-    # print("✅ 全部样本缓存生成完成！")
+    for i in range(len(val_ds)):
+        _ = val_ds[i]
+    print("✅ 全部样本缓存生成完成！")
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=0)
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
