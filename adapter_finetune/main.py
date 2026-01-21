@@ -205,6 +205,33 @@ def main() -> None:
     for module in list(text_adapters.values()) + [modality_classifier]:
         module.to(device)
 
+    # ==================== 计算全局模态频率权重 ====================
+    # 统计训练集中各模态的样本数
+    global_mod_counts = {m: 0 for m in MODALITIES}
+    for idx in train_indices:
+        sample = dataset.samples[idx]
+        available = sample.get("available", [])
+        # 如果 sample 没有 available 字段，从 ids 推断
+        if not available:
+            ids = sample.get("ids", {})
+            available = [m for m in MODALITIES if ids.get(m)]
+        for m in available:
+            global_mod_counts[m] += 1
+    
+    # 计算逆频率权重: w_m ∝ 1 / freq_m，然后归一化使得 sum(w) = len(MODALITIES)
+    total_samples_with_mod = sum(global_mod_counts.values())
+    mod_weights = {}
+    for m in MODALITIES:
+        if global_mod_counts[m] > 0:
+            # 逆频率权重
+            mod_weights[m] = total_samples_with_mod / (len(MODALITIES) * global_mod_counts[m])
+        else:
+            mod_weights[m] = 1.0  # fallback
+    
+    print(f"\n📊 全局模态频率统计:")
+    for m in MODALITIES:
+        print(f"   {m}: count={global_mod_counts[m]}, weight={mod_weights[m]:.4f}")
+
     # 保存超参配置
     hparam_path = run_dir / "hparams.json"
     with hparam_path.open("w", encoding="utf-8") as f:
@@ -267,7 +294,9 @@ def main() -> None:
                     first_available = list(available)
 
             clip_losses = {}
-            clip_loss_sum = torch.tensor(0.0, device=device)
+            clip_loss_sum_weighted = torch.tensor(0.0, device=device)
+            clip_loss_sum_unweighted = torch.tensor(0.0, device=device)  # 用于日志对比
+            clip_weight_sum = 0.0
             clip_mod_count = 0
             mod_counts = {}
             clip_acc_i2t_correct = 0
@@ -287,7 +316,12 @@ def main() -> None:
                 else:
                     loss_m = positive_pair_alignment_loss(imgs, txts)
                 clip_losses[modality] = loss_m
-                clip_loss_sum = clip_loss_sum + loss_m
+                
+                # 使用全局逆频率权重
+                w_m = mod_weights[modality]
+                clip_loss_sum_weighted = clip_loss_sum_weighted + w_m * loss_m
+                clip_loss_sum_unweighted = clip_loss_sum_unweighted + loss_m
+                clip_weight_sum += w_m
                 clip_mod_count += 1
 
                 if use_cross_subject_negatives:
@@ -296,7 +330,11 @@ def main() -> None:
                     clip_acc_i2t_correct += (sims.argmax(dim=1) == targets).sum().item()
                     clip_acc_t2i_correct += (sims.argmax(dim=0) == targets).sum().item()
                     clip_acc_total += n_m
-            loss_clip = clip_loss_sum / max(clip_mod_count, 1)
+            
+            # 加权平均 loss_clip（用于训练）
+            loss_clip = clip_loss_sum_weighted / max(clip_weight_sum, 1e-8)
+            # 未加权平均（用于日志对比）
+            loss_clip_unweighted = clip_loss_sum_unweighted / max(clip_mod_count, 1)
 
             if use_cross_subject_negatives and clip_acc_total > 0:
                 clip_acc_i2t = clip_acc_i2t_correct / clip_acc_total
@@ -338,6 +376,7 @@ def main() -> None:
         return {
             "total_loss": total_loss,
             "loss_clip": loss_clip,
+            "loss_clip_unweighted": loss_clip_unweighted,  # 未加权版本用于对比
             "loss_bound": loss_bound,
             "loss_mod": loss_mod,
             "acc_mod": acc_mod,
@@ -372,6 +411,7 @@ def main() -> None:
                 lr = optimizer.param_groups[0].get("lr", args.lr)
                 writer.add_scalar("loss/total", float(result["total_loss"].item()), global_step)
                 writer.add_scalar("loss/clip", float(result["loss_clip"].item()), global_step)
+                writer.add_scalar("loss/clip_unweighted", float(result["loss_clip_unweighted"].item()), global_step)
                 writer.add_scalar("loss/bound", float(result["loss_bound"].item()), global_step)
                 writer.add_scalar("loss/mod", float(result["loss_mod"].item()), global_step)
                 writer.add_scalar("metrics/mod_acc", float(result["acc_mod"].item()), global_step)
@@ -398,6 +438,7 @@ def main() -> None:
             val_totals = {
                 "total_loss": 0.0,
                 "loss_clip": 0.0,
+                "loss_clip_unweighted": 0.0,
                 "loss_bound": 0.0,
                 "loss_mod": 0.0,
                 "acc_mod": 0.0,
@@ -418,6 +459,7 @@ def main() -> None:
                 val_avg = {k: v / val_steps for k, v in val_totals.items()}
                 writer.add_scalar("val/loss_total", val_avg["total_loss"], epoch)
                 writer.add_scalar("val/loss_clip", val_avg["loss_clip"], epoch)
+                writer.add_scalar("val/loss_clip_unweighted", val_avg["loss_clip_unweighted"], epoch)
                 writer.add_scalar("val/loss_bound", val_avg["loss_bound"], epoch)
                 writer.add_scalar("val/loss_mod", val_avg["loss_mod"], epoch)
                 writer.add_scalar("val/acc_mod", val_avg["acc_mod"], epoch)
