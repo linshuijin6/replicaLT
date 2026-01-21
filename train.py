@@ -1,93 +1,300 @@
 #%%
+"""
+train_refactored.py - 重构版训练脚本
+
+主要改动：
+1. 数据读取：直接从JSON读取（由preprocess.py生成），包含index、plasma、description、diagnosis等
+2. plasma文本生成：使用build_plasma_text_from_json函数，处理缺失值（-999.0 -> "NA"）
+3. BiomedCLIP处理：为每个样本生成 [plasma_text + modality_common_text] 的特征向量
+4. has_*判断：基于文件路径是否以 "_zero.nii.gz" 结尾
+5. 删除冗余代码：移除CSV检索、_pick_plasma、_load_plasma_table等
+"""
+
 import pandas as pd
 from report_error import email_on_error
-from sklearn.model_selection import train_test_split
-from typing import Dict
+from typing import Dict, List, Optional
 import nibabel as nib
 import numpy as np
+import torch.multiprocessing as mp
 from generative.networks.nets.diffusion_model_unet import DistributedDiffusionModelUNet
+from datetime import datetime
+from pathlib import Path
+import matplotlib.pyplot as plt
+import math
+
+# 设置多进程启动方式为'spawn'，避免CUDA在fork进程中初始化问题
+try:
+    mp.set_start_method('spawn', force=True)
+except RuntimeError:
+    pass
 
 
-def get_subject_id(filename):
-    """从文件名中提取统一的 subject ID（前三个部分，如 '002_S_0295'）"""
-    parts = filename.split('_')
-    return f"{parts[0]}_{parts[1]}_{parts[2]}"
-
-
-# 自定义加载函数
+# ==================== 工具函数 ====================
 def mat_load(filepath):
-    """
-    使用 nibabel 加载 NIfTI 文件，并转换为 NumPy 数组。
+    """使用 nibabel 加载 NIfTI 文件，并转换为 NumPy 数组。
+    如果是4D数据（包含时间维度），自动取第一个时间点。
     """
     if filepath is None:
         return None
-    return nib.load(filepath).get_fdata()
+    data = nib.load(filepath).get_fdata()
+    # 如果是4D数据，取第一个时间点
+    if data.ndim == 4:
+        data = data[..., 0]
+    return data
 
 
-# @email_on_error()
+def is_zero_filled_file(filepath: str) -> bool:
+    """判断文件是否为零填充文件（由preprocess.py生成）"""
+    if filepath is None:
+        return True
+    return filepath.endswith("_zero.nii.gz")
+
+
+# ==================== Plasma 文本生成（参照 adapter_finetune/dataset.py）====================
+# 预设缺失值标识（与 preprocess.py 一致）
+MISSING_PLASMA = -999.0
+
+# Plasma 阈值配置（与 adapter_finetune/dataset.py 一致）
+PLASMA_THRESHOLDS = {
+    "AB42_AB40": {
+        "negative_above": 0.1053,
+        "positive_below": 0.0820,
+        "intermediate_range": [0.0821, 0.1052],
+    },
+    "pT217": {
+        "negative_below": 0.128,
+        "positive_above": 0.300,
+        "intermediate_range": [0.129, 0.299],
+    },
+    "pT217_AB42": {
+        "negative_below": 0.0055,
+        "positive_above": 0.0086,
+        "intermediate_range": [0.0056, 0.0085],
+    },
+    # NfL 和 GFAP 暂无阈值定义，显示为 UNKNOWN
+}
+
+
+def map_value_to_state(value: float, rule: Dict) -> str:
+    """将数值映射为状态（POSITIVE/NEGATIVE/INTERMEDIATE/UNKNOWN）"""
+    if value is None or value == MISSING_PLASMA or (isinstance(value, float) and math.isnan(value)):
+        return "UNKNOWN"
+    
+    if "positive_below" in rule and value <= rule["positive_below"]:
+        return "POSITIVE"
+    if "positive_above" in rule and value >= rule["positive_above"]:
+        return "POSITIVE"
+    if "negative_below" in rule and value <= rule["negative_below"]:
+        return "NEGATIVE"
+    if "negative_above" in rule and value >= rule["negative_above"]:
+        return "NEGATIVE"
+    if "intermediate_range" in rule:
+        lo, hi = rule["intermediate_range"]
+        if lo <= value <= hi:
+            return "INTERMEDIATE"
+    return "UNKNOWN"
+
+
+def format_biomarker_value(value: Optional[float]) -> str:
+    """格式化生物标志物数值"""
+    if value is None or value == MISSING_PLASMA or (isinstance(value, float) and math.isnan(value)):
+        return "NA"
+    if isinstance(value, (int, float)):
+        formatted = f"{value:.6f}"
+        if "." in formatted:
+            formatted = formatted.rstrip("0").rstrip(".")
+        return formatted
+    return str(value)
+
+
+def build_plasma_text_from_json(plasma_data: Dict[str, float]) -> str:
+    """
+    从JSON中的plasma数据生成文本描述。
+    处理preprocess.py中设置的缺失值（-999.0）。
+    
+    Args:
+        plasma_data: {"AB42_AB40": 0.08, "pT217": 0.15, ...} 或包含 -999.0 的缺失值
+    
+    Returns:
+        格式化的plasma文本，如：
+        "Aβ42/Aβ40 = 0.08 (POSITIVE);
+         p-tau217 = 0.15 (INTERMEDIATE);
+         ..."
+    """
+    # 固定顺序和标签映射
+    order = [
+        ("AB42_AB40", "Aβ42/Aβ40"),
+        ("pT217", "p-tau217"),
+        ("pT217_AB42", "p-tau217/Aβ42"),
+        ("NfL", "NfL"),
+        ("GFAP", "GFAP"),
+    ]
+    
+    segments: List[str] = []
+    for key, label in order:
+        value = plasma_data.get(key, MISSING_PLASMA)
+        rule = PLASMA_THRESHOLDS.get(key, {})
+        state = map_value_to_state(value, rule)
+        val_text = format_biomarker_value(value)
+        segments.append(f"{label} = {val_text} ({state});")
+    
+    return "\n".join(segments)
+
+
+def build_modality_text(plasma_data: Dict[str, float], description: Optional[str], 
+                        diagnosis: Optional[str], modality: str, 
+                        modality_common_texts: Dict[str, str]) -> str:
+    """
+    构建完整的模态文本（用于BiomedCLIP编码）。
+    
+    格式：
+    [PLASMA]
+    Aβ42/Aβ40 = 0.08 (POSITIVE);
+    p-tau217 = 0.15 (INTERMEDIATE);
+    ...
+    [/PLASMA]
+    [SEP]
+    <modality_common_text>
+    
+    Args:
+        plasma_data: plasma生物标志物数据
+        description: 个人描述（可选）
+        diagnosis: 诊断结果（可选）
+        modality: 模态类型 ("FDG", "AV45", "TAU")
+        modality_common_texts: 模态通用描述文本字典
+    
+    Returns:
+        完整的模态文本
+    """
+    plasma_text = build_plasma_text_from_json(plasma_data)
+    common_text = modality_common_texts.get(modality, "")
+    
+    return f"[PLASMA]\n{plasma_text}\n[/PLASMA]\n[SEP]\n{common_text}"
+
+
+@email_on_error()
 def main():
     import torch
     import logging
     logging.basicConfig(level=logging.INFO)
     import torch.nn as nn
-    from liutuo_utils import compare_3d_jet, compare_3d, donkey_noise_like
+    from liutuo_utils import compare_3d_jet, compare_3d
     from monai.data import PersistentDataset
     from transformers import AutoProcessor, AutoModel
     import os
     import json
-    from transformers import AutoTokenizer, AutoModel
     from tqdm import tqdm
-    from torch.amp import GradScaler, autocast  # 从 torch.amp 导入 GradScaler
+    from torch.amp import GradScaler, autocast
     import torch.nn.functional as F
+    from torch.utils.tensorboard import SummaryWriter
 
-    # 0.训练参数设置
-    base_dir = "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration"
-    cache_dir = '/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Cache'
-    plasma_csv_path = "adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
-
-    device_id = [5,7]
-    # 定义裁剪的最小值和最大值
-    clip_sample_min = 0  # 设置合适的最小值
-    clip_sample_max = 1   # 设置合适的最大值
-
-    # 定义模态权重
+    # ==================== 0. 训练参数配置 ====================
+    cache_dir = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_cache_tem'
+    adapter_ckpt_path = "/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/runs/01.19_2945992/ckpt_epoch400.pt"
+    
+    # JSON 数据路径（由 preprocess.py 生成）
+    train_json_path = "./train_data_with_description.json"
+    val_json_path = "./val_data_with_description.json"
+    
+    # 确保缓存目录存在
+    os.makedirs(cache_dir, exist_ok=True)
+    os.makedirs(os.path.join(cache_dir, "train"), exist_ok=True)
+    os.makedirs(os.path.join(cache_dir, "val"), exist_ok=True)
+    print(f"✅ 缓存目录已创建: {cache_dir}")
+    
+    # GPU配置
+    device_id = [5]
+    clip_sample_min = 0
+    clip_sample_max = 1
+    
+    # 模态损失权重
     alpha = 1.0  # FDG 损失权重
     beta = 1.0   # AV45 损失权重
     gamma = 1.0  # TAU 损失权重
     
-    # ============ 多GPU优化配置 ============
-    accumulation_steps = 2  # 梯度累积步数（值越大，显存越小，但训练越慢）
-    # 单GPU 24GB: accumulation_steps=2 → 约10GB显存
-    # 双GPU 24GB: accumulation_steps=1 → 约5GB/卡（推荐）
-    # 单GPU 16GB: accumulation_steps=4 → 约8GB显存
-    # 设置 PyTorch 的默认 CUDA 设备
-    torch.cuda.set_device(device_id[0]) if len(device_id) == 1 else None
-    size_of_dataset = None  # 设置为 None 以使用完整数据集，或设置为所需的样本数量
+    # 训练配置
+    batch_size = 1
+    num_workers = 0
+    accumulation_steps = 2
+    size_of_dataset = None
     n_epochs = 200
-    val_interval =10
+    val_interval = 10
     checkpoint_dir = './checkpoint'
-
+    logdir = './runs'
+    log_every = 1
+    image_log_interval = 10
+    run_name = None
+    
     # Adapter 配置
-    adapter_ckpt_path = "/home/ssddata/linshuijin/replicaLT/runs/12.31_3568410/ckpt_last.pt"  # 根据需要替换
     adapter_hidden = 512
     adapter_dropout = 0.1
-
-    # 是否继续上次训练
+    
+    # 是否继续训练
     last_epoch = False
+    resume_checkpoint = None
+    
+    # 设置 CUDA 设备
+    if torch.cuda.is_available():
+        try:
+            primary_device = device_id[0]
+            torch.cuda.set_device(primary_device)
+            print(f"✅ 设置主CUDA设备: {primary_device}")
+        except RuntimeError as e:
+            print(f"Warning: Failed to set CUDA device: {e}")
+    
+    primary_gpu = device_id[0]
+    device = torch.device(f"cuda:{primary_gpu}" if torch.cuda.is_available() else "cpu")
+    
+    # 打印GPU信息
+    if torch.cuda.is_available():
+        print(f"\n📊 GPU配置信息:")
+        for did in device_id:
+            device_name = torch.cuda.get_device_name(did)
+            free_mem = torch.cuda.get_device_properties(did).total_memory / 1024**3
+            print(f"   GPU {did}: {device_name} - 总显存: {free_mem:.2f} GB")
 
-    # 确认当前默认 CUDA 设备
-    current_device = torch.cuda.current_device()
-    print(f"Switched to CUDA device: {current_device}")
+    # ==================== 1. TensorBoard 日志初始化 ====================
+    if run_name:
+        final_run_name = run_name
+    else:
+        now = datetime.now()
+        final_run_name = f"{now:%m.%d}_{os.getpid()}"
+    run_dir = Path(logdir) / final_run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    writer = SummaryWriter(log_dir=str(run_dir))
+    print(f"\n📝 TensorBoard 日志目录: {run_dir}")
 
-    # 1. 加载 BiomedCLIP 模型和处理器
+    # 保存超参数
+    hparams = {
+        "cache_dir": cache_dir,
+        "device_id": device_id,
+        "batch_size": batch_size,
+        "accumulation_steps": accumulation_steps,
+        "n_epochs": n_epochs,
+        "val_interval": val_interval,
+        "alpha": alpha,
+        "beta": beta,
+        "gamma": gamma,
+        "adapter_ckpt_path": adapter_ckpt_path,
+        "adapter_hidden": adapter_hidden,
+        "adapter_dropout": adapter_dropout,
+    }
+    hparam_path = run_dir / "hparams.json"
+    with hparam_path.open("w", encoding="utf-8") as f:
+        json.dump(hparams, f, ensure_ascii=False, indent=2)
+    print(f"✅ 超参数已保存到: {hparam_path}")
+
+    # ==================== 2. 加载 BiomedCLIP 模型 ====================
     local_model_path = "./BiomedCLIP"
     processor = AutoProcessor.from_pretrained(local_model_path, trust_remote_code=True)
     bio_model = AutoModel.from_pretrained(local_model_path, trust_remote_code=True)
-
-    device = torch.device(f"cuda:{device_id[0]}" if torch.cuda.is_available() else "cpu")
+    
+    print(f"\n📍 将BiomedCLIP模型加载到设备: {device}")
     bio_model.to(device)
     bio_model.eval()
+    print(f"✅ BiomedCLIP模型加载成功")
 
+    # ==================== 3. 定义 Adapter 模块 ====================
     class Adapter(nn.Module):
         def __init__(self, dim: int, hidden: int = 512, dropout: float = 0.1) -> None:
             super().__init__()
@@ -101,7 +308,7 @@ def main():
         def forward(self, x: torch.Tensor) -> torch.Tensor:
             return self.net(x)
 
-    # 模态公共描述文本（与 adapter_finetune/dataset.py 保持一致风格）
+    # 模态公共描述文本
     modality_common_texts = {
         "FDG": (
             "a functional brain imaging technique that visualizes the dynamic changes in glucose metabolism, "
@@ -121,740 +328,675 @@ def main():
         ),
     }
 
-    def build_plasma_text(desc_text):
-        text = desc_text if desc_text is not None else "NA"
-        return f"[PLASMA]\n{text}\n[/PLASMA]"
-
-    def build_modal_text(desc_text, modality):
-        plasma_block = build_plasma_text(desc_text)
-        common_text = modality_common_texts[modality]
-        return f"{plasma_block}\n[SEP]\n{common_text}"
-
     feat_dim = bio_model.config.projection_dim
     modalities_all = ["FDG", "AV45", "TAU"]
     adapters = {m: Adapter(feat_dim, hidden=adapter_hidden, dropout=adapter_dropout).to(device) for m in modalities_all}
 
-    adapter_args = None
+    # 加载 Adapter 权重（如有）
     if adapter_ckpt_path and os.path.exists(adapter_ckpt_path):
         ckpt = torch.load(adapter_ckpt_path, map_location=device)
         ckpt_adapters = ckpt.get("text_adapters", {})
         for m, adp in adapters.items():
             if m in ckpt_adapters:
                 adp.load_state_dict(ckpt_adapters[m])
-        adapter_args = ckpt.get("args", {})
-        print(f"Loaded adapters from {adapter_ckpt_path}")
+        print(f"✅ 加载Adapter权重: {adapter_ckpt_path}")
     else:
-        print(f"Adapter checkpoint not found: {adapter_ckpt_path}. Using freshly initialized adapters.")
+        print(f"⚠️ Adapter权重未找到，使用初始化权重")
 
     for adp in adapters.values():
         adp.eval()
 
-    from adapter_finetune.dataset import build_plasma_text as build_plasma_text_ds, _default_config
-
-
-    def _load_plasma_table(path: str) -> pd.DataFrame:
-        df = pd.read_csv(path)
-        df.columns = [c.lower() for c in df.columns]
-        if "examdate" in df.columns:
-            df["examdate"] = pd.to_datetime(df["examdate"], errors="coerce")
-        return df
-
-    plasma_table = _load_plasma_table(plasma_csv_path)
-
-    def _pick_plasma(ptid: str, examdate: str = None) -> Dict[str, float]:
-        if ptid is None:
-            return {}
-
-        df = plasma_table
-        ptid_col = "ptid"
-        exam_col = "examdate"
-
-        if exam_col in df.columns:
-            examdate_ts = pd.to_datetime(examdate) if examdate else None
-            hit = df[df[ptid_col] == ptid].copy()
-            if examdate_ts is not None and not hit.empty:
-                hit["_diff_days"] = (hit[exam_col] - examdate_ts).abs().dt.days
-                hit = hit[hit["_diff_days"] <= 90].sort_values("_diff_days")
-        else:
-            hit = df[df[ptid_col] == ptid]
-
-        if hit.empty:
-            return {}
-
-        row = hit.iloc[0].to_dict()
-        for k in ["ab42_ab40_f", "pt217_ab42_f", "nfl_q", "gfap_q", "ab42_f", "ab40_f", "pt217_f"]:
-            if k in row:
-                try:
-                    row[k] = float(row[k])
-                except Exception:
-                    pass
-        return {k.upper(): v for k, v in row.items()}
-
-    def encode_template(modality, ptid: str = None, examdate: str = None):
-        common_text = modality_common_texts[modality]
-        plasma_config = _default_config()["plasma_thresholds"]
-        plasma_row = _pick_plasma(ptid, examdate)
-        plasma_text = build_plasma_text_ds(plasma_row, plasma_config)
-        text = f"[PLASMA]\n{plasma_text}\n[/PLASMA]\n[SEP]\n{common_text}"
-        inputs = processor(text=[text], return_tensors="pt", padding=True, truncation=True, max_length=256).to(device)
-        with torch.no_grad():
-            base = bio_model.get_text_features(**inputs).squeeze(0)
-        return adapters[modality](base).unsqueeze(0)
-
-    # cosine similarity between modality templates could be computed here if needed
-
-    # 2. 预处理数据，对患者信息生成Text Embeddings via BiomedCLIP
-    mri_dir = os.path.join(base_dir, "MRI")
-    av45_dir = os.path.join(base_dir, "PET_MNI", 'AV45')
-    fdg_dir = os.path.join(base_dir, "PET_MNI", 'FDG')
-    tau_dir = os.path.join(base_dir, "PET_MNI", 'TAU')
-    csv_path = 'filtered_subjects_with_description.csv'
-
-    # JSON 文件保存路径（保持不变）
-    train_json_path = "adapter_finetune/json/train_data_with_description.json"
-    val_json_path = "adapter_finetune/json/val_data_with_description.json"
-
-    # 加载 CSV 文件（保持不变）
-    csv_data = pd.read_csv(csv_path)
-    csv_dict = csv_data.set_index("Subject ID")["Description"].to_dict()
-
-    def _filter_pet_files(files):
-        """过滤掉不需要的 PET 文件，仅保留主 nii.gz 文件。"""
-        keep = []
-        for f in files:
-            name_lower = f.lower()
-            if not name_lower.endswith(".nii.gz"):
-                continue
-            if "pet2mni" in name_lower or "full" in name_lower:
-                continue
-            keep.append(f)
-        return keep
-
-    # 获取文件列表（过滤 PET 的冗余文件）
-    mri_files = sorted(os.listdir(mri_dir))
-    av45_files = _filter_pet_files(sorted(os.listdir(av45_dir)))
-    fdg_files = _filter_pet_files(sorted(os.listdir(fdg_dir)))
-    tau_files = _filter_pet_files(sorted(os.listdir(tau_dir))) if os.path.isdir(tau_dir) else []
-
-
-
-    # 使用统一的 get_subject_id 处理所有文件（保持不变）
-    mri_dict = {get_subject_id(f): os.path.join(mri_dir, f) for f in mri_files}
-    av45_dict = {get_subject_id(f): os.path.join(av45_dir, f) for f in av45_files}
-    fdg_dict = {get_subject_id(f): os.path.join(fdg_dir, f) for f in fdg_files}
-    tau_dict = {get_subject_id(f): os.path.join(tau_dir, f) for f in tau_files}
-
-    # 匹配文件并加入描述信息和 Subject ID
-    paired_data = []
-    tau_available = len(tau_dict) > 0
-    for patient_id, mri_file in mri_dict.items():
-        has_fdg = patient_id in fdg_dict
-        has_av45 = patient_id in av45_dict
-        has_tau = tau_available and patient_id in tau_dict
-
-        # 只要存在任意 PET 即可纳入
-        if not (has_fdg or has_av45 or has_tau):
-            continue
-
-        description = csv_dict.get(patient_id, None)  # 从 csv_dict 中获取 Description 信息
-        entry = {
-            "name": patient_id,  # 添加 name 字段
-            "mri": mri_file,
-            "av45": av45_dict.get(patient_id),
-            "fdg": fdg_dict.get(patient_id),
-            "description": description  # 加入 Description 信息
-        }
-        if tau_available:
-            entry["tau"] = tau_dict.get(patient_id)
-        paired_data.append(entry)
-    if size_of_dataset:
-        paired_data = paired_data[:size_of_dataset]  # 根据需要调整数据集大小
-    print(f"Total matched pairs with description: {len(paired_data)}")
-    # 在 paired_data 中新增键 fdg_index、av45_index、tau_index
-    for idx, data in enumerate(paired_data):
-        data["fdg_index"] = idx  # 将样本在 paired_data 中的索引作为 fdg_index
-        data["av45_index"] = idx
-        if tau_available:
-            data["tau_index"] = idx
-
-    # 保证每个被试都有文本（无描述时使用 NA）
-    modal_information = [data.get("description", "NA") or "NA" for data in paired_data]
-
-    modality_text_features = {}
-
-    # 为每个样本生成对应模态的 template feature
-    template_features = {m: [] for m in modalities_all if m != "TAU" or tau_available}
-    for item in paired_data:
-        ptid = item["name"]
-        template_features["FDG"].append(encode_template("FDG", ptid))
-        template_features["AV45"].append(encode_template("AV45", ptid))
-        if tau_available:
-            template_features["TAU"].append(encode_template("TAU", ptid))
-
-    fdg_template_features = torch.cat(template_features["FDG"], dim=0) if template_features["FDG"] else None
-    av45_template_features = torch.cat(template_features["AV45"], dim=0) if template_features["AV45"] else None
-    tau_template_features = torch.cat(template_features["TAU"], dim=0) if tau_available and template_features["TAU"] else None
-
-    for modality in modalities_all:
-        texts_for_modality = [desc for desc in modal_information]
-        text_inputs = processor(
-            text=texts_for_modality,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-            max_length=256,
-        ).to(device)
-        with torch.no_grad():
-            base_feats = bio_model.get_text_features(**text_inputs)
-        modality_text_features[modality] = base_feats
-        print(f"{modality} text features: {base_feats.shape}, dtype={base_feats.dtype}")
-
-    fdg_text_features = modality_text_features["FDG"]
-    av45_text_features = modality_text_features["AV45"]
-    tau_text_features = modality_text_features.get("TAU") if tau_available else None
-    # 划分训练集和验证集
-    train_data, val_data = train_test_split(paired_data, test_size=int(len(paired_data)*0.1), random_state=42)
-
-    print(f"Training set size: {len(train_data)}")
-    print(f"Validation set size: {len(val_data)}")
-
-    if not os.path.exists(train_json_path):
-        # 保存到 JSON 文件
-        with open(train_json_path, "w") as f:
-            json.dump(train_data, f, indent=4)
-        with open(val_json_path, "w") as f:
-            json.dump(val_data, f, indent=4)
-        print(f"Saved train data to: {train_json_path}")
-        print(f"Saved validation data to: {val_json_path}")
-    else:
-        print(f"JSON files already exist. Skipping save step.")
-
+    # ==================== 4. 从JSON加载数据 ====================
+    print(f"\n📂 加载训练数据: {train_json_path}")
     with open(train_json_path, "r") as f:
-        train_data = json.load(f)
-    print(f"Loaded {len(train_data)} training samples.")
-    print("First training sample:", train_data[0])
-
-    # 验证验证集
+        train_data_raw = json.load(f)
+    print(f"   训练样本数: {len(train_data_raw)}")
+    
+    print(f"📂 加载验证数据: {val_json_path}")
     with open(val_json_path, "r") as f:
-        val_data = json.load(f)
-    print(f"Loaded {len(val_data)} validation samples.")
-    print("First validation sample:", val_data[0])
+        val_data_raw = json.load(f)
+    print(f"   验证样本数: {len(val_data_raw)}")
+    
+    if size_of_dataset:
+        train_data_raw = train_data_raw[:size_of_dataset]
+        val_data_raw = val_data_raw[:min(size_of_dataset // 10, len(val_data_raw))]
+    
+    # 打印第一个样本结构
+    if train_data_raw:
+        print(f"\n📋 样本结构示例:")
+        sample = train_data_raw[0]
+        for key in ["name", "examdate", "mri", "fdg", "av45", "tau", "diagnosis"]:
+            if key in sample:
+                val = sample[key]
+                if isinstance(val, str) and len(val) > 60:
+                    val = val[:60] + "..."
+                print(f"   {key}: {val}")
+        if "plasma" in sample:
+            print(f"   plasma: {sample['plasma']}")
 
-    from monai.data import CacheDataset, DataLoader
-    import json
+    # ==================== 5. 为每个样本生成 BiomedCLIP 特征（批量并行加速）====================
+    print(f"\n🔄 生成模态特征向量（批量并行模式）...")
+    
+    # 合并所有数据用于特征生成
+    all_data = train_data_raw + val_data_raw
+    
+    # 批量编码参数
+    ENCODE_BATCH_SIZE = 32  # 根据GPU显存调整
+    
+    def encode_texts_batch(texts: List[str], batch_size: int = ENCODE_BATCH_SIZE) -> torch.Tensor:
+        """批量使用BiomedCLIP编码文本"""
+        all_features = []
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i + batch_size]
+            inputs = processor(text=batch_texts, return_tensors="pt", padding=True, truncation=True, max_length=256).to(device)
+            with torch.no_grad():
+                features = bio_model.get_text_features(**inputs)
+            all_features.append(features.cpu())
+        return torch.cat(all_features, dim=0)
+    
+    # 预先构建所有文本（避免重复计算）
+    print(f"   构建文本列表...")
+    fdg_texts = []
+    av45_texts = []
+    tau_texts = []
+    desc_texts = []
+    
+    for item in all_data:
+        plasma_data = item.get("plasma", {})
+        description = item.get("description", None)
+        diagnosis = item.get("diagnosis", "UNKNOWN")
+        
+        # 各模态文本
+        fdg_texts.append(build_modality_text(plasma_data, description, diagnosis, "FDG", modality_common_texts))
+        av45_texts.append(build_modality_text(plasma_data, description, diagnosis, "AV45", modality_common_texts))
+        tau_texts.append(build_modality_text(plasma_data, description, diagnosis, "TAU", modality_common_texts))
+        
+        # 个人描述文本
+        desc_texts.append(description if description else "NA")
+    
+    n_samples = len(all_data)
+    print(f"   样本数: {n_samples}, 批量大小: {ENCODE_BATCH_SIZE}")
+    
+    # 批量编码各模态文本
+    print(f"   编码 FDG 文本...")
+    fdg_base_features = encode_texts_batch(fdg_texts)
+    
+    print(f"   编码 AV45 文本...")
+    av45_base_features = encode_texts_batch(av45_texts)
+    
+    print(f"   编码 TAU 文本...")
+    tau_base_features = encode_texts_batch(tau_texts)
+    
+    print(f"   编码 描述 文本...")
+    personal_descri_embed = encode_texts_batch(desc_texts)
+    
+    # 批量通过Adapter（在GPU上处理）
+    print(f"   通过 Adapter 网络...")
+    with torch.no_grad():
+        # 分批处理Adapter以避免显存溢出
+        fdg_adapted_list = []
+        av45_adapted_list = []
+        tau_adapted_list = []
+        
+        for i in range(0, n_samples, ENCODE_BATCH_SIZE):
+            end_idx = min(i + ENCODE_BATCH_SIZE, n_samples)
+            
+            fdg_batch = fdg_base_features[i:end_idx].to(device)
+            av45_batch = av45_base_features[i:end_idx].to(device)
+            tau_batch = tau_base_features[i:end_idx].to(device)
+            
+            fdg_adapted_list.append(adapters["FDG"](fdg_batch).cpu())
+            av45_adapted_list.append(adapters["AV45"](av45_batch).cpu())
+            tau_adapted_list.append(adapters["TAU"](tau_batch).cpu())
+        
+        fdg_template_features = torch.cat(fdg_adapted_list, dim=0)
+        av45_template_features = torch.cat(av45_adapted_list, dim=0)
+        tau_template_features = torch.cat(tau_adapted_list, dim=0)
+    
+    print(f"✅ 特征生成完成: FDG={fdg_template_features.shape}, AV45={av45_template_features.shape}, TAU={tau_template_features.shape}")
 
+    # ==================== 6. 准备 DataLoader 数据 ====================
+    # 为训练/验证数据分配正确的索引
+    train_size = len(train_data_raw)
+    
+    def prepare_data_entry(item: Dict, global_idx: int) -> Dict:
+        """准备单个数据条目"""
+        return {
+            "name": item["name"],
+            "mri": item["mri"],
+            "fdg": item["fdg"],
+            "av45": item["av45"],
+            "tau": item["tau"],
+            "fdg_index": global_idx,
+            "av45_index": global_idx,
+            "tau_index": global_idx,
+            # 标记是否为零填充文件（用于跳过损失计算）
+            "is_fdg_zero": is_zero_filled_file(item["fdg"]),
+            "is_av45_zero": is_zero_filled_file(item["av45"]),
+            "is_tau_zero": is_zero_filled_file(item["tau"]),
+        }
+    
+    train_data = [prepare_data_entry(item, idx) for idx, item in enumerate(train_data_raw)]
+    val_data = [prepare_data_entry(item, train_size + idx) for idx, item in enumerate(val_data_raw)]
+    
+    print(f"\n📊 数据准备完成:")
+    print(f"   训练集: {len(train_data)} 样本")
+    print(f"   验证集: {len(val_data)} 样本")
+    
+    # 统计零填充文件
+    zero_stats = {"fdg": 0, "av45": 0, "tau": 0}
+    for item in train_data + val_data:
+        if item["is_fdg_zero"]:
+            zero_stats["fdg"] += 1
+        if item["is_av45_zero"]:
+            zero_stats["av45"] += 1
+        if item["is_tau_zero"]:
+            zero_stats["tau"] += 1
+    print(f"   零填充文件统计 - FDG: {zero_stats['fdg']}, AV45: {zero_stats['av45']}, TAU: {zero_stats['tau']}")
+
+    # ==================== 7. 数据变换和 DataLoader ====================
+    from monai.data import DataLoader, pad_list_data_collate, PersistentDataset
     import monai.transforms as mt
 
-    class FillMissingPET(mt.MapTransform):
-        """为缺失的 PET 模态填充与 MRI 尺寸一致的零数组。"""
-
-        def __init__(self, keys, ref_key="mri"):
-            super().__init__(keys)
-            self.ref_key = ref_key
-
+    class RemoveCropForegroundMeta(mt.Transform):
+        """移除 CropForegroundd 添加的元数据键"""
         def __call__(self, data):
             d = dict(data)
-            ref = d.get(self.ref_key)
-            if ref is None:
-                return d
-            for key in self.keys:
-                if key == self.ref_key:
-                    continue
-                if key not in d or d[key] is None:
-                    d[key] = np.zeros_like(ref)
+            keys_to_remove = ['foreground_start_coord', 'foreground_end_coord']
+            for k in keys_to_remove:
+                d.pop(k, None)
             return d
 
-    class DebugShape(mt.MapTransform):
-        """调试用：打印各键的数组形状与类型"""
-        def __init__(self, keys):
-            super().__init__(keys)
+    class ConvertToTensor(mt.Transform):
+        """将所有 MetaTensor 转换为普通 torch.Tensor"""
         def __call__(self, data):
+            from monai.data import MetaTensor
             d = dict(data)
-            try:
-                for k in self.keys:
-                    v = d.get(k)
-                    if v is None:
-                        print(f"[DebugShape] {k}: None")
-                    else:
-                        if hasattr(v, 'shape'):
-                            print(f"[DebugShape] {k}: shape={v.shape}, dtype={getattr(v, 'dtype', type(v))}")
-                        else:
-                            print(f"[DebugShape] {k}: type={type(v)}")
-            except Exception as e:
-                print(f"[DebugShape] error: {e}")
+            for k, v in d.items():
+                if isinstance(v, MetaTensor):
+                    d[k] = v.as_tensor()
+                elif isinstance(v, torch.Tensor):
+                    d[k] = v.clone().detach()
             return d
 
-    class ReduceTo3D(mt.MapTransform):
-        """将可能的 4D 体积 (H, W, D, T) 沿最后一维聚合为 3D (H, W, D)。"""
-        def __init__(self, keys, reduce='mean'):
-            super().__init__(keys)
-            self.reduce = reduce
-        def __call__(self, data):
-            d = dict(data)
-            for k in self.keys:
-                v = d.get(k)
-                if isinstance(v, np.ndarray):
-                    if v.ndim == 4:
-                        if self.reduce == 'mean':
-                            d[k] = v.mean(axis=-1)
-                        elif self.reduce == 'max':
-                            d[k] = v.max(axis=-1)
-                        elif self.reduce == 'mid':
-                            mid = v.shape[-1] // 2
-                            d[k] = v[..., mid]
-                        else:
-                            d[k] = v.mean(axis=-1)
-                elif hasattr(v, 'ndim') and v.ndim == 4:
-                    # torch.Tensor case
-                    import torch
-                    if self.reduce == 'mean':
-                        d[k] = v.mean(dim=-1)
-                    elif self.reduce == 'max':
-                        d[k] = torch.max(v, dim=-1).values
-                    elif self.reduce == 'mid':
-                        mid = v.shape[-1] // 2
-                        d[k] = v[..., mid]
-                    else:
-                        d[k] = v.mean(dim=-1)
-            return d
-
-    # 定义 transform 函数
+    # 特征索引转换函数
     def fdg_index_transform(x):
-        text_feat = fdg_text_features[x].unsqueeze(0)
+        text_feat = personal_descri_embed[x].unsqueeze(0)
         tmpl_feat = fdg_template_features[x].unsqueeze(0)
         return torch.cat([text_feat, tmpl_feat], dim=0)
 
     def av45_index_transform(x):
-        text_feat = av45_text_features[x].unsqueeze(0)
+        text_feat = personal_descri_embed[x].unsqueeze(0)
         tmpl_feat = av45_template_features[x].unsqueeze(0)
         return torch.cat([text_feat, tmpl_feat], dim=0)
 
     def tau_index_transform(x):
-        text_feat = tau_text_features[x].unsqueeze(0)
+        text_feat = personal_descri_embed[x].unsqueeze(0)
         tmpl_feat = tau_template_features[x].unsqueeze(0)
         return torch.cat([text_feat, tmpl_feat], dim=0)
 
+    pet_keys = ["mri", "fdg", "av45", "tau"]
 
-    # 3. 加载处理好的数据
-    # train_json_path = "./train_data_with_description.json"
-    # val_json_path = "./val_data_with_description.json"
-
-    # 加载 JSON 文件
-    with open(train_json_path, "r") as f:
-        train_data = json.load(f)
-
-    with open(val_json_path, "r") as f:
-        val_data = json.load(f)
-
-    # 转换数据格式
-    train_data = [
-        {
-            "name": item["name"],
-            "mri": item["mri"],
-            "av45": item["av45"],
-            "fdg": item["fdg"],
-            "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "description": item.get("description", {}),  # 确保 description 存在
-            "fdg_index": item.get("fdg_index"),  # 保留 fdg_index
-            "av45_index": item.get("av45_index"),  # 保留 av45_index
-            "tau_index": item.get("tau_index") if tau_available else None,  # 保留 tau_index
-        }
-        for item in train_data
-    ]
-
-    val_data = [
-        {
-            "name": item["name"],
-            "mri": item["mri"],
-            "av45": item["av45"],
-            "fdg": item["fdg"],
-            "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "description": item.get("description", {}),  # 确保 description 存在
-            "fdg_index": item.get("fdg_index"),  # 保留 fdg_index
-            "av45_index": item.get("av45_index"),  # 保留 av45_index
-            "tau_index": item.get("tau_index") if tau_available else None,  # 保留 tau_index
-        }
-        for item in val_data
-    ]
-
-    # 确保缺失的 TAU 索引被填充（沿用 FDG/AV45 的索引以保持与特征向量对齐）
-    if tau_available:
-        for item in train_data:
-            if item["tau_index"] is None:
-                item["tau_index"] = item.get("fdg_index")
-        for item in val_data:
-            if item["tau_index"] is None:
-                item["tau_index"] = item.get("fdg_index")
-
-    pet_keys = ["mri", "av45", "fdg"] + (["tau"] if tau_available else [])
-
-    # 构建数据增强 pipeline
-    # 定义训练集数据增强流程
+    # 数据增强流程（移除了 FillMissingPET，因为JSON中不存在None路径）
     train_transforms = mt.Compose([
-        mt.Lambdad(keys=pet_keys, func=mat_load),  # 加载 NIfTI 文件
-        ReduceTo3D(keys=pet_keys, reduce='mean'),
-        DebugShape(keys=pet_keys),
-        FillMissingPET(keys=pet_keys, ref_key="mri"),
-        DebugShape(keys=pet_keys),
-        mt.CropForegroundd(keys=pet_keys, source_key="mri"),
-        DebugShape(keys=pet_keys),
-        mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
-        mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),
-        mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
-        mt.NormalizeIntensityd(keys=pet_keys),
-        mt.ScaleIntensityd(keys=pet_keys),
-        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform),  # 添加 fdg_index 转换
-        mt.Lambdad(keys=["av45_index"], func=av45_index_transform),  # 添加 av45_index 转换
-        mt.Lambdad(keys=["tau_index"], func=tau_index_transform) if tau_available else mt.Identity(),
-    ])
-
-    # 定义验证集数据增强流程（通常与训练集一致，但不含随机性增强）
-    val_transforms = mt.Compose([
         mt.Lambdad(keys=pet_keys, func=mat_load),
-        ReduceTo3D(keys=pet_keys, reduce='mean'),
-        DebugShape(keys=pet_keys),
-        FillMissingPET(keys=pet_keys, ref_key="mri"),
-        DebugShape(keys=pet_keys),
         mt.CropForegroundd(keys=pet_keys, source_key="mri"),
-        DebugShape(keys=pet_keys),
+        RemoveCropForegroundMeta(),
         mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
         mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),
+        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[128, 128, 128]),
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
         mt.NormalizeIntensityd(keys=pet_keys),
         mt.ScaleIntensityd(keys=pet_keys),
         mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform),
         mt.Lambdad(keys=["av45_index"], func=av45_index_transform),
-        mt.Lambdad(keys=["tau_index"], func=tau_index_transform) if tau_available else mt.Identity(),
+        mt.Lambdad(keys=["tau_index"], func=tau_index_transform),
+        ConvertToTensor(),
     ])
 
-    # TODO: 保存为 HDF5 格式以加快加载速度
-    # 保存 train 和 val
-    # save_to_hdf5(train_data, train_transforms, os.path.join(h5_dir, "train.h5"))
-    # save_to_hdf5(val_data, val_transforms, os.path.join(h5_dir, "val.h5"))
+    val_transforms = mt.Compose([
+        mt.Lambdad(keys=pet_keys, func=mat_load),
+        mt.CropForegroundd(keys=pet_keys, source_key="mri"),
+        RemoveCropForegroundMeta(),
+        mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
+        mt.HistogramNormalized(keys=["mri"]),
+        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[128, 128, 128]),
+        mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
+        mt.NormalizeIntensityd(keys=pet_keys),
+        mt.ScaleIntensityd(keys=pet_keys),
+        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform),
+        mt.Lambdad(keys=["av45_index"], func=av45_index_transform),
+        mt.Lambdad(keys=["tau_index"], func=tau_index_transform),
+        ConvertToTensor(),
+    ])
 
     # 创建 DataLoader
-    # train_ds_h5 = HDF5Dataset(os.path.join(h5_dir, "train.h5"))
-    # train_loader_h5 = DataLoader(train_ds_h5, batch_size=1, shuffle=True, num_workers=0)
-    #
-    # val_ds = HDF5Dataset(os.path.join(h5_dir, "val.h5"))
-    # val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=0)
+    train_cache_dir = os.path.join(cache_dir, "train")
+    val_cache_dir = os.path.join(cache_dir, "val")
+    
+    print(f"\n📦 创建训练集 PersistentDataset...")
+    train_ds = PersistentDataset(data=train_data, transform=train_transforms, cache_dir=train_cache_dir)
+    train_loader = DataLoader(
+        train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+        pin_memory=False, collate_fn=pad_list_data_collate
+    )
 
-    # 构建 CacheDataset
-    # train_ds = CacheDataset(data=train_data, transform=train_transforms, num_workers=0)
-    train_ds = PersistentDataset(data=train_data, transform=train_transforms, cache_dir=os.path.join(cache_dir, "train"))
-    # # ⭐ 遍历所有样本以触发缓存生成
-    for i in range(len(train_ds)):
-        _ = train_ds[i]
-    print("✅ 全部样本缓存生成完成！")
-    # # benchmark_dataloader(train_ds, batch_size=1, num_workers_list=[0,2,4,8])
-    #
-    train_loader = DataLoader(train_ds, batch_size=1, shuffle=True, num_workers=0)    #shuffle=True
+    print(f"📦 创建验证集 PersistentDataset...")
+    val_ds = PersistentDataset(data=val_data, transform=val_transforms, cache_dir=val_cache_dir)
+    val_loader = DataLoader(
+        val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers,
+        pin_memory=False, collate_fn=pad_list_data_collate
+    )
 
-    # val_ds = CacheDataset(data=val_data, transform=val_transforms, num_workers=0, )
-    val_ds = PersistentDataset(data=val_data, transform=val_transforms, cache_dir=os.path.join(cache_dir, "val"))
-    # ⭐ 遍历所有样本以触发缓存生成
-    for i in range(len(val_ds)):
-        _ = val_ds[i]
-    print("✅ 全部样本缓存生成完成！")
-    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=0)
-
+    # ==================== 8. 加载扩散模型 ====================
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     from generative.networks.nets import DiffusionModelUNet
-    from generative.networks.schedulers import DDPMScheduler,DDIMScheduler
-    from generative.inferers import DiffusionInferer
+    from generative.networks.schedulers import DDPMScheduler
 
-    # 4. 加载网络
     if len(device_id) == 1:
-        model= DiffusionModelUNet(
-            spatial_dims=3,
-            in_channels=1,#1,
-            out_channels=1,
-            num_channels=(32,64,64,128),
-            attention_levels=(False,False,False,True),
+        model = DiffusionModelUNet(
+            spatial_dims=3, in_channels=1, out_channels=1,
+            num_channels=(32, 64, 64, 128),
+            attention_levels=(False, False, False, True),
             num_res_blocks=1,
-            num_head_channels=(0,0,0, 128),
+            num_head_channels=(0, 0, 0, 128),
             with_conditioning=True,
             cross_attention_dim=512,
             use_flash_attention=True,
         )
         model.to(device)
-    elif len(device_id) ==2:
-        model= DistributedDiffusionModelUNet(
-            spatial_dims=3,
-            in_channels=1,#1,
-            out_channels=1,
-            num_channels=(32,64,64,128),
-            attention_levels=(False,False,False,True),
+    elif len(device_id) == 2:
+        model = DistributedDiffusionModelUNet(
+            spatial_dims=3, in_channels=1, out_channels=1,
+            num_channels=(32, 64, 64, 128),
+            attention_levels=(False, False, False, True),
             num_res_blocks=1,
-            num_head_channels=(0,0,0, 128),
+            num_head_channels=(0, 0, 0, 128),
             with_conditioning=True,
             cross_attention_dim=512,
             use_flash_attention=True,
             device_ids=device_id
         )
+        print(f"✅ 双GPU模式: GPU {device_id[0]} 和 GPU {device_id[1]}")
     else:
-        raise ValueError("Currently only support 1 or 2 GPU(s) for training.")
-    optimizer= torch.optim.Adam(params=model.parameters(), lr=2.5e-5)
+        raise ValueError("仅支持 1 或 2 个 GPU")
+    
+    use_distributed = len(device_id) == 2
+    
+    optimizer = torch.optim.Adam(params=model.parameters(), lr=2.5e-5)
+    scaler = GradScaler()
+    global_step = 0
     start_epoch = 0
 
-    # 加载上次训练的检查点（如果有的话）
-    if last_epoch:
-        # Load the checkpoint
-        # checkpoint_dir = '/home/ssddata/liutuo/checkpoint/mri2pet _two trace_add clip_flow_noHistogramNormalized'
-        checkpoint = torch.load(f'{checkpoint_dir}/first_part_{last_epoch}.pth')
-        model.load_state_dict(checkpoint['model'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        start_epoch = checkpoint['epoch'] + 1  # Start from the next epoch after the last saved one
-        val_interval = 5  # Keep validation interval unchanged
+    # 恢复检查点
+    if last_epoch and resume_checkpoint:
+        print(f"\n📂 恢复训练: {resume_checkpoint}")
+        checkpoint = torch.load(resume_checkpoint, map_location=device)
+        if "model" in checkpoint:
+            model.load_state_dict(checkpoint['model'])
+        if "optimizer" in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer'])
+        if "scaler" in checkpoint:
+            scaler.load_state_dict(checkpoint['scaler'])
+        if "global_step" in checkpoint:
+            global_step = checkpoint['global_step']
+        start_epoch = checkpoint.get('epoch', 0) + 1
+        print(f"✅ 从 epoch {start_epoch} 继续训练")
 
-    scheduler = DDPMScheduler(prediction_type="v_prediction", num_train_timesteps=1000,schedule="scaled_linear_beta",
-                              beta_start=0.0005, beta_end=0.0195)
+    scheduler = DDPMScheduler(
+        prediction_type="v_prediction", num_train_timesteps=1000,
+        schedule="scaled_linear_beta", beta_start=0.0005, beta_end=0.0195
+    )
     scheduler.set_timesteps(num_inference_steps=1000)
+
+    # ==================== 9. 辅助函数 ====================
+    def get_3d_slices(volume, normalize=True):
+        """从3D体积中提取三个正交切面"""
+        if isinstance(volume, torch.Tensor):
+            vol = volume.detach().cpu().numpy()
+        else:
+            vol = np.array(volume)
+        while vol.ndim > 3:
+            vol = vol[0]
+        h, w, d = vol.shape
+        slices = {
+            'axial': vol[:, :, d // 2],
+            'coronal': vol[:, w // 2, :],
+            'sagittal': vol[h // 2, :, :],
+        }
+        if normalize:
+            for key in slices:
+                s = slices[key]
+                s_min, s_max = s.min(), s.max()
+                if s_max - s_min > 1e-8:
+                    slices[key] = (s - s_min) / (s_max - s_min)
+                else:
+                    slices[key] = np.zeros_like(s)
+        return slices
+
+    def log_comparison_figure(writer, tag, volumes_dict, step):
+        """将多体积对比图记录到TensorBoard"""
+        from io import BytesIO
+        from PIL import Image
+        
+        n_vols = len(volumes_dict)
+        if n_vols == 0:
+            return
+        
+        fig, axes = plt.subplots(3, n_vols, figsize=(3 * n_vols, 9))
+        if n_vols == 1:
+            axes = axes.reshape(3, 1)
+        
+        for col_idx, (name, vol) in enumerate(volumes_dict.items()):
+            if vol is None:
+                continue
+            slices = get_3d_slices(vol)
+            cmap = 'jet' if 'Diff' in name else 'gray'
+            for row_idx, view in enumerate(['axial', 'coronal', 'sagittal']):
+                ax = axes[row_idx, col_idx]
+                ax.imshow(slices[view], cmap=cmap, vmin=0, vmax=1)
+                ax.axis('off')
+                if row_idx == 0:
+                    ax.set_title(name, fontsize=10)
+        
+        plt.tight_layout()
+        buf = BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=150)
+        plt.close(fig)
+        buf.seek(0)
+        img = Image.open(buf)
+        img_array = np.array(img)[:, :, :3].transpose(2, 0, 1)
+        writer.add_image(tag, img_array, step)
+
+    def save_checkpoint(tag: str, epoch: int, step: int) -> None:
+        ckpt = {
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scaler": scaler.state_dict(),
+            "epoch": epoch,
+            "global_step": step,
+            "hparams": hparams,
+        }
+        ckpt_path = run_dir / f"ckpt_{tag}.pt"
+        torch.save(ckpt, ckpt_path)
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        legacy_path = f'{checkpoint_dir}/first_part_{epoch + 1}.pth'
+        torch.save({'model': model.state_dict(), 'optimizer': optimizer.state_dict(), 'epoch': epoch}, legacy_path)
+        print(f"✅ Checkpoint saved: {ckpt_path}")
+
+    # ==================== 10. 训练循环 ====================
     epoch_loss_list = []
     val_epoch_loss_list = []
-    scaler = GradScaler()
-
-    # 5. 训练网络
+    
+    print(f"\n🚀 开始训练 (共 {n_epochs} epochs)...")
+    
     for epoch in range(start_epoch, n_epochs):
         model.train()
         epoch_loss = 0
-        progress_bar = tqdm(enumerate(train_loader), total=len(train_loader), ncols=70)
-        progress_bar.set_description(f"Epoch {epoch}")
+        progress_bar = tqdm(total=len(train_loader), ncols=70, desc=f"Epoch {epoch}")
 
-        for step, data in progress_bar:
-            images = data["mri"].to(device)
-            seg_fdg = data["fdg"].to(device)  # this is the ground truth segmentation
-            seg_av45 = data["av45"].to(device)
-            fdg_index = data["fdg_index"].to(device)
-            av45_index = data["av45_index"].to(device)
-            if tau_available:
-                seg_tau = data["tau"].to(device)
-                tau_index = data["tau_index"].to(device)
-            else:
-                seg_tau = None
-                tau_index = None
+        for step, data in enumerate(train_loader):
+            images = data["mri"].clone().detach().to(device)
+            seg_fdg = data["fdg"].clone().detach().to(device)
+            seg_av45 = data["av45"].clone().detach().to(device)
+            seg_tau = data["tau"].clone().detach().to(device)
+            fdg_index = data["fdg_index"].clone().detach().to(device)
+            av45_index = data["av45_index"].clone().detach().to(device)
+            tau_index = data["tau_index"].clone().detach().to(device)
+            
+            # 使用文件路径标记判断是否为有效模态（非零填充）
+            is_fdg_zero = data.get("is_fdg_zero", [False])[0] if isinstance(data.get("is_fdg_zero"), list) else data.get("is_fdg_zero", False)
+            is_av45_zero = data.get("is_av45_zero", [False])[0] if isinstance(data.get("is_av45_zero"), list) else data.get("is_av45_zero", False)
+            is_tau_zero = data.get("is_tau_zero", [False])[0] if isinstance(data.get("is_tau_zero"), list) else data.get("is_tau_zero", False)
+            
+            has_fdg = not is_fdg_zero
+            has_av45 = not is_av45_zero
+            has_tau = not is_tau_zero
 
-            # ============ 梯度累积：每 accumulation_steps 步才清零梯度 ============
             if step % accumulation_steps == 0:
                 optimizer.zero_grad(set_to_none=True)
-            
-            timesteps = torch.randint(0, 1000, (len(images),)).to(device)  # pick a random time step t
 
-            # Create time_embedding
-            time_embedding = torch.randint(
-                0, 1000, (images.shape[0],), device=images.device
-            ).long()
-
+            time_embedding = torch.randint(0, 1000, (images.shape[0],), device=device).long()
             if epoch >= 140:
-                time_embedding = torch.tensor([0], device=images.device, dtype=torch.long)
+                time_embedding = torch.tensor([0], device=device, dtype=torch.long)
 
-            # Create time
-            t = time_embedding.float() / 1000
+            with torch.no_grad():
+                t = time_embedding.float() / 1000
+                t = t.view(-1, 1, 1, 1, 1)
 
-            # 检查 FDG/AV45/TAU 数据是否为二值化（只有 0 和 1）
-            has_fdg = not torch.all(seg_fdg == 0)  # 如果不是二值化数据，则参与计算
-            has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
-            has_tau = tau_available and seg_tau is not None and not torch.all(seg_tau == 0)
-
-            # 默认损失为 0
             total_loss = 0.0
             
-            # ============ 顺序模态训练：FDG → AV45 → TAU 依次计算并反向传播 ============
-            # 优势：降低60-70%显存占用，避免同时存储三个模态的中间激活值
-            
-            # 1. 计算 FDG 损失并立即反向传播
+            # 收集可用模态
+            available_modalities = []
             if has_fdg:
-                with autocast(device_type='cuda', enabled=True):
-                    x_t_fdg = t * seg_fdg + (1 - t) * images
-                    v_fdg_prediction = model(x=x_t_fdg, timesteps=time_embedding, context=fdg_index)
-                    v_fdg = seg_fdg - images
-                    loss_fdg = F.mse_loss(v_fdg.float(), v_fdg_prediction.float())
-                    # 梯度累积：损失需要除以累积步数
-                    loss_fdg = (alpha * loss_fdg) / accumulation_steps
-                
-                scaler.scale(loss_fdg).backward()
-                total_loss += loss_fdg.item() * accumulation_steps  # 记录时还原真实损失
-                
-                # 立即释放显存
-                del x_t_fdg, v_fdg_prediction, v_fdg, loss_fdg
-                torch.cuda.empty_cache()
-            
-            # 2. 计算 AV45 损失并立即反向传播
+                available_modalities.append('fdg')
             if has_av45:
-                with autocast(device_type='cuda', enabled=True):
-                    x_t_av45 = t * seg_av45 + (1 - t) * images
-                    v_av45_prediction = model(x=x_t_av45, timesteps=time_embedding, context=av45_index)
-                    v_av45 = seg_av45 - images
-                    loss_av45 = F.mse_loss(v_av45.float(), v_av45_prediction.float())
-                    loss_av45 = (beta * loss_av45) / accumulation_steps
-                
-                scaler.scale(loss_av45).backward()
-                total_loss += loss_av45.item() * accumulation_steps
-                
-                del x_t_av45, v_av45_prediction, v_av45, loss_av45
-                torch.cuda.empty_cache()
-            
-            # 3. 计算 TAU 损失并立即反向传播
+                available_modalities.append('av45')
             if has_tau:
-                with autocast(device_type='cuda', enabled=True):
-                    x_t_tau = t * seg_tau + (1 - t) * images
-                    v_tau_prediction = model(x=x_t_tau, timesteps=time_embedding, context=tau_index)
-                    v_tau = seg_tau - images
-                    loss_tau = F.mse_loss(v_tau.float(), v_tau_prediction.float())
-                    loss_tau = (gamma * loss_tau) / accumulation_steps
+                available_modalities.append('tau')
+            
+            # 随机选择一个模态训练
+            if len(available_modalities) > 0:
+                import random
+                selected_modality = random.choice(available_modalities)
                 
-                scaler.scale(loss_tau).backward()
-                total_loss += loss_tau.item() * accumulation_steps
+                # 用于保存训练过程图像的变量
+                train_x_t = None
+                train_v_pred = None
+                train_gt = None
+                train_modality_name = None
                 
-                del x_t_tau, v_tau_prediction, v_tau, loss_tau
+                if selected_modality == 'fdg':
+                    with autocast(device_type='cuda', enabled=True):
+                        x_t = t * seg_fdg + (1 - t) * images
+                        v_pred = model(x=x_t, timesteps=time_embedding, context=fdg_index)
+                        if use_distributed:
+                            v_pred = v_pred.to(device)
+                        v_gt = seg_fdg - images
+                        loss = F.mse_loss(v_gt.float(), v_pred.float())
+                        loss = (alpha * loss) / accumulation_steps
+                    scaler.scale(loss).backward()
+                    total_loss = loss.item() * accumulation_steps
+                    # 保存用于可视化
+                    train_x_t = x_t.detach()
+                    train_v_pred = v_pred.detach()
+                    train_gt = seg_fdg.detach()
+                    train_modality_name = "FDG"
+                    
+                elif selected_modality == 'av45':
+                    with autocast(device_type='cuda', enabled=True):
+                        x_t = t * seg_av45 + (1 - t) * images
+                        v_pred = model(x=x_t, timesteps=time_embedding, context=av45_index)
+                        if use_distributed:
+                            v_pred = v_pred.to(device)
+                        v_gt = seg_av45 - images
+                        loss = F.mse_loss(v_gt.float(), v_pred.float())
+                        loss = (beta * loss) / accumulation_steps
+                    scaler.scale(loss).backward()
+                    total_loss = loss.item() * accumulation_steps
+                    # 保存用于可视化
+                    train_x_t = x_t.detach()
+                    train_v_pred = v_pred.detach()
+                    train_gt = seg_av45.detach()
+                    train_modality_name = "AV45"
+                    
+                elif selected_modality == 'tau':
+                    with autocast(device_type='cuda', enabled=True):
+                        x_t = t * seg_tau + (1 - t) * images
+                        v_pred = model(x=x_t, timesteps=time_embedding, context=tau_index)
+                        if use_distributed:
+                            v_pred = v_pred.to(device)
+                        v_gt = seg_tau - images
+                        loss = F.mse_loss(v_gt.float(), v_pred.float())
+                        loss = (gamma * loss) / accumulation_steps
+                    scaler.scale(loss).backward()
+                    total_loss = loss.item() * accumulation_steps
+                    # 保存用于可视化
+                    train_x_t = x_t.detach()
+                    train_v_pred = v_pred.detach()
+                    train_gt = seg_tau.detach()
+                    train_modality_name = "TAU"
+                
                 torch.cuda.empty_cache()
             
-            # ============ 梯度累积：每 accumulation_steps 步才更新参数 ============
-            if (step + 1) % accumulation_steps == 0:
+            if (step + 1) % accumulation_steps == 0 and total_loss > 0:
                 scaler.step(optimizer)
                 scaler.update()
 
             epoch_loss += total_loss
-            progress_bar.set_postfix({
-                "loss": epoch_loss / (step + 1),
-                "accum": f"{(step % accumulation_steps) + 1}/{accumulation_steps}"
-            })
+            global_step += 1
 
+            if log_every > 0 and global_step % log_every == 0:
+                writer.add_scalar("train/loss", epoch_loss / (step + 1), global_step)
+                writer.add_scalar("train/epoch", epoch, global_step)
+
+            progress_bar.set_postfix({"loss": epoch_loss / (step + 1)})
+            progress_bar.update(1)
+            
+            # 训练阶段图像保存（直接使用训练过程中的变量，不重新推理）
+            if (epoch + 1) % image_log_interval == 0 and step == 0 and train_x_t is not None:
+                with torch.no_grad():
+                    # 使用训练过程中实际计算的 x_t 和 v_pred
+                    x_pred = torch.clamp(train_x_t + train_v_pred, clip_sample_min, clip_sample_max)
+                    
+                    train_vis_volumes = {
+                        "MRI": images.cpu(),
+                        "x_t": train_x_t.cpu(),
+                        f"{train_modality_name}_GT": train_gt.cpu(),
+                        f"{train_modality_name}_Pred": x_pred.cpu(),
+                        f"{train_modality_name}_Diff": torch.abs(train_gt - x_pred).cpu(),
+                    }
+                    
+                    log_comparison_figure(writer, f"train/comparison_epoch{epoch+1}", train_vis_volumes, epoch)
+            
             torch.cuda.empty_cache()
 
-        epoch_loss_list.append(epoch_loss / (step + 1))
+        progress_bar.close()
+        epoch_avg_loss = epoch_loss / max(step + 1, 1)
+        epoch_loss_list.append(epoch_avg_loss)
+        writer.add_scalar("train/epoch_loss", epoch_avg_loss, epoch)
+
+        # ==================== 验证阶段 ====================
         if (epoch + 1) % val_interval == 0:
             model.eval()
             val_epoch_loss = 0
 
-            for step, data_val in enumerate(val_loader):
-                # 验证阶段的数据加载
-                images = data_val["mri"].to(device)
-                seg_fdg = data_val["fdg"].to(device)  # this is the ground truth segmentation
-                seg_av45 = data_val["av45"].to(device)
-                fdg_index = data_val["fdg_index"].to(device)
-                av45_index = data_val["av45_index"].to(device)
-                if tau_available:
-                    seg_tau = data_val["tau"].to(device)
-                    tau_index = data_val["tau_index"].to(device)
-                else:
-                    seg_tau = None
-                    tau_index = None
+            for step, data in enumerate(val_loader):
+                images = data["mri"].clone().detach().to(device)
+                seg_fdg = data["fdg"].clone().detach().to(device)
+                seg_av45 = data["av45"].clone().detach().to(device)
+                seg_tau = data["tau"].clone().detach().to(device)
+                fdg_index = data["fdg_index"].clone().detach().to(device)
+                av45_index = data["av45_index"].clone().detach().to(device)
+                tau_index = data["tau_index"].clone().detach().to(device)
 
-                # 检查 FDG/AV45/TAU 数据是否为二值化（只有 0 和 1）
-                has_fdg = not torch.all(seg_fdg == 0)  # 如果不是二值化数据，则参与计算
-                has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
-                has_tau = tau_available and seg_tau is not None and not torch.all(seg_tau == 0)
+                is_fdg_zero = data.get("is_fdg_zero", [False])[0] if isinstance(data.get("is_fdg_zero"), list) else data.get("is_fdg_zero", False)
+                is_av45_zero = data.get("is_av45_zero", [False])[0] if isinstance(data.get("is_av45_zero"), list) else data.get("is_av45_zero", False)
+                is_tau_zero = data.get("is_tau_zero", [False])[0] if isinstance(data.get("is_tau_zero"), list) else data.get("is_tau_zero", False)
+                
+                has_fdg = not is_fdg_zero
+                has_av45 = not is_av45_zero
+                has_tau = not is_tau_zero
 
                 x_t = images
                 N_sample = 1
-                N_sample_tensor = torch.tensor(N_sample, dtype=torch.float32)
+                N_sample_tensor = torch.tensor(N_sample, dtype=torch.float32, device=device)
 
-                progress_bar = [(i / N_sample) for i in range(N_sample)]
-                for t in progress_bar:  # go through the noising process
-                    with autocast(device_type='cuda', enabled=False):
-                        with torch.no_grad():
-                            time_embedding = int(t * 1000)
+                with torch.no_grad():
+                    for t_val in [(i / N_sample) for i in range(N_sample)]:
+                        time_emb = int(t_val * 1000)
+                        
+                        if has_fdg:
+                            v_out = model(x=x_t, timesteps=torch.Tensor((time_emb,)).to(device), context=fdg_index)
+                            if use_distributed:
+                                v_out = v_out.to(device)
+                            x_fdg_t = torch.clamp(x_t + v_out / N_sample_tensor, clip_sample_min, clip_sample_max)
+                        else:
+                            x_fdg_t = None
 
-                            # FDG 输出（仅当非二值化时计算）
-                            if has_fdg:
-                                v_fdg_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(x_t.device), context=fdg_index)
-                                x_fdg_t = x_t + (v_fdg_output / N_sample_tensor)
-                                x_fdg_t = torch.clamp(x_fdg_t, min=clip_sample_min, max=clip_sample_max)
-                            else:
-                                x_fdg_t = None  # 跳过 FDG 计算
+                        if has_av45:
+                            v_out = model(x=x_t, timesteps=torch.Tensor((time_emb,)).to(device), context=av45_index)
+                            if use_distributed:
+                                v_out = v_out.to(device)
+                            x_av45_t = torch.clamp(x_t + v_out / N_sample_tensor, clip_sample_min, clip_sample_max)
+                        else:
+                            x_av45_t = None
 
-                            # AV45 输出（仅当非二值化时计算）
-                            if has_av45:
-                                v_av45_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(x_t.device), context=av45_index)
-                                x_av45_t = x_t + (v_av45_output / N_sample_tensor)
-                                x_av45_t = torch.clamp(x_av45_t, min=clip_sample_min, max=clip_sample_max)
-                            else:
-                                x_av45_t = None  # 跳过 AV45 计算
+                        if has_tau:
+                            v_out = model(x=x_t, timesteps=torch.Tensor((time_emb,)).to(device), context=tau_index)
+                            if use_distributed:
+                                v_out = v_out.to(device)
+                            x_tau_t = torch.clamp(x_t + v_out / N_sample_tensor, clip_sample_min, clip_sample_max)
+                        else:
+                            x_tau_t = None
 
-                            # TAU 输出（仅当非二值化时计算）
-                            if has_tau:
-                                v_tau_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(x_t.device), context=tau_index)
-                                x_tau_t = x_t + (v_tau_output / N_sample_tensor)
-                                x_tau_t = torch.clamp(x_tau_t, min=clip_sample_min, max=clip_sample_max)
-                            else:
-                                x_tau_t = None
-
-                # 默认损失为 0
-                val_fdg_loss = torch.tensor(0.0, device=device)
-                val_av45_loss = torch.tensor(0.0, device=device)
-                val_tau_loss = torch.tensor(0.0, device=device)
-
-                # 计算 FDG 损失（仅当非二值化时计算）
+                val_loss = 0.0
                 if has_fdg and x_fdg_t is not None:
-                    val_fdg_loss = F.mse_loss(x_fdg_t.float(), seg_fdg.float())
-
-                # 计算 AV45 损失（仅当非二值化时计算）
+                    val_loss += alpha * F.mse_loss(x_fdg_t.float(), seg_fdg.float())
                 if has_av45 and x_av45_t is not None:
-                    val_av45_loss = F.mse_loss(x_av45_t.float(), seg_av45.float())
-
+                    val_loss += beta * F.mse_loss(x_av45_t.float(), seg_av45.float())
                 if has_tau and x_tau_t is not None:
-                    val_tau_loss = F.mse_loss(x_tau_t.float(), seg_tau.float())
+                    val_loss += gamma * F.mse_loss(x_tau_t.float(), seg_tau.float())
 
-                # 加权总损失
-                val_loss = alpha * val_fdg_loss + beta * val_av45_loss + gamma * val_tau_loss
-
-                val_epoch_loss += val_loss.item()
+                val_epoch_loss += val_loss.item() if isinstance(val_loss, torch.Tensor) else val_loss
                 torch.cuda.empty_cache()
 
-            print("Epoch", epoch + 1, "Validation loss", val_epoch_loss / (step + 1))
-            val_epoch_loss_list.append(val_epoch_loss / (step + 1))
+            val_avg_loss = val_epoch_loss / max(step + 1, 1)
+            val_epoch_loss_list.append(val_avg_loss)
+            writer.add_scalar("val/loss", val_avg_loss, epoch)
+            print(f"Epoch {epoch + 1} Validation loss: {val_avg_loss:.6f}")
 
-            # Saving model parameters
-            print('epoch:', epoch + 1)
-            print('learning rate:', optimizer.state_dict()['param_groups'][0]['lr'])
-            checkpoint = {
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'epoch': epoch
-            }
-            torch.save(checkpoint, f'{checkpoint_dir}/first_part_{epoch + 1}.pth')
-            print('Saved all parameters!\n')
+            save_checkpoint(f"epoch{epoch + 1}", epoch, global_step)
 
-            # 可视化和评估指标
-            current_fdg_img = x_fdg_t.to('cpu') if x_fdg_t is not None else None
-            current_av45_img = x_av45_t.to('cpu') if x_av45_t is not None else None
-            current_tau_img = x_tau_t.to('cpu') if tau_available and x_tau_t is not None else None
-            labels_fdg = seg_fdg.to('cpu')
-            labels_av45 = seg_av45.to('cpu')
-            labels_tau = seg_tau.to('cpu') if tau_available else None
+            # 可视化（包含输入x_t）
+            if (epoch + 1) % image_log_interval == 0:
+                comparison_volumes = {
+                    "MRI(x_t)": images.cpu(),  # 输入MRI即为x_t
+                }
+                if has_fdg and x_fdg_t is not None:
+                    comparison_volumes["FDG_GT"] = seg_fdg.cpu()
+                    comparison_volumes["FDG_Pred"] = x_fdg_t.cpu()
+                    # 计算差异图
+                    comparison_volumes["FDG_Diff"] = torch.abs(seg_fdg - x_fdg_t).cpu()
+                if has_av45 and x_av45_t is not None:
+                    comparison_volumes["AV45_GT"] = seg_av45.cpu()
+                    comparison_volumes["AV45_Pred"] = x_av45_t.cpu()
+                    comparison_volumes["AV45_Diff"] = torch.abs(seg_av45 - x_av45_t).cpu()
+                if has_tau and x_tau_t is not None:
+                    comparison_volumes["TAU_GT"] = seg_tau.cpu()
+                    comparison_volumes["TAU_Pred"] = x_tau_t.cpu()
+                    comparison_volumes["TAU_Diff"] = torch.abs(seg_tau - x_tau_t).cpu()
+                log_comparison_figure(writer, f"val/comparison_epoch{epoch+1}", comparison_volumes, epoch)
 
-            # 如果存在非二值化的 FDG 或 AV45 数据，则进行可视化和评估
-            if current_fdg_img is not None or current_av45_img is not None or current_tau_img is not None:
-                compare_3d([images, labels_fdg, current_fdg_img, labels_av45, current_av45_img])
-                compare_3d_jet([current_fdg_img - labels_fdg, current_av45_img - labels_av45])
-
+            # 计算SSIM和PSNR
             from generative.metrics import SSIMMetric
-            from monai.metrics import MAEMetric, MSEMetric, PSNRMetric
-
+            from monai.metrics import PSNRMetric
             ssim_metric = SSIMMetric(spatial_dims=3, data_range=1.0, kernel_size=7)
             psnr_metric = PSNRMetric(1.0)
 
-            # 计算 SSIM 和 PSNR（仅当非二值化时计算）
-            if has_fdg and current_fdg_img is not None:
-                ssim_fdg_value = ssim_metric(labels_fdg, current_fdg_img)
-                psnr_fdg_value = psnr_metric(labels_fdg, current_fdg_img)
-                print(f"FDG SSIM: {ssim_fdg_value.mean().item()}")
-                print(f"FDG PSNR: {psnr_fdg_value.mean().item()}")
+            if has_fdg and x_fdg_t is not None:
+                ssim_val = ssim_metric(seg_fdg.cpu(), x_fdg_t.cpu())
+                psnr_val = psnr_metric(seg_fdg.cpu(), x_fdg_t.cpu())
+                writer.add_scalar("val/FDG_SSIM", ssim_val.mean().item(), epoch)
+                writer.add_scalar("val/FDG_PSNR", psnr_val.mean().item(), epoch)
 
-            if has_av45 and current_av45_img is not None:
-                ssim_av45_value = ssim_metric(labels_av45, current_av45_img)
-                psnr_av45_value = psnr_metric(labels_av45, current_av45_img)
-                print(f"AV45 SSIM: {ssim_av45_value.mean().item()}")
-                print(f"AV45 PSNR: {psnr_av45_value.mean().item()}")
+            if has_av45 and x_av45_t is not None:
+                ssim_val = ssim_metric(seg_av45.cpu(), x_av45_t.cpu())
+                psnr_val = psnr_metric(seg_av45.cpu(), x_av45_t.cpu())
+                writer.add_scalar("val/AV45_SSIM", ssim_val.mean().item(), epoch)
+                writer.add_scalar("val/AV45_PSNR", psnr_val.mean().item(), epoch)
 
-            if tau_available and has_tau and current_tau_img is not None and labels_tau is not None:
-                ssim_tau_value = ssim_metric(labels_tau, current_tau_img)
-                psnr_tau_value = psnr_metric(labels_tau, current_tau_img)
-                print(f"TAU SSIM: {ssim_tau_value.mean().item()}")
-                print(f"TAU PSNR: {psnr_tau_value.mean().item()}")
+            if has_tau and x_tau_t is not None:
+                ssim_val = ssim_metric(seg_tau.cpu(), x_tau_t.cpu())
+                psnr_val = psnr_metric(seg_tau.cpu(), x_tau_t.cpu())
+                writer.add_scalar("val/TAU_SSIM", ssim_val.mean().item(), epoch)
+                writer.add_scalar("val/TAU_PSNR", psnr_val.mean().item(), epoch)
+
+    # 保存最终模型
+    writer.flush()
+    writer.close()
+    save_checkpoint("last", epoch if 'epoch' in locals() else 0, global_step)
+    print(f"\n🎉 训练完成！日志保存在: {run_dir}")
 
 
 if __name__ == "__main__":
