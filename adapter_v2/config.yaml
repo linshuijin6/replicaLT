@@ -1,0 +1,97 @@
+# =============================================================================
+# adapter_v2 配置文件：TAU 单示踪剂 CoCoOp 微调
+# =============================================================================
+
+# 数据配置
+data:
+  csv_path: /mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_v2/data_csv/pairs_180d_dx_plasma_90d_matched.csv
+  # TAU 缓存目录（需预先用 precompute_cache.py 生成 .vision.pt）
+  cache_dir: /mnt/nfsdata/nfsdata/lsj.14/ADNI_Adapter_cache
+  # ADNI 数据根目录（用于生成缓存）
+  adni_root: /mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration
+  # 可选：诊断标签（从 CSV 外部来源匹配，若 CSV 无 diagnosis 字段）
+  diagnosis_csv: null
+  # 训练/验证划分比例
+  val_ratio: 0.1
+  seed: 42
+
+# Plasma 配置
+plasma:
+  # 5 个 plasma 指标的字段名（与 CSV 列名对齐）
+  keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
+  # 权重温度（softmax(plasma_z / T)）
+  temperature: 1.0
+  # 归一化统计（若为 null 则训练时自动计算 z-score 均值/标准差）
+  norm_stats: null
+  # 5 个 plasma 语义提示文本
+  prompts:
+    - "plasma biomarker indicates amyloid-beta 42/40 ratio pathology"
+    - "plasma biomarker indicates phosphorylated tau 217 pathology"
+    - "plasma biomarker indicates combined pTau217 and amyloid pathology"
+    - "plasma biomarker indicates neurofilament light chain neurodegeneration"
+    - "plasma biomarker indicates glial fibrillary acidic protein astrogliosis"
+
+# 类别（诊断）配置
+classes:
+  names: ["CN", "MCI", "AD"]
+  # CSV 中若 diagnosis 字段用 1/2/3（或 1.0/2.0/3.0）表示，可在此配置映射
+  diagnosis_code_map:
+    1: CN
+    2: MCI
+    3: AD
+  # 类别语义提示模板（{label} 会被替换为具体诊断）
+  prompt_template: "This is a TAU PET scan of a subject diagnosed with {label}."
+
+# 模型配置
+model:
+  # BiomedCLIP 本地路径
+  biomedclip_path: /mnt/nfsdata/nfsdata/lsj.14/replicaLT/BiomedCLIP
+  # CoCoOp context 长度（num_groups）
+  ctx_len: 4
+  # projection head 输出维度（对齐到 BiomedCLIP 的 512）
+  proj_dim: 512
+  # ContextNet 隐藏层维度（仅用于 V1）
+  ctx_hidden_dim: 1024
+  # Context Net bottleneck 维度（V2 低秩约束，默认 8）
+  ctx_bottleneck_dim: 8
+  # 是否共享 class/plasma 的 context base tokens（仅用于 V1）
+  share_ctx_base: false
+
+# 训练配置
+training:
+  # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
+  gpu: 4
+  batch_size: 2
+  epochs: 100
+  lr: 1e-4
+  weight_decay: 1e-5
+  grad_clip: 1.0
+  max_grad_norm: 1.0
+  amp: true
+  # 损失权重
+  lambda_img_class: 1.0
+  lambda_img_plasma: 1.0  # V2 核心损失，权重提升
+  lambda_class_plasma: 0.1  # 较小，防止抢主任务
+  lambda_reg: 0.01  # 正则（防止 class/plasma 塌缩）
+  # V2 新增损失权重
+  lambda_redundancy: 0.1  # Context Net 冗余约束
+  lambda_ctx_norm: 0.01  # Context 范数正则
+  redundancy_margin: 0.3  # 冗余约束的相似度阈值
+  ctx_max_norm: 1.0  # Context 最大范数
+  reg_type: "high_sim_penalty"  # 可选: high_sim_penalty | weak_orth
+  reg_cos_max: 0.8  # 用于 high_sim_penalty
+  # logit_scale 初始值
+  logit_scale_init: 2.6593  # ln(1/0.07) ≈ 2.659
+
+# 日志与保存
+log:
+  dir: ./runs
+  save_every: 10
+  log_every: 1
+
+# 评测
+eval:
+  # 验证时计算 Recall@K
+  recall_k: [1, 5, 10]
+  # 验证间隔（每 N 个 epoch 验证一次）
+  val_every: 10
