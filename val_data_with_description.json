@@ -7,6 +7,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/037_S_6963_2021-12-17_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/037_S_6963__I1478584__I1614198.nii.gz",
         "description": "Subject is a 57-year-old female with a weight of 83.0 kg.",
+        "old_descr": "Subject is a 57-year-old female with a weight of 83.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1035,
@@ -27,6 +28,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/305_S_10806__I11315017__I11441560.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/305_S_10806__I11315017__I11441561.nii.gz",
         "description": "Subject is a 81-year-old male with a weight of 91.6 kg.",
+        "old_descr": "Subject is a 81-year-old male with a weight of 91.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 25. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 2.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.092603993,
@@ -47,6 +49,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_6730__I1176653__I1597513.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_6730__I1176653__I1597340.nii.gz",
         "description": "Subject is a 74-year-old male with a weight of 89.0 kg.",
+        "old_descr": "Subject is a 74-year-old male with a weight of 89.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0976,
@@ -67,6 +70,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/052_S_10548__I11164471__I11342624.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/052_S_10548__I11164471__I11436131.nii.gz",
         "description": "Subject is a 78-year-old female with a weight of 81.1 kg.",
+        "old_descr": "Subject is a 78-year-old female with a weight of 81.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.086649408,
@@ -87,6 +91,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/033_S_7079_2024-6-17_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/033_S_7079__I10668271__I10670708.nii.gz",
         "description": "Subject is a 89-year-old female with a weight of 69.1 kg.",
+        "old_descr": "Subject is a 89-year-old female with a weight of 69.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 7.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.088833005,
@@ -107,6 +112,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/067_S_6528_2018-11-6_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/067_S_6528__I1033265__I1598914.nii.gz",
         "description": "Subject is a 65-year-old female with a weight of 98.0 kg.",
+        "old_descr": "Subject is a 65-year-old female with a weight of 98.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1108,
@@ -127,6 +133,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/005_S_10446_2025-2-20_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/005_S_10446__I11121633__I11346388.nii.gz",
         "description": "Subject is a 86-year-old male with a weight of 135.6 kg.",
+        "old_descr": "Subject is a 86-year-old male with a weight of 135.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 1.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0689,
@@ -147,6 +154,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/024_S_7025_2025-5-7_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/024_S_7025__I11382549__I11395110.nii.gz",
         "description": "Subject is a 72-year-old male with a weight of 94.8 kg.",
+        "old_descr": "Subject is a 72-year-old male with a weight of 94.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 4.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.345811052,
@@ -167,6 +175,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/114_S_6462__I11182111__I11105739.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/114_S_6462__I11182111__I11163549.nii.gz",
         "description": "Subject is a 76-year-old male with a weight of 99.3 kg.",
+        "old_descr": "Subject is a 76-year-old male with a weight of 99.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0764,
@@ -187,6 +196,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/941_S_6333_2018-5-22_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/941_S_6333__I1004681__I1603604.nii.gz",
         "description": "Subject is a 78-year-old male with a weight of 70.3 kg.",
+        "old_descr": "Subject is a 78-year-old male with a weight of 70.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 4.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0875,
@@ -207,6 +217,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/941_S_6581_2018-9-18_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/941_S_6581__I1048378__I1603410.nii.gz",
         "description": "Subject is a 74-year-old female.",
+        "old_descr": "Subject is a 74-year-old female. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0966,
@@ -227,6 +238,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/389_S_10140__I10899790__I11123627.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/389_S_10140_2024-10-28_zero.nii.gz",
         "description": "Subject is a 73-year-old male.",
+        "old_descr": "Subject is a 73-year-old male. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 2.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0736,
@@ -247,6 +259,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/023_S_6346__I11095568__I11111931.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/023_S_6346__I11095568__I11184675.nii.gz",
         "description": "Subject is a 74-year-old male with a weight of 92.2 kg.",
+        "old_descr": "Subject is a 74-year-old male with a weight of 92.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0682,
@@ -267,6 +280,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/389_S_10070__I10453678__I11074675.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/389_S_10070_2024-6-25_zero.nii.gz",
         "description": "Subject is a 79-year-old male with a weight of 92.8 kg.",
+        "old_descr": "Subject is a 79-year-old male with a weight of 92.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 2.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.077449483,
@@ -287,6 +301,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/014_S_6076_2019-10-30_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/014_S_6076__I1254369__I1594944.nii.gz",
         "description": "Subject is a 61-year-old female with a weight of 63.5 kg.",
+        "old_descr": "Subject is a 61-year-old female with a weight of 63.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 2.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1003,
@@ -307,6 +322,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/036_S_10642__I11183152__I11242408.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/036_S_10642__I11183152__I11242411.nii.gz",
         "description": "Subject is a 73-year-old female with a weight of 105.3 kg.",
+        "old_descr": "Subject is a 73-year-old female with a weight of 105.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.114323457,
@@ -327,6 +343,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/003_S_6924__I1427086__I1610489.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/003_S_6924__I1427086__I1610498.nii.gz",
         "description": "Subject is a 60-year-old female with a weight of 54.4 kg.",
+        "old_descr": "Subject is a 60-year-old female with a weight of 54.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0811,
@@ -347,6 +364,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/018_S_2180__I11155767__I11163505.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/018_S_2180__I11155767__I11163506.nii.gz",
         "description": "Subject is a 92-year-old female with a weight of 62.6 kg.",
+        "old_descr": "Subject is a 92-year-old female with a weight of 62.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.090862191,
@@ -367,6 +385,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/094_S_6275_2018-5-30_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/094_S_6275__I986502__I1599877.nii.gz",
         "description": "Subject is a 59-year-old female with a weight of 61.2 kg.",
+        "old_descr": "Subject is a 59-year-old female with a weight of 61.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1222,
@@ -387,6 +406,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/135_S_10823_2025-7-10_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/135_S_10823__I11317428__I11395195.nii.gz",
         "description": "Subject is a 80-year-old female with a weight of 75.1 kg.",
+        "old_descr": "Subject is a 80-year-old female with a weight of 75.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 24. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 5.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.094568251,
@@ -407,6 +427,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/024_S_6385_2025-8-5_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/024_S_6385__I11435954__I11441509.nii.gz",
         "description": "Subject is a 68-year-old female with a weight of 61.7 kg.",
+        "old_descr": "Subject is a 68-year-old female with a weight of 61.7 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.107410986,
@@ -427,6 +448,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/098_S_6734_2019-10-22_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/098_S_6734__I1176404__I1600030.nii.gz",
         "description": "Subject is a 73-year-old female with a weight of 46.7 kg.",
+        "old_descr": "Subject is a 73-year-old female with a weight of 46.7 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0921,
@@ -447,6 +469,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/027_S_6327_2018-5-21_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/027_S_6327__I996822__I1596622.nii.gz",
         "description": "Subject is a 77-year-old female with a weight of 83.7 kg.",
+        "old_descr": "Subject is a 77-year-old female with a weight of 83.7 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0944,
@@ -467,6 +490,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/016_S_6773_2019-8-6_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/016_S_6773__I1194377__I1595108.nii.gz",
         "description": "Subject is a 55-year-old female with a weight of 68.5 kg.",
+        "old_descr": "Subject is a 55-year-old female with a weight of 68.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.094,
@@ -487,6 +511,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/941_S_6962_2022-6-29_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/941_S_6962__I1597858__I1623496.nii.gz",
         "description": "Subject is a 76-year-old female with a weight of 42.2 kg.",
+        "old_descr": "Subject is a 76-year-old female with a weight of 42.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 2. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 7. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 5. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 28.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.0632,
@@ -507,6 +532,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_10274__I10987636__I11044477.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_10274__I10987636__I11044478.nii.gz",
         "description": "Subject is a 67-year-old female with a weight of 65.8 kg.",
+        "old_descr": "Subject is a 67-year-old female with a weight of 65.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0848,
@@ -527,6 +553,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/023_S_6547__I11152569__I11203332.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/023_S_6547__I11152569__I11320105.nii.gz",
         "description": "Subject is a 74-year-old female with a weight of 72.2 kg.",
+        "old_descr": "Subject is a 74-year-old female with a weight of 72.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.086346863,
@@ -547,6 +574,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_4785__I11071791__I11131971.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_4785__I11071791__I11081210.nii.gz",
         "description": "Subject is a 78-year-old female with a weight of 83.9 kg.",
+        "old_descr": "Subject is a 78-year-old female with a weight of 83.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 4. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 2.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0866,
@@ -567,6 +595,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/135_S_6586_2019-10-25_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/135_S_6586__I1245803__I1602322.nii.gz",
         "description": "Subject is a 79-year-old male with a weight of 83.2 kg.",
+        "old_descr": "Subject is a 79-year-old male with a weight of 83.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0962,
@@ -587,6 +616,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/073_S_10054_2024-3-4_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/073_S_10054__I10369709__I10390842.nii.gz",
         "description": "Subject is a 59-year-old female with a weight of 52.2 kg.",
+        "old_descr": "Subject is a 59-year-old female with a weight of 52.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.087315517,
@@ -607,6 +637,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/073_S_10134_2024-7-11_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/073_S_10134__I10985660__I11042379.nii.gz",
         "description": "Subject is a 65-year-old male with a weight of 73.9 kg.",
+        "old_descr": "Subject is a 65-year-old male with a weight of 73.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0993,
@@ -627,6 +658,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/127_S_6241_2019-8-7_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/127_S_6241__I1226896__I1601066.nii.gz",
         "description": "Subject is a 73-year-old female with a weight of 55.9 kg.",
+        "old_descr": "Subject is a 73-year-old female with a weight of 55.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 23. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 7. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 11.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0803,
@@ -647,6 +679,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/014_S_10157_2024-9-11_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/014_S_10157__I10883239__I10989831.nii.gz",
         "description": "Subject is a 74-year-old female with a weight of 77.8 kg.",
+        "old_descr": "Subject is a 74-year-old female with a weight of 77.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 1.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0764,
@@ -667,6 +700,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/094_S_6468_2018-8-13_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/094_S_6468__I1024384__I1599776.nii.gz",
         "description": "Subject is a 69-year-old male with a weight of 89.1 kg.",
+        "old_descr": "Subject is a 69-year-old male with a weight of 89.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0827,
@@ -687,6 +721,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/141_S_6061_2017-9-19_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/141_S_6061__I887919__I1602565.nii.gz",
         "description": "Subject is a 74-year-old female with a weight of 81.1 kg.",
+        "old_descr": "Subject is a 74-year-old female with a weight of 81.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0829,
@@ -707,6 +742,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/014_S_6148_2018-3-6_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/014_S_6148__I951357__I1594837.nii.gz",
         "description": "Subject is a 79-year-old female with a weight of 88.5 kg.",
+        "old_descr": "Subject is a 79-year-old female with a weight of 88.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0996,
@@ -727,6 +763,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/041_S_6314__I10298204__I1623404.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/041_S_6314__I10298204__I1667987.nii.gz",
         "description": "Subject is a 79-year-old male with a weight of 74.8 kg.",
+        "old_descr": "Subject is a 79-year-old male with a weight of 74.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 11. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 1. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 2.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0989,
@@ -747,6 +784,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/114_S_6429__I1047619__I1600271.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/114_S_6429__I1047619__I1600223.nii.gz",
         "description": "Subject is a 69-year-old female with a weight of 65.6 kg.",
+        "old_descr": "Subject is a 69-year-old female with a weight of 65.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0967,
@@ -767,6 +805,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/057_S_0934__I11185583__I11064721.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/057_S_0934_2024-10-8_zero.nii.gz",
         "description": "Subject is a 88-year-old female with a weight of 52.6 kg.",
+        "old_descr": "Subject is a 88-year-old female with a weight of 52.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0746,
@@ -787,6 +826,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/011_S_10261__I10973540__I11059551.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/011_S_10261_2024-11-12_zero.nii.gz",
         "description": "Subject is a 75-year-old male with a weight of 103.9 kg.",
+        "old_descr": "Subject is a 75-year-old male with a weight of 103.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 4. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 1. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 4.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0994,
@@ -807,6 +847,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/305_S_6378__I1000885__I1603314.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/305_S_6378__I1000885__I1603316.nii.gz",
         "description": "Subject is a 69-year-old male with a weight of 95.6 kg.",
+        "old_descr": "Subject is a 69-year-old male with a weight of 95.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 1.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0931,
@@ -827,6 +868,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/037_S_0303__I850396__I1598103.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/037_S_0303_2017-4-12_zero.nii.gz",
         "description": "Subject is a 96-year-old male with a weight of 57.5 kg.",
+        "old_descr": "Subject is a 96-year-old male with a weight of 57.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 4. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 6. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0911,
@@ -847,6 +889,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_7073__I10864503__I10882846.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_7073__I10864503__I10868269.nii.gz",
         "description": "Subject is a 80-year-old male with a weight of 82.6 kg.",
+        "old_descr": "Subject is a 80-year-old male with a weight of 82.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 8.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.065943643,
@@ -867,6 +910,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/006_S_6375_2024-9-25_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/006_S_6375__I10989646__I10971113.nii.gz",
         "description": "Subject is a 75-year-old female with a weight of 97.0 kg.",
+        "old_descr": "Subject is a 75-year-old female with a weight of 97.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 1.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0779,
@@ -887,6 +931,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_7000__I1489503__I1614287.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_7000__I1489503__I1614263.nii.gz",
         "description": "Subject is a 89-year-old female with a weight of 53.2 kg.",
+        "old_descr": "Subject is a 89-year-old female with a weight of 53.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 24. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 4.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0804,
@@ -907,6 +952,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/037_S_6083_2017-11-27_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/037_S_6083__I915825__I1598065.nii.gz",
         "description": "Subject is a 72-year-old male with a weight of 93.7 kg.",
+        "old_descr": "Subject is a 72-year-old male with a weight of 93.7 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 4.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0872,
@@ -927,6 +973,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/389_S_10676__I11283875__I11440959.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/389_S_10676__I11283875__I11484240.nii.gz",
         "description": "Subject is a 78-year-old male with a weight of 89.9 kg.",
+        "old_descr": "Subject is a 78-year-old male with a weight of 89.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 20. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 4.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.060053374,
@@ -947,6 +994,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/137_S_6654__I1116661__I1602436.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/137_S_6654__I1116661__I1602491.nii.gz",
         "description": "Subject is a 73-year-old male with a weight of 71.2 kg.",
+        "old_descr": "Subject is a 73-year-old male with a weight of 71.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0984,
@@ -967,6 +1015,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/082_S_6629_2020-2-5_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/082_S_6629__I1516245__I1614317.nii.gz",
         "description": "Subject is a 59-year-old female with a weight of 79.2 kg.",
+        "old_descr": "Subject is a 59-year-old female with a weight of 79.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.114,
@@ -987,6 +1036,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_7123__I1679245__I10236227.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_7123__I1679245__I10298377.nii.gz",
         "description": "Subject is a 81-year-old female with a weight of 57.2 kg.",
+        "old_descr": "Subject is a 81-year-old female with a weight of 57.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0816,
@@ -1007,6 +1057,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/005_S_10288__I10987612__I11075953.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/005_S_10288__I10987612__I11281454.nii.gz",
         "description": "Subject is a 75-year-old female with a weight of 88.9 kg.",
+        "old_descr": "Subject is a 75-year-old female with a weight of 88.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0791,
@@ -1027,6 +1078,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/116_S_6543_2019-8-13_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/116_S_6543__I1261558__I1600473.nii.gz",
         "description": "Subject is a 73-year-old male with a weight of 68.3 kg.",
+        "old_descr": "Subject is a 73-year-old male with a weight of 68.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 1. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 25. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 17.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.0897,
@@ -1047,6 +1099,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/129_S_6304__I985933__I1601648.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/129_S_6304__I985933__I1601634.nii.gz",
         "description": "Subject is a 67-year-old female with a weight of 63.1 kg.",
+        "old_descr": "Subject is a 67-year-old female with a weight of 63.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0898,
@@ -1067,6 +1120,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/011_S_10371__I11093570__I11136401.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/011_S_10371_2025-3-11_zero.nii.gz",
         "description": "Subject is a 72-year-old male with a weight of 73.3 kg.",
+        "old_descr": "Subject is a 72-year-old male with a weight of 73.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.092041818,
@@ -1087,6 +1141,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/129_S_7042__I1547687__I1614645.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/129_S_7042__I1547687__I1614571.nii.gz",
         "description": "Subject is a 62-year-old female with a weight of 72.6 kg.",
+        "old_descr": "Subject is a 62-year-old female with a weight of 72.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0855,
@@ -1107,6 +1162,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/941_S_6058_2017-9-18_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/941_S_6058__I884964__I1603478.nii.gz",
         "description": "Subject is a 68-year-old female with a weight of 59.9 kg.",
+        "old_descr": "Subject is a 68-year-old female with a weight of 59.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0908,
@@ -1127,6 +1183,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/011_S_10041__I10460262__I10882793.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/011_S_10041_2024-7-23_zero.nii.gz",
         "description": "Subject is a 57-year-old female with a weight of 96.3 kg.",
+        "old_descr": "Subject is a 57-year-old female with a weight of 96.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 3.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1017,
@@ -1147,6 +1204,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/127_S_6433_2020-10-23_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/127_S_6433__I1351388__I1600823.nii.gz",
         "description": "Subject is a 78-year-old male with a weight of 70.9 kg.",
+        "old_descr": "Subject is a 78-year-old male with a weight of 70.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 2. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 20. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 23.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.0781,
@@ -1167,6 +1225,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/019_S_6483_2018-8-1_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/019_S_6483__I1020137__I1595215.nii.gz",
         "description": "Subject is a 63-year-old female with a weight of 83.1 kg.",
+        "old_descr": "Subject is a 63-year-old female with a weight of 83.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 9.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0716,
@@ -1187,6 +1246,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/036_S_10703__I11255401__I11305633.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/036_S_10703__I11255401__I11305634.nii.gz",
         "description": "Subject is a 74-year-old male.",
+        "old_descr": "Subject is a 74-year-old male. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.129310345,
@@ -1207,6 +1267,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/129_S_6763__I1186906__I1601659.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/129_S_6763__I1186906__I1601797.nii.gz",
         "description": "Subject is a 82-year-old female with a weight of 72.6 kg.",
+        "old_descr": "Subject is a 82-year-old female with a weight of 72.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 1. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 25. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 15.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.0739,
@@ -1227,6 +1288,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/037_S_5222__I11165543__I11073768.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/037_S_5222_2024-11-6_zero.nii.gz",
         "description": "Subject is a 79-year-old female with a weight of 90.9 kg.",
+        "old_descr": "Subject is a 79-year-old female with a weight of 90.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 1.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0723,
@@ -1247,6 +1309,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/027_S_5093__I10924653__I10667786.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/027_S_5093__I10924653__I10888949.nii.gz",
         "description": "Subject is a 81-year-old female with a weight of 72.4 kg.",
+        "old_descr": "Subject is a 81-year-old female with a weight of 72.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.102037678,
@@ -1267,6 +1330,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/027_S_6640_2019-1-9_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/027_S_6640__I1100512__I1596574.nii.gz",
         "description": "Subject is a 84-year-old male with a weight of 71.6 kg.",
+        "old_descr": "Subject is a 84-year-old male with a weight of 71.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 8.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0757,
@@ -1287,6 +1351,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/023_S_6400__I11219464__I11242296.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/023_S_6400__I11219464__I11330845.nii.gz",
         "description": "Subject is a 71-year-old female with a weight of 64.3 kg.",
+        "old_descr": "Subject is a 71-year-old female with a weight of 64.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.103349744,
@@ -1307,6 +1372,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/003_S_6256__I973278__I1593634.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/003_S_6256__I973278__I1593396.nii.gz",
         "description": "Subject is a 67-year-old female with a weight of 71.2 kg.",
+        "old_descr": "Subject is a 67-year-old female with a weight of 71.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.089,
@@ -1327,6 +1393,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_6306__I988748__I1597427.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_6306__I988748__I1597377.nii.gz",
         "description": "Subject is a 73-year-old male with a weight of 93.8 kg.",
+        "old_descr": "Subject is a 73-year-old male with a weight of 93.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 2.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0784,
@@ -1347,6 +1414,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/021_S_4335__I860017__I1595925.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/021_S_4335__I860017__I1595970.nii.gz",
         "description": "Subject is a 77-year-old female with a weight of 54.8 kg.",
+        "old_descr": "Subject is a 77-year-old female with a weight of 54.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0723,
@@ -1367,6 +1435,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/007_S_10075__I10435136__I10457951.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/007_S_10075__I10435136__I10457952.nii.gz",
         "description": "Subject is a 63-year-old male with a weight of 68.4 kg.",
+        "old_descr": "Subject is a 63-year-old male with a weight of 68.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 1. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 19. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 15.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.070749047,
@@ -1387,6 +1456,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/941_S_6254_2025-6-10_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/941_S_6254__I11315036__I11384015.nii.gz",
         "description": "Subject is a 75-year-old male with a weight of 81.6 kg.",
+        "old_descr": "Subject is a 75-year-old male with a weight of 81.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 2.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.085212215,
@@ -1407,6 +1477,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/033_S_6497_2019-6-7_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/033_S_6497__I1175032__I1597551.nii.gz",
         "description": "Subject is a 68-year-old male with a weight of 99.9 kg.",
+        "old_descr": "Subject is a 68-year-old male with a weight of 99.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 21.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.0742,
@@ -1427,6 +1498,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/041_S_4200__I11069467__I11139453.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/041_S_4200__I11069467__I10968391.nii.gz",
         "description": "Subject is a 83-year-old female with a weight of 86.2 kg.",
+        "old_descr": "Subject is a 83-year-old female with a weight of 86.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 1. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 24. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 4. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 21.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.072,
@@ -1447,6 +1519,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/007_S_6323_2024-7-31_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/007_S_6323__I11221572__I10933660.nii.gz",
         "description": "Subject is a 72-year-old male with a weight of 82.5 kg.",
+        "old_descr": "Subject is a 72-year-old male with a weight of 82.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 24. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 2.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1003,
@@ -1467,6 +1540,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/116_S_6624_2018-11-20_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/116_S_6624__I1069428__I1600433.nii.gz",
         "description": "Subject is a 65-year-old male with a weight of 84.4 kg.",
+        "old_descr": "Subject is a 65-year-old male with a weight of 84.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.109,
@@ -1487,6 +1561,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/135_S_6104_2018-11-8_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/135_S_6104__I1071232__I1602385.nii.gz",
         "description": "Subject is a 70-year-old male with a weight of 84.2 kg.",
+        "old_descr": "Subject is a 70-year-old male with a weight of 84.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0802,
@@ -1507,6 +1582,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/041_S_6785__I1555312__I1614346.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/041_S_6785__I1555312__I1614331.nii.gz",
         "description": "Subject is a 68-year-old female with a weight of 103.0 kg.",
+        "old_descr": "Subject is a 68-year-old female with a weight of 103.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1013,
@@ -1527,6 +1603,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/007_S_10467__I11161728__I11196391.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/007_S_10467__I11161728__I11196392.nii.gz",
         "description": "Subject is a 61-year-old male with a weight of 96.2 kg.",
+        "old_descr": "Subject is a 61-year-old male with a weight of 96.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.100277159,
@@ -1547,6 +1624,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/031_S_4149_2018-10-29_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/031_S_4149__I1136371__I1597121.nii.gz",
         "description": "Subject is a 80-year-old male with a weight of 83.0 kg.",
+        "old_descr": "Subject is a 80-year-old male with a weight of 83.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 10.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.0757,
@@ -1567,6 +1645,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/021_S_10114__I10519480__I10677806.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/021_S_10114__I10519480__I10653409.nii.gz",
         "description": "Subject is a 74-year-old female with a weight of 107.5 kg.",
+        "old_descr": "Subject is a 74-year-old female with a weight of 107.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 2.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.098056043,
@@ -1587,6 +1666,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/035_S_10382__I11072591__I11110494.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/035_S_10382__I11072591__I11123075.nii.gz",
         "description": "Subject is a 58-year-old female with a weight of 84.4 kg.",
+        "old_descr": "Subject is a 58-year-old female with a weight of 84.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1007,
@@ -1607,6 +1687,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/002_S_6103__I11175760__I11203315.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/002_S_6103__I11175760__I11203316.nii.gz",
         "description": "Subject is a 78-year-old female with a weight of 71.8 kg.",
+        "old_descr": "Subject is a 78-year-old female with a weight of 71.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.087228794,
@@ -1627,6 +1708,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/135_S_6622_2018-11-29_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/135_S_6622__I1068508__I1602365.nii.gz",
         "description": "Subject is a 76-year-old male with a weight of 107.3 kg.",
+        "old_descr": "Subject is a 76-year-old male with a weight of 107.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0859,
@@ -1647,6 +1729,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/141_S_6253_2018-4-3_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/141_S_6253__I974714__I1602759.nii.gz",
         "description": "Subject is a 68-year-old female with a weight of 67.1 kg.",
+        "old_descr": "Subject is a 68-year-old female with a weight of 67.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0918,
@@ -1667,6 +1750,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/041_S_6136_2017-12-14_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/041_S_6136__I944422__I1598328.nii.gz",
         "description": "Subject is a 61-year-old male with a weight of 78.9 kg.",
+        "old_descr": "Subject is a 61-year-old male with a weight of 78.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0999,
@@ -1687,6 +1771,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/305_S_6877__I1323113__I1603264.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/305_S_6877__I1323113__I1603318.nii.gz",
         "description": "Subject is a 80-year-old male with a weight of 80.3 kg.",
+        "old_descr": "Subject is a 80-year-old male with a weight of 80.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 7.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0851,
@@ -1707,6 +1792,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/123_S_10523_2025-3-24_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/123_S_10523__I11138633__I11260585.nii.gz",
         "description": "Subject is a 73-year-old female with a weight of 102.1 kg.",
+        "old_descr": "Subject is a 73-year-old female with a weight of 102.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 6. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.083333333,
@@ -1727,6 +1813,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/168_S_6875__I1319217__I1603088.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/168_S_6875__I1319217__I1603082.nii.gz",
         "description": "Subject is a 73-year-old male with a weight of 70.5 kg.",
+        "old_descr": "Subject is a 73-year-old male with a weight of 70.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0991,
@@ -1747,6 +1834,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/135_S_10332_2024-12-19_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/135_S_10332__I11061119__I11097176.nii.gz",
         "description": "Subject is a 65-year-old female with a weight of 87.0 kg.",
+        "old_descr": "Subject is a 65-year-old female with a weight of 87.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 25. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0754,
@@ -1767,6 +1855,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/007_S_6515_2022-10-12_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/007_S_6515__I1685436__I1634240.nii.gz",
         "description": "Subject is a 94-year-old female with a weight of 59.8 kg.",
+        "old_descr": "Subject is a 94-year-old female with a weight of 59.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.1072,
@@ -1787,6 +1876,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/057_S_6869_2022-3-1_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/057_S_6869__I1551527__I1614368.nii.gz",
         "description": "Subject is a 81-year-old male with a weight of 87.8 kg.",
+        "old_descr": "Subject is a 81-year-old male with a weight of 87.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 2. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 21. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 20.",
         "diagnosis": "AD",
         "plasma": {
             "AB42_AB40": 0.073,
@@ -1807,6 +1897,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/020_S_6566_2018-9-12_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/020_S_6566__I1045619__I1595951.nii.gz",
         "description": "Subject is a 73-year-old male with a weight of 74.2 kg.",
+        "old_descr": "Subject is a 73-year-old male with a weight of 74.2 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 3. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.098,
@@ -1827,6 +1918,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/098_S_6534_2019-10-9_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/098_S_6534__I1264179__I1599949.nii.gz",
         "description": "Subject is a 62-year-old male with a weight of 79.4 kg.",
+        "old_descr": "Subject is a 62-year-old male with a weight of 79.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 2.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.1128,
@@ -1847,6 +1939,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/073_S_10597_2025-4-24_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/073_S_10597__I11322617__I11320258.nii.gz",
         "description": "Subject is a 74-year-old female with a weight of 69.4 kg.",
+        "old_descr": "Subject is a 74-year-old female with a weight of 69.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.088963114,
@@ -1867,6 +1960,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/021_S_7092__I1597664__I1623361.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/021_S_7092__I1597664__I1623362.nii.gz",
         "description": "Subject is a 69-year-old male with a weight of 101.9 kg.",
+        "old_descr": "Subject is a 69-year-old male with a weight of 101.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0856,
@@ -1887,6 +1981,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/128_S_4742__I11048652__I11088808.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/128_S_4742__I11048652__I11088809.nii.gz",
         "description": "Subject is a 83-year-old female with a weight of 52.8 kg.",
+        "old_descr": "Subject is a 83-year-old female with a weight of 52.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0922,
@@ -1907,6 +2002,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/005_S_10805__I11316212__I11449683.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/005_S_10805__I11316212__I11455141.nii.gz",
         "description": "Subject is a 73-year-old male with a weight of 95.3 kg.",
+        "old_descr": "Subject is a 73-year-old male with a weight of 95.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.106584729,
@@ -1927,6 +2023,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/168_S_6321__I1603690__I1641180.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/168_S_6321__I1603690__I1645087.nii.gz",
         "description": "Subject is a 77-year-old male with a weight of 83.5 kg.",
+        "old_descr": "Subject is a 77-year-old male with a weight of 83.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0875,
@@ -1947,6 +2044,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/127_S_6147_2025-2-17_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/127_S_6147__I11175778__I11251760.nii.gz",
         "description": "Subject is a 77-year-old male with a weight of 94.1 kg.",
+        "old_descr": "Subject is a 77-year-old male with a weight of 94.1 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 1.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0741,
@@ -1967,6 +2065,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/114_S_2392__I11095606__I11087500.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/114_S_2392__I11095606__I11075949.nii.gz",
         "description": "Subject is a 77-year-old female with a weight of 58.5 kg.",
+        "old_descr": "Subject is a 77-year-old female with a weight of 58.5 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 28. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 7. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 3.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.0824,
@@ -1987,6 +2086,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/037_S_10233__I11061076__I11143022.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/037_S_10233_2025-2-26_zero.nii.gz",
         "description": "Subject is a 85-year-old female with a weight of 64.7 kg.",
+        "old_descr": "Subject is a 85-year-old female with a weight of 64.7 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.083589096,
@@ -2007,6 +2107,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/082_S_7122__I11326484__I11449824.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/082_S_7122__I11326484__I11449825.nii.gz",
         "description": "Subject is a 70-year-old female with a weight of 75.4 kg.",
+        "old_descr": "Subject is a 70-year-old female with a weight of 75.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.082785808,
@@ -2027,6 +2128,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/033_S_10379__I11067747__I11219406.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/033_S_10379__I11067747__I11143472.nii.gz",
         "description": "Subject is a 68-year-old female with a weight of 70.9 kg.",
+        "old_descr": "Subject is a 68-year-old female with a weight of 70.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 2. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.0766,
@@ -2047,6 +2149,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/033_S_7114_2022-12-6_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/033_S_7114__I1633742__I1648618.nii.gz",
         "description": "Subject is a 65-year-old female with a weight of 81.8 kg.",
+        "old_descr": "Subject is a 65-year-old female with a weight of 81.8 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 5. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 3. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 1.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.098,
@@ -2067,6 +2170,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/003_S_4288__I10968663__I10980720.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/003_S_4288__I10968663__I11081190.nii.gz",
         "description": "Subject is a 85-year-old female with a weight of 75.3 kg.",
+        "old_descr": "Subject is a 85-year-old female with a weight of 75.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 30. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.069,
@@ -2087,6 +2191,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/052_S_10349__I11088088__I11203348.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/052_S_10349__I11088088__I11251772.nii.gz",
         "description": "Subject is a 75-year-old male with a weight of 83.9 kg.",
+        "old_descr": "Subject is a 75-year-old male with a weight of 83.9 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 26. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 4. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.085440427,
@@ -2107,6 +2212,7 @@
         "av45": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/AV45/033_S_6976_2025-7-8_zero.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/033_S_6976__I11341532__I11470601.nii.gz",
         "description": "Subject is a 61-year-old male with a weight of 141.0 kg.",
+        "old_descr": "Subject is a 61-year-old male with a weight of 141.0 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 7.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.100104312,
@@ -2127,6 +2233,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/037_S_10639__I11325614__I11466447.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/lsj.14/ADNI_none/TAU/037_S_10639_2025-8-6_zero.nii.gz",
         "description": "Subject is a 76-year-old male with a weight of 54.4 kg.",
+        "old_descr": "Subject is a 76-year-old male with a weight of 54.4 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 27. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 8.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.106774627,
@@ -2147,6 +2254,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/130_S_6329__I11433156__I11339093.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/130_S_6329__I11433156__I11350781.nii.gz",
         "description": "Subject is a 69-year-old male with a weight of 87.6 kg.",
+        "old_descr": "Subject is a 69-year-old male with a weight of 87.6 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0.5. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 0. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0.",
         "diagnosis": "MCI",
         "plasma": {
             "AB42_AB40": 0.093023256,
@@ -2167,6 +2275,7 @@
         "av45": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/AV45/023_S_4164__I10569000__I11305620.nii.gz",
         "tau": "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration/PET_MNI/TAU/023_S_4164__I10569000__I10329476.nii.gz",
         "description": "Subject is a 85-year-old male with a weight of 87.3 kg.",
+        "old_descr": "Subject is a 85-year-old male with a weight of 87.3 kg. The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is 0. The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is 29. The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is 1. The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is 0. The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is 0.",
         "diagnosis": "CN",
         "plasma": {
             "AB42_AB40": 0.094653372,

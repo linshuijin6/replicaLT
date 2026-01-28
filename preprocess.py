@@ -129,7 +129,8 @@ def main():
         key = (row['subject_id'], row['examdate_norm'])
         demog_dict[key] = {
             'description': row['description'],
-            'diagnosis': row.get('diagnosis', None)
+            'diagnosis': row.get('diagnosis', None),
+            'old_descr': row.get('old_descr', None)
         }
     
     # 定义缺失值预设值
@@ -168,10 +169,12 @@ def main():
         if demog_info is not None:
             description = demog_info['description']
             diagnosis = demog_info['diagnosis'] if demog_info['diagnosis'] else MISSING_DIAGNOSIS
+            old_descr = demog_info['old_descr']
         else:
             missing_descriptions += 1
             description = None  # 允许description为空
             diagnosis = MISSING_DIAGNOSIS
+            old_descr = None
         
         # 3. 获取plasma相关字段（从pairs_df当前行直接获取）
         def get_plasma_value(value):
@@ -223,6 +226,7 @@ def main():
             "av45": av45_path,
             "tau": tau_path,
             "description": description,
+            "old_descr": old_descr,
             "diagnosis": diagnosis,
             "plasma": plasma_data
         }
