@@ -1,0 +1,27 @@
+{
+  "total_rows": 3360,
+  "mri": {
+    "complete": 3310,
+    "partial": 50,
+    "missing": 0,
+    "total": 3360
+  },
+  "fdg": {
+    "complete": 419,
+    "partial": 0,
+    "missing": 0,
+    "total": 419
+  },
+  "av45": {
+    "complete": 1340,
+    "partial": 0,
+    "missing": 26,
+    "total": 1366
+  },
+  "tau": {
+    "complete": 2062,
+    "partial": 0,
+    "missing": 29,
+    "total": 2091
+  }
+}

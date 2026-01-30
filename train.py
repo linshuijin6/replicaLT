@@ -3,7 +3,7 @@
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 # 防止 CUDA 使用非指定 GPU，避免显存泄漏
 import os
-_TARGET_GPU_IDS = [2,5]  # 指定使用的 GPU ID，与下方 device_id 保持一致
+_TARGET_GPU_IDS = [5]  # 指定使用的 GPU ID，与下方 device_id 保持一致
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, _TARGET_GPU_IDS))
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # 确保物理 GPU ID 顺序一致
 
@@ -179,8 +179,8 @@ def main():
 
     # 0.训练参数设置
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
-    cache_dir = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_main_cache'
-    plasma_csv_path = "adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
+    cache_dir = '/mnt/nfsdata/nfsdata/linshuijin/ADNI_CSF_main_cache'
+    plasma_csv_path = "/home/ssddata/linshuijin/replicaLT/adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # 确保缓存目录存在
     os.makedirs(cache_dir, exist_ok=True)
@@ -192,7 +192,7 @@ def main():
     # 重要：由于在文件开头设置了 CUDA_VISIBLE_DEVICES，这里的 device_id 是逻辑 ID（从 0 开始）
     # 物理 GPU ID 在文件开头的 _TARGET_GPU_IDS 中指定
     # 例如：_TARGET_GPU_IDS = [2] 表示物理 GPU 2，此时 device_id = [0] 表示逻辑 GPU 0（即物理 GPU 2）
-    device_id = [0]  # 逻辑 GPU ID（对应物理 GPU 由 CUDA_VISIBLE_DEVICES 控制）
+    device_id = [0]  # 不要改这个，逻辑 GPU ID（对应物理 GPU 由 CUDA_VISIBLE_DEVICES 控制）
     # 定义裁剪的最小值和最大值
     clip_sample_min = 0  # 设置合适的最小值
     clip_sample_max = 1   # 设置合适的最大值
@@ -219,7 +219,7 @@ def main():
             print(f"Warning: Failed to set CUDA device {primary_device}: {e}")
             print("Continuing with default CUDA device or CPU...")
     size_of_dataset = None  # 设置为 None 以使用完整数据集，或设置为所需的样本数量
-    bs = 1  # batch_size
+    bs = 4  # batch_size
     n_epochs = 200
     val_interval =1
     checkpoint_dir = './checkpoint'
