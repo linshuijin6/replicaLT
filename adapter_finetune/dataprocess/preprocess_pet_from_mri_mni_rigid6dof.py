@@ -177,7 +177,7 @@ def process_one_pet(
     tmp_root: str,
     mni_ref_full: str,
     overwrite: bool,
-) -> Tuple[str, str, str, str, str, str, str, str, str]:
+) -> Tuple[str, str, str, str, str, str]:
 
     raw_pet = Path(raw_pet_path)
     mri_rstd = Path(mri_rstd_path)
@@ -199,18 +199,9 @@ def process_one_pet(
     if not pet_id_norm:
         raise RuntimeError("START::Empty pet_id")
 
-    final_full = out_root / f"{subject}__{mri_id}__{pet_id_norm}_full.nii.gz"
     final_brain = out_root / f"{subject}__{mri_id}__{pet_id_norm}.nii.gz"
-    final_pet2mri = out_root / f"{subject}__{mri_id}__{pet_id_norm}_pet2mri.mat"
-    final_pet2mni = out_root / f"{subject}__{mri_id}__{pet_id_norm}_pet2mni.mat"
 
-    if (
-        (not overwrite)
-        and final_full.exists()
-        and final_brain.exists()
-        and final_pet2mri.exists()
-        and final_pet2mni.exists()
-    ):
+    if (not overwrite) and final_brain.exists():
         return (
             subject,
             mri_id,
@@ -218,9 +209,6 @@ def process_one_pet(
             pet_id_norm,
             str(raw_pet),
             str(final_brain),
-            str(final_full),
-            str(final_pet2mri),
-            str(final_pet2mni),
         )
 
     work = tmp_root / subject / f"{modality.lower()}_{pet_id_norm}"
@@ -322,17 +310,12 @@ def process_one_pet(
         stage = "SKULLSTRIP_MNI"
         run(["fslmaths", str(pet_in_mni), "-mas", str(mri_mask_mni), str(pet_brain)], logf)
 
-        # 6) Write outputs
+        # 6) Write outputs - only brain file, skip full/mat files
         stage = "WRITE_OUTPUTS"
-        if overwrite:
-            for p in (final_full, final_brain, final_pet2mri, final_pet2mni):
-                if p.exists():
-                    p.unlink()
+        if overwrite and final_brain.exists():
+            final_brain.unlink()
 
-        shutil.copyfile(pet_in_mni, final_full)
         shutil.copyfile(pet_brain, final_brain)
-        shutil.copyfile(pet2mri_mat, final_pet2mri)
-        shutil.copyfile(pet2mni_mat, final_pet2mni)
 
         return (
             subject,
@@ -341,9 +324,6 @@ def process_one_pet(
             pet_id_norm,
             str(raw_pet),
             str(final_brain),
-            str(final_full),
-            str(final_pet2mri),
-            str(final_pet2mni),
         )
 
     except Exception as e:

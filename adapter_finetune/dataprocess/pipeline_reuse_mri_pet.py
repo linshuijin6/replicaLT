@@ -16,8 +16,9 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+import subprocess
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 import pandas as pd
 from report_error import email_on_error
 
@@ -31,6 +32,44 @@ from preprocess_pet_from_mri_mni_rigid6dof import (
     norm_img_id as norm_pet_id,
     process_one_pet,
 )
+
+
+def detect_best_gpu(min_free_mb: int = 10000) -> Optional[str]:
+    """
+    Detect GPU with most free memory (>= min_free_mb).
+    Returns GPU index as string, or None if no suitable GPU found.
+    """
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            return None
+        best_idx, best_free = None, 0
+        for line in result.stdout.strip().split("\n"):
+            if not line.strip():
+                continue
+            parts = line.split(",")
+            if len(parts) >= 2:
+                idx = parts[0].strip()
+                free_mb = int(parts[1].strip())
+                if free_mb >= min_free_mb and free_mb > best_free:
+                    best_idx, best_free = idx, free_mb
+        if best_idx is not None:
+            print(f"[GPU] Selected GPU {best_idx} with {best_free} MiB free", flush=True)
+        return best_idx
+    except Exception:
+        return None
+
+
+def get_cpu_count() -> int:
+    """Get available CPU count, capped at reasonable limit."""
+    try:
+        import multiprocessing
+        return min(multiprocessing.cpu_count(), 32)
+    except Exception:
+        return 8
 
 
 def ensure_headers(path: Path, header: List[str]) -> None:
@@ -110,25 +149,63 @@ def copy_mri(src: Dict[str, Path], dst: Dict[str, Path]) -> bool:
 @email_on_error()
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pairs_csv", type=Path, required=True, help="CSV like plasma_mri_pet_matched_180d.csv")
-    ap.add_argument("--nifti_root", type=Path, required=True, help="ADNI0103 NIFTI root")
-    ap.add_argument("--source_mri_root", type=Path, required=True, help="Existing processed MRI root (LorenzoT)")
-    ap.add_argument("--target_root", type=Path, required=True, help="Coregistration root to store MRI/PET outputs")
-    ap.add_argument("--logs_root", type=Path, required=True)
-    ap.add_argument("--tmp_root", type=Path, required=True)
+    ap.add_argument("--pairs_csv", type=Path, default='/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/data_csv/pairs_withPlasma.csv', help="CSV like plasma_mri_pet_matched_180d.csv")
+    ap.add_argument("--nifti_root", type=Path, default='/mnt/nfsdata/nfsdata/ADNI/ADNI0103/NIFTI', help="ADNI0103 NIFTI root")
+    ap.add_argument("--source_mri_root", type=Path, default=None, help="Optional: Existing processed MRI root to copy from (skip if not set)")
+    ap.add_argument("--target_root", type=Path, default='/mnt/linshuijin/ADNI_CSF', help="Coregistration root to store MRI/PET outputs")
+    ap.add_argument("--logs_root", type=Path, default='/mnt/linshuijin/ADNI_CSF/logs', help="Logs root")
+    ap.add_argument("--tmp_root", type=Path, default='/mnt/linshuijin/ADNI_CSF/logs')
     ap.add_argument("--limit", type=int, default=-1)
     ap.add_argument("--overwrite", action="store_true", help="Overwrite PET outputs if present")
+    ap.add_argument("--use_gpu", action="store_true", help="Use GPU for mri_synthstrip")
+    ap.add_argument("--gpu_id", type=str, default=None, help="Specific GPU id to use (auto-detect if not set)")
+    ap.add_argument("--n4_threads", type=int, default=2, help="Threads per N4 bias correction (default 2)")
     args = ap.parse_args()
 
-    os.environ.setdefault("OMP_NUM_THREADS", "1")
-    os.environ.setdefault("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS", "1")
+    # ========== Setup FSL and FreeSurfer environment ==========
+    FREESURFER_HOME = "/mnt/ssd/linshuijin/freesurfer"
+    FSLDIR = "/mnt/ssd/linshuijin/fsl"
+    
+    os.environ["FREESURFER_HOME"] = FREESURFER_HOME
+    os.environ["FSLDIR"] = FSLDIR
+    os.environ["SUBJECTS_DIR"] = f"{FREESURFER_HOME}/subjects"
+    os.environ["FS_LICENSE"] = f"{FREESURFER_HOME}/license.txt"
+    
+    # Update PATH
+    path_additions = [
+        f"{FREESURFER_HOME}/bin",
+        f"{FSLDIR}/bin",
+    ]
+    os.environ["PATH"] = ":".join(path_additions) + ":" + os.environ.get("PATH", "")
+
+    # Set thread counts based on system
+    cpu_count = get_cpu_count()
+    # For parallel jobs, limit per-process threads to avoid oversubscription
+    omp_threads = max(1, cpu_count // 8)
+    os.environ.setdefault("OMP_NUM_THREADS", str(omp_threads))
+    os.environ.setdefault("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS", str(omp_threads))
+    # Ensure CUDA ordering matches nvidia-smi
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    print(f"[INFO] CPU count: {cpu_count}, OMP_NUM_THREADS: {omp_threads}", flush=True)
+
+    # GPU detection
+    gpu_device: Optional[str] = None
+    use_gpu = args.use_gpu
+    if use_gpu:
+        if args.gpu_id is not None:
+            gpu_device = args.gpu_id
+            print(f"[GPU] Using specified GPU {gpu_device}", flush=True)
+        else:
+            gpu_device = detect_best_gpu(min_free_mb=10000)
+            if gpu_device is None:
+                print("[GPU] No GPU with >= 10GB free found, falling back to CPU for synthstrip", flush=True)
+                use_gpu = False
 
     for exe in [
         "fslreorient2std",
         "fslorient",
         "mri_synthstrip",
         "fslmaths",
-        "fast",
         "flirt",
         "convert_xfm",
     ]:
@@ -153,22 +230,29 @@ def main() -> None:
     ensure_headers(pet_log, ["subject_id", "id_mri", "modality", "id_pet", "raw_path", "status", "detail"])
 
     df = pd.read_csv(args.pairs_csv)
-    required_cols = {"PTID", "id_mri"}
+    
+    # Column name mapping (support both old and new CSV formats)
+    col_mri = "image_id(MRI)" if "image_id(MRI)" in df.columns else "id_mri"
+    col_fdg = "image_id(18F-FDG)" if "image_id(18F-FDG)" in df.columns else "id_fdg"
+    col_av45 = "image_id(18F-AV45)" if "image_id(18F-AV45)" in df.columns else "id_av45"
+    col_tau = "image_id(18F-AV1451)" if "image_id(18F-AV1451)" in df.columns else "id_av1451"
+    
+    required_cols = {"PTID", col_mri}
     if not required_cols.issubset(df.columns):
-        raise RuntimeError(f"CSV missing columns: {required_cols}")
+        raise RuntimeError(f"CSV missing columns: {required_cols}. Available: {list(df.columns)}")
     if args.limit > 0:
         df = df.head(args.limit).copy()
 
     modality_cols: List[Tuple[str, str]] = [
-        ("FDG", "id_fdg"),
-        ("AV45", "id_av45"),
-        ("TAU", "id_av1451"),
+        ("FDG", col_fdg),
+        ("AV45", col_av45),
+        ("TAU", col_tau),
     ]
 
     rows: List[Tuple[str, str, pd.Series]] = []
     for _, row in df.iterrows():
         subject = str(row["PTID"]).strip()
-        mri_id_raw = row["id_mri"] if "id_mri" in row else ""
+        mri_id_raw = row[col_mri] if col_mri in row else ""
         mri_id = norm_mri_id(mri_id_raw)
         if not subject or not mri_id:
             append_row(mri_log, [subject, str(mri_id_raw), "skip", "missing subject or mri id", "SKIP"])
@@ -185,7 +269,8 @@ def main() -> None:
 
         if all_exist(tgt_paths):
             append_row(mri_log, [subject, mri_id, f"{phase}_reuse_target", "already present", "OK"])
-        else:
+        elif args.source_mri_root is not None:
+            # Try to copy from source_mri_root
             src_paths = source_mri_paths(args.source_mri_root, subject, mri_id)
             if all_exist(src_paths):
                 copied = copy_mri(src_paths, tgt_paths)
@@ -204,7 +289,8 @@ def main() -> None:
                     else:
                         append_row(mri_log, [subject, mri_id, f"{phase}_copy_rglob", "missing pieces in rglob", "FAIL"])
                         return
-                elif phase == "phase2":
+                else:
+                    # Source not found, try to generate
                     try:
                         raw = find_nifti_struct(args.nifti_root, subject, mri_id)
                         if not raw:
@@ -222,14 +308,43 @@ def main() -> None:
                             str(args.tmp_root),
                             str(mni_ref_full),
                             args.overwrite,
+                            synthstrip_no_csf=False,
+                            fill_mask_holes=True,
+                            synthstrip_use_gpu=use_gpu,
+                            synthstrip_cuda_device=gpu_device,
                         )
                         append_row(mri_log, [subject, mri_id, "run", res[2], "OK"])
                     except Exception as e:  # noqa: BLE001
                         append_row(mri_log, [subject, mri_id, "run", str(e).splitlines()[0], "FAIL"])
                         return
-                else:
-                    append_row(mri_log, [subject, mri_id, f"{phase}_copy", "missing in source, postpone", "SKIP"])
+        else:
+            # No source_mri_root, generate MRI directly
+            try:
+                raw = find_nifti_struct(args.nifti_root, subject, mri_id)
+                if not raw:
+                    append_row(mri_log, [subject, mri_id, "find_raw", "missing raw in nifti_root", "FAIL"])
                     return
+                res = process_one_mri(
+                    subject,
+                    mri_id,
+                    str(raw),
+                    str(target_root / "MRI"),
+                    str(target_root / "MRI_MASK"),
+                    str(target_root / "MRI_XFM"),
+                    str(target_root / "MRI_NATIVE_RSTD"),
+                    str(args.logs_root),
+                    str(args.tmp_root),
+                    str(mni_ref_full),
+                    args.overwrite,
+                    synthstrip_no_csf=False,
+                    fill_mask_holes=True,
+                    synthstrip_use_gpu=use_gpu,
+                    synthstrip_cuda_device=gpu_device,
+                )
+                append_row(mri_log, [subject, mri_id, "run", res[2], "OK"])
+            except Exception as e:  # noqa: BLE001
+                append_row(mri_log, [subject, mri_id, "run", str(e).splitlines()[0], "FAIL"])
+                return
 
         if not all_exist(tgt_paths):
             append_row(mri_log, [subject, mri_id, "verify", "target MRI still missing", "FAIL"])
@@ -245,10 +360,7 @@ def main() -> None:
             print(f"[{phase.upper()}][PET] {subject} {mri_id} {modality} {pet_id}", flush=True)
             pet_out_root = target_root / "PET_MNI"
             pet_brain = pet_out_root / modality / f"{subject}__{mri_id}__{pet_id}.nii.gz"
-            pet_full = pet_out_root / modality / f"{subject}__{mri_id}__{pet_id}_full.nii.gz"
-            pet2mni = pet_out_root / modality / f"{subject}__{mri_id}__{pet_id}_pet2mni.mat"
-            pet2mri = pet_out_root / modality / f"{subject}__{mri_id}__{pet_id}_pet2mri.mat"
-            if (not args.overwrite) and pet_brain.exists() and pet_full.exists() and pet2mni.exists() and pet2mri.exists():
+            if (not args.overwrite) and pet_brain.exists():
                 append_row(pet_log, [subject, mri_id, modality, pet_id, "", "SKIP", "already present"])
                 continue
 
@@ -273,20 +385,23 @@ def main() -> None:
                     str(mni_ref_full),
                     args.overwrite,
                 )
-                append_row(pet_log, [subject, mri_id, modality, res_pet[3], res_pet[4], "OK", ""])
+                append_row(pet_log, [subject, mri_id, modality, res_pet[3], str(raw_pet), "OK", ""])
             except Exception as e:  # noqa: BLE001
                 append_row(pet_log, [subject, mri_id, modality, pet_id, str(raw_pet), "FAIL", str(e).splitlines()[0]])
 
     # Phase 1: rows with source MRI available (or already in target)
-    for idx, (subject, mri_id, row) in enumerate(rows, start=1):
-        src_paths = source_mri_paths(args.source_mri_root, subject, mri_id)
-        if all_exist(target_mri_paths(target_root, subject, mri_id)) or all_exist(src_paths):
-            print(f"[PHASE1] {idx}/{total_rows} {subject} {mri_id}", flush=True)
-            process_row(subject, mri_id, row, "phase1")
+    if args.source_mri_root is not None:
+        for idx, (subject, mri_id, row) in enumerate(rows, start=1):
+            src_paths = source_mri_paths(args.source_mri_root, subject, mri_id)
+            if all_exist(target_mri_paths(target_root, subject, mri_id)) or all_exist(src_paths):
+                print(f"[PHASE1] {idx}/{total_rows} {subject} {mri_id}", flush=True)
+                process_row(subject, mri_id, row, "phase1")
+    else:
+        print("[INFO] No source_mri_root provided, skipping Phase 1 (copy from source)", flush=True)
 
     # Phase 2: remaining rows (generate MRI if needed)
     for idx, (subject, mri_id, row) in enumerate(rows, start=1):
-        if not all_exist(target_mri_paths(target_root, subject, mri_id)) and not all_exist(source_mri_paths(args.source_mri_root, subject, mri_id)):
+        if not all_exist(target_mri_paths(target_root, subject, mri_id)):
             print(f"[PHASE2] {idx}/{total_rows} {subject} {mri_id}", flush=True)
             process_row(subject, mri_id, row, "phase2")
 

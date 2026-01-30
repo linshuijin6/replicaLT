@@ -10,13 +10,13 @@ ADNI0103 NIfTI Structure:
 
 This script adapts the search logic to find raw NIfTIs in this structure.
 
-Pipeline (same as standard fast script):
+Pipeline:
 1) fslreorient2std
 2) fslorient -copysform2qform
 3) mri_synthstrip (brain extraction) -> brain image
 4) fslmaths brain -bin -> native brain mask
-5) FAST bias-field correction on *reoriented full-head* (mri_rstd)
-6) FLIRT rigid 6 DOF: (mri_fast_restore) -> MNI152_T1_1mm (full-head)
+5) N4BiasFieldCorrection (SimpleITK) on *reoriented full-head* (mri_rstd) - faster than FAST
+6) FLIRT rigid 6 DOF: (mri_n4_restore) -> MNI152_T1_1mm (full-head)
 7) Apply transform to native mask (nearest) -> mask in MNI
 8) Final brain-only MRI in MNI
 
@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Set
 
 import pandas as pd
+import SimpleITK as sitk
 
 # -------------------------
 # Utils
@@ -45,19 +46,76 @@ def which_or_die(exe: str) -> str:
     return p
 
 
-def run(cmd, logf: Path, check=True):
+def run(cmd, logf: Path, check=True, env=None):
     logf.parent.mkdir(parents=True, exist_ok=True)
     with open(logf, "a", encoding="utf-8") as f:
         f.write("\n" + "=" * 120 + "\n")
         f.write("CMD: " + " ".join(map(str, cmd)) + "\n")
         f.write("=" * 120 + "\n")
         f.flush()
-        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
         f.write(p.stdout or "")
         f.write("\n")
     if check and p.returncode != 0:
         tail = "\n".join((p.stdout or "").splitlines()[-120:])
         raise RuntimeError(f"Command failed (code={p.returncode}): {' '.join(map(str, cmd))}\nTAIL:\n{tail}")
+    return p
+
+
+def n4_bias_correction(
+    input_path: Path,
+    output_path: Path,
+    mask_path: Optional[Path] = None,
+    shrink_factor: int = 4,
+    num_iterations: Tuple[int, ...] = (50, 50, 30, 20),
+    convergence_threshold: float = 1e-6,
+    num_threads: int = 1,
+) -> None:
+    """
+    Apply N4 bias field correction using SimpleITK.
+    Faster than FSL FAST with comparable results.
+    
+    Args:
+        input_path: Input NIfTI file
+        output_path: Output bias-corrected NIfTI file
+        mask_path: Optional brain mask to focus correction
+        shrink_factor: Downsampling factor for speed (default 4)
+        num_iterations: Iterations per level (default: 50,50,30,20)
+        convergence_threshold: Stopping criterion
+        num_threads: Number of threads for ITK
+    """
+    sitk.ProcessObject_SetGlobalDefaultNumberOfThreads(num_threads)
+    
+    img = sitk.ReadImage(str(input_path), sitk.sitkFloat32)
+    
+    # Optional mask
+    mask = None
+    if mask_path and mask_path.exists():
+        mask = sitk.ReadImage(str(mask_path), sitk.sitkUInt8)
+        # Ensure mask is binary
+        mask = sitk.BinaryThreshold(mask, lowerThreshold=0.5, upperThreshold=1e10, insideValue=1, outsideValue=0)
+    else:
+        # Create a simple Otsu threshold mask for robustness
+        mask = sitk.OtsuThreshold(img, 0, 1, 200)
+    
+    # Shrink for speed
+    img_shrunk = sitk.Shrink(img, [shrink_factor] * img.GetDimension())
+    mask_shrunk = sitk.Shrink(mask, [shrink_factor] * mask.GetDimension())
+    
+    # N4 corrector
+    corrector = sitk.N4BiasFieldCorrectionImageFilter()
+    corrector.SetMaximumNumberOfIterations(list(num_iterations))
+    corrector.SetConvergenceThreshold(convergence_threshold)
+    
+    # Run on shrunk image to get bias field
+    _ = corrector.Execute(img_shrunk, mask_shrunk)
+    
+    # Get log bias field and apply to full-res image
+    log_bias_field = corrector.GetLogBiasFieldAsImage(img)
+    corrected = img / sitk.Exp(log_bias_field)
+    
+    # Write output
+    sitk.WriteImage(corrected, str(output_path))
 
 
 def norm_img_id(x) -> str:
@@ -144,6 +202,10 @@ def process_one_mri(
     tmp_root: str,
     mni_ref_full: str,
     overwrite: bool,
+    synthstrip_no_csf: bool = False,
+    fill_mask_holes: bool = False,
+    synthstrip_use_gpu: bool = False,
+    synthstrip_cuda_device: Optional[str] = None,
 ) -> Tuple[str, str, str, str, str, str]:
 
     raw = Path(raw_path)
@@ -173,9 +235,9 @@ def process_one_mri(
     mri_rstd = work / "mri_rstd.nii.gz"
     mri_brain = work / "mri_brain.nii.gz"
     mri_mask = work / "mri_mask.nii.gz"
+    mri_mask_raw = work / "mri_mask_raw.nii.gz"
 
-    fast_prefix = work / "mri_fast"
-    mri_fast_restore = work / "mri_fast_restore.nii.gz"
+    mri_n4_restore = work / "mri_n4_restore.nii.gz"
 
     mri_in_mni = work / "mri_in_mni.nii.gz"
     mri2mni_mat = work / "mri_to_mni.mat"
@@ -195,29 +257,50 @@ def process_one_mri(
 
         # 2) Skull strip + mask
         stage = "SYNTHSTRIP"
-        run(["mri_synthstrip", "-i", str(mri_rstd), "-o", str(mri_brain), "--no-csf"], logf)
-        
-        # NOTE: synthstrip creates brain image. We create mask by binarizing it.
-        stage = "MASK_NATIVE"
-        run(["fslmaths", str(mri_brain), "-bin", str(mri_mask)], logf)
+        # Build env with CUDA_VISIBLE_DEVICES for synthstrip subprocess
+        synth_env = os.environ.copy()
+        # Ensure GPU ordering matches nvidia-smi output
+        synth_env["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        if synthstrip_cuda_device is not None:
+            synth_env["CUDA_VISIBLE_DEVICES"] = str(synthstrip_cuda_device)
+        cmd = ["mri_synthstrip", "-i", str(mri_rstd), "-o", str(mri_brain), "-m", str(mri_mask_raw)]
+        if synthstrip_use_gpu:
+            cmd.append("-g")
+        if synthstrip_no_csf:
+            cmd.append("--no-csf")
+        p = run(cmd, logf, check=False, env=synth_env)
+        if p.returncode != 0 or (not mri_mask_raw.exists()):
+            # Backward-compatible fallback for older synthstrip builds without -m
+            run(["mri_synthstrip", "-i", str(mri_rstd), "-o", str(mri_brain)] + (["-g"] if synthstrip_use_gpu else []) + (["--no-csf"] if synthstrip_no_csf else []), logf, env=synth_env)
+            stage = "MASK_NATIVE_FALLBACK"
+            run(["fslmaths", str(mri_brain), "-bin", str(mri_mask)], logf)
+        else:
+            stage = "MASK_NATIVE"
+            # Use the model-produced mask directly; ensure it is binary, optionally fill internal holes.
+            if fill_mask_holes:
+                run(["fslmaths", str(mri_mask_raw), "-bin", "-fillh", str(mri_mask)], logf)
+            else:
+                run(["fslmaths", str(mri_mask_raw), "-bin", str(mri_mask)], logf)
 
-        # 3) FAST bias correction on full-head rstd
-        stage = "FAST"
-        # CLEANUP old fast outputs
-        for p in work.glob("mri_fast*"):
-            if p.name == "mri_fast_restore.nii.gz": continue # Keep if just created? no rework
-            if p.is_file(): p.unlink()
+        # 3) N4 bias field correction on full-head rstd (faster than FAST)
+        stage = "N4_BIAS"
+        n4_bias_correction(
+            input_path=mri_rstd,
+            output_path=mri_n4_restore,
+            mask_path=mri_mask,  # Use brain mask to focus correction
+            shrink_factor=4,  # Downsample for speed
+            num_iterations=(50, 50, 30, 20),  # Multi-resolution iterations
+            num_threads=2,  # Use 2 threads per job
+        )
 
-        run(["fast", "-B", "-t", "1", "-o", str(fast_prefix), str(mri_rstd)], logf)
-
-        if not mri_fast_restore.exists():
-            raise RuntimeError("FAST did not create mri_fast_restore.nii.gz")
+        if not mri_n4_restore.exists():
+            raise RuntimeError("N4BiasFieldCorrection did not create mri_n4_restore.nii.gz")
 
         # 4) FLIRT rigid 6DOF to MNI (full-head)
         stage = "FLIRT_6DOF"
         run([
             "flirt",
-            "-in", str(mri_fast_restore),
+            "-in", str(mri_n4_restore),
             "-ref", str(mni_ref_full),
             "-out", str(mri_in_mni),
             "-omat", str(mri2mni_mat),
@@ -277,6 +360,22 @@ def main():
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--limit", type=int, default=-1)
 
+    ap.add_argument(
+        "--synthstrip_no_csf",
+        action="store_true",
+        help="Pass --no-csf to mri_synthstrip (can create ventricular/CSF holes in mask).",
+    )
+    ap.add_argument(
+        "--no_fill_mask_holes",
+        action="store_true",
+        help="Disable fslmaths -fillh on the native brain mask.",
+    )
+    ap.add_argument(
+        "--synthstrip_gpu",
+        action="store_true",
+        help="Use GPU for mri_synthstrip (-g).",
+    )
+
     args = ap.parse_args()
 
     # Derived paths
@@ -289,8 +388,8 @@ def main():
     os.environ.setdefault("OMP_NUM_THREADS", "1")
     os.environ.setdefault("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS", "1")
 
-    # Tools check
-    for exe in ["fslreorient2std", "fslorient", "mri_synthstrip", "fslmaths", "fast", "flirt"]:
+    # Tools check (fast removed - now using SimpleITK N4BiasFieldCorrection)
+    for exe in ["fslreorient2std", "fslorient", "mri_synthstrip", "fslmaths", "flirt"]:
         which_or_die(exe)
 
     fsldir = os.environ.get("FSLDIR", "")
@@ -383,6 +482,9 @@ def main():
                 str(args.logs_root), str(args.tmp_root),
                 str(mni_ref_full),
                 args.overwrite,
+                args.synthstrip_no_csf,
+                (not args.no_fill_mask_holes),
+                args.synthstrip_gpu,
             ): (subject, mri_id, raw_path)
             for subject, mri_id, raw_path in jobs
         }

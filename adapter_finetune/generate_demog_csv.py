@@ -1,6 +1,6 @@
 """
 生成包含人口统计学信息的CSV表格
-字段：subject_id, examdate, sex, weight, diagnosis, age, description
+字段：subject_id, examdate, sex, weight, diagnosis, age, description, MMSE, CDR, GDS, FAQ, NPI-Q, old_descr
 """
 
 import pandas as pd
@@ -89,6 +89,79 @@ def find_closest_row(df_mytable_subject, target_examdate):
     
     return closest_row
 
+
+def aggregate_clinical_values(df_mytable_subject, target_examdate, target_diagnosis):
+    """
+    从诊断一致的所有行中聚合临床评估字段（MMSE, CDR, GDS, FAQ, NPI-Q）。
+    对于每个字段，选取examdate最接近的有效值。
+    
+    Args:
+        df_mytable_subject: 同一subject的my_table行
+        target_examdate: 目标examdate
+        target_diagnosis: 目标诊断值（原始数值，如1/2/3）
+    
+    Returns:
+        dict: 包含各临床字段值的字典
+    """
+    clinical_fields = {
+        'MMSE': 'MMSCORE',
+        'CDR': 'CDGLOBAL',
+        'GDS': 'GDTOTAL',
+        'FAQ': 'FAQTOTAL',
+        'NPI-Q': 'NPISCORE'
+    }
+    
+    result = {field: None for field in clinical_fields.keys()}
+    
+    if df_mytable_subject.empty or target_examdate is None:
+        return result
+    
+    # 筛选诊断一致的行
+    same_diag_rows = []
+    for idx, row in df_mytable_subject.iterrows():
+        row_diag = row.get('DIAGNOSIS')
+        # 处理诊断值比较（可能是浮点数或整数）
+        try:
+            if pd.notna(row_diag) and pd.notna(target_diagnosis):
+                if int(float(row_diag)) == int(float(target_diagnosis)):
+                    same_diag_rows.append(row)
+        except:
+            continue
+    
+    if not same_diag_rows:
+        return result
+    
+    # 对每个临床字段，找到examdate最接近且有值的行
+    for field_name, col_name in clinical_fields.items():
+        min_diff = float('inf')
+        best_value = None
+        
+        for row in same_diag_rows:
+            row_examdate = row.get('calculated_examdate')
+            if row_examdate is None:
+                continue
+            
+            # 获取字段值
+            value = row.get(col_name)
+            if pd.isna(value) or value == '':
+                continue
+            
+            try:
+                value = float(value)
+            except:
+                continue
+            
+            # 计算日期差
+            diff = abs((row_examdate - target_examdate).days)
+            if diff < min_diff:
+                min_diff = diff
+                best_value = value
+        
+        result[field_name] = best_value
+    
+    return result
+
+
 def convert_weight(vsweight, vswtunit):
     """
     转换体重为kg
@@ -166,10 +239,10 @@ def generate_description(age, sex, weight):
             parts.append(sex)
         if weight is not None:
             parts.append(f"with a weight of {weight} kg")
-        
+
         if not parts:
             return None
-        
+
         if age is not None and sex is not None and weight is not None:
             return f"Subject is a {age}-year-old {sex} with a weight of {weight} kg."
         elif age is not None and sex is not None:
@@ -178,14 +251,80 @@ def generate_description(age, sex, weight):
             return f"Subject is {age} years old."
         else:
             return None
-    
+
     return f"Subject is a {age}-year-old {sex} with a weight of {weight} kg."
+
+
+def get_clinical_value(value):
+    """获取临床评估值，处理缺失值"""
+    if pd.isna(value) or value == '':
+        return None
+    try:
+        return float(value)
+    except:
+        return None
+
+
+def generate_old_descr(age, sex, weight, cdr, mmse, gds, faq, npiq):
+    """
+    生成old_descr文本，格式：
+    "Subject is a <age>-year-old <sex> with a weight of <weight> kg.
+    The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is <CDR>.
+    The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is <MMSE>.
+    The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is <GDS>.
+    The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is <FAQ>.
+    The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is <NPI-Q>"
+    """
+    # 基本信息部分
+    if age is not None and sex is not None and weight is not None:
+        base = f"Subject is a {age}-year-old {sex} with a weight of {weight} kg."
+    elif age is not None and sex is not None:
+        base = f"Subject is a {age}-year-old {sex}."
+    elif age is not None:
+        base = f"Subject is {age} years old."
+    else:
+        return None
+
+    # 格式化临床评估值（整数或一位小数）
+    def format_value(val):
+        if val is None:
+            return None
+        if val == int(val):
+            return str(int(val))
+        else:
+            return str(val)
+
+    cdr_str = format_value(cdr)
+    mmse_str = format_value(mmse)
+    gds_str = format_value(gds)
+    faq_str = format_value(faq)
+    npiq_str = format_value(npiq)
+
+    # 构建完整描述
+    parts = [base]
+
+    if cdr_str is not None:
+        parts.append(f"The global Clinical Dementia Rating (CDR) score, which assesses dementia severity (0: no dementia to 3: severe dementia), is {cdr_str}.")
+
+    if mmse_str is not None:
+        parts.append(f"The Mini-Mental State Examination (MMSE) score, assessing cognitive function (0: severe impairment to 30: normal), is {mmse_str}.")
+
+    if gds_str is not None:
+        parts.append(f"The Geriatric Depression Scale (GDS) score, screening depression (0: no depression to 15: severe depression), is {gds_str}.")
+
+    if faq_str is not None:
+        parts.append(f"The Functional Activities Questionnaire (FAQ) score, assessing daily activity impairment (0: no impairment to 30: severe impairment), is {faq_str}.")
+
+    if npiq_str is not None:
+        parts.append(f"The Neuropsychiatric Inventory Questionnaire (NPI-Q) Total Score, assessing neuropsychiatric symptom burden (0: no symptoms to higher scores indicating greater burden), is {npiq_str}.")
+
+    return " ".join(parts)
 
 def main():
     # 设置路径
     base_path = '/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/data_csv'
     pairs_path = os.path.join(base_path, 'pairs_withPlasma.csv')
-    mytable_path = os.path.join(base_path, 'All_Subjects_My_Table_20Jan2026.csv')
+    mytable_path = os.path.join(base_path, 'All_Subjects_My_Table_25Jan2026.csv')
     output_path = os.path.join(base_path, 'pairs_with_demog.csv')
     
     print("读取数据文件...")
@@ -235,7 +374,13 @@ def main():
             'weight': None,
             'diagnosis': None,
             'age': None,
-            'description': None
+            'description': None,
+            'MMSE': None,
+            'CDR': None,
+            'GDS': None,
+            'FAQ': None,
+            'NPI-Q': None,
+            'old_descr': None
         }
         
         # 查找匹配的my_table行
@@ -245,23 +390,34 @@ def main():
             
             if closest_row is not None:
                 matched_count += 1
-                
+
                 # 3. 获取性别
                 result['sex'] = convert_sex(closest_row.get('PTGENDER'))
-                
+
                 # 4. 获取体重
                 result['weight'] = convert_weight(
                     closest_row.get('VSWEIGHT'),
                     closest_row.get('VSWTUNIT')
                 )
-                
+
                 # 5. 获取诊断
-                result['diagnosis'] = convert_diagnosis(closest_row.get('DIAGNOSIS'))
-                
+                target_diagnosis_raw = closest_row.get('DIAGNOSIS')
+                result['diagnosis'] = convert_diagnosis(target_diagnosis_raw)
+
                 # 计算年龄
                 if subject_id in subject_birth_years and target_examdate is not None:
                     birth_year = subject_birth_years[subject_id]
                     result['age'] = target_examdate.year - birth_year
+
+                # 6. 获取临床评估值（从诊断一致的多行中聚合）
+                clinical_values = aggregate_clinical_values(
+                    df_subject, target_examdate, target_diagnosis_raw
+                )
+                result['MMSE'] = clinical_values['MMSE']
+                result['CDR'] = clinical_values['CDR']
+                result['GDS'] = clinical_values['GDS']
+                result['FAQ'] = clinical_values['FAQ']
+                result['NPI-Q'] = clinical_values['NPI-Q']
         
         # 6. 生成description
         result['description'] = generate_description(
@@ -269,7 +425,19 @@ def main():
             result['sex'],
             result['weight']
         )
-        
+
+        # 7. 生成old_descr
+        result['old_descr'] = generate_old_descr(
+            result['age'],
+            result['sex'],
+            result['weight'],
+            result['CDR'],
+            result['MMSE'],
+            result['GDS'],
+            result['FAQ'],
+            result['NPI-Q']
+        )
+
         results.append(result)
         
         if (idx + 1) % 100 == 0:
@@ -292,6 +460,12 @@ def main():
     print(f"有diagnosis信息: {df_result['diagnosis'].notna().sum()}")
     print(f"有age信息: {df_result['age'].notna().sum()}")
     print(f"有完整description: {df_result['description'].notna().sum()}")
+    print(f"有MMSE信息: {df_result['MMSE'].notna().sum()}")
+    print(f"有CDR信息: {df_result['CDR'].notna().sum()}")
+    print(f"有GDS信息: {df_result['GDS'].notna().sum()}")
+    print(f"有FAQ信息: {df_result['FAQ'].notna().sum()}")
+    print(f"有NPI-Q信息: {df_result['NPI-Q'].notna().sum()}")
+    print(f"有old_descr: {df_result['old_descr'].notna().sum()}")
     
     # 显示前几行结果
     print("\n=== 前5行结果 ===")

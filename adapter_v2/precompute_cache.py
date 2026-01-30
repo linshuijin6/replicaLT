@@ -28,12 +28,35 @@ import queue
 import yaml
 import numpy as np
 import pandas as pd
-import nibabel as nib
-import torch
-import torch.nn.functional as F
-from torchvision.transforms import InterpolationMode
-from torchvision.transforms import functional as TF
-from tqdm import tqdm
+
+# 延迟导入：重量级依赖（torch/torchvision/nibabel）只在真正需要时导入
+# 这样 --stats-only 和 --list-gpus 等命令可以快速执行
+torch = None
+nib = None
+TF = None
+InterpolationMode = None
+tqdm = None
+
+
+def _lazy_import_torch():
+    """延迟导入 torch 及相关模块"""
+    global torch, nib, TF, InterpolationMode, tqdm
+    if torch is not None:
+        return
+    
+    print("[导入] 正在加载 PyTorch 和 torchvision...")
+    import torch as _torch
+    import nibabel as _nib
+    from torchvision.transforms import InterpolationMode as _InterpolationMode
+    from torchvision.transforms import functional as _TF
+    from tqdm import tqdm as _tqdm
+    
+    torch = _torch
+    nib = _nib
+    TF = _TF
+    InterpolationMode = _InterpolationMode
+    tqdm = _tqdm
+    print("[导入] PyTorch 加载完成")
 
 # 添加 CLIP-MRI2PET 到 path（延迟导入模型）
 CLIP_MRI2PET_ROOT = Path(__file__).resolve().parents[2] / "CLIP-MRI2PET"
@@ -52,8 +75,168 @@ def _setup_clip_mri2pet_path():
 # 常量
 # ============================================================================
 
-DEFAULT_ADNI_ROOT = "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration"
+DEFAULT_ADNI_ROOT = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
 DEFAULT_TAU_SUBDIR = "PET_MNI/TAU"
+
+
+# ============================================================================
+# GPU 工具函数
+# ============================================================================
+
+def get_gpu_free_memory() -> Dict[int, int]:
+    """
+    获取各 GPU 的空闲显存（MiB）
+    
+    Returns:
+        Dict[gpu_id, free_memory_mib]
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            return {}
+        
+        gpu_free = {}
+        for line in result.stdout.strip().split("\n"):
+            if line.strip():
+                parts = line.split(",")
+                if len(parts) == 2:
+                    gpu_id = int(parts[0].strip())
+                    free_mem = int(parts[1].strip())
+                    gpu_free[gpu_id] = free_mem
+        return gpu_free
+    except Exception:
+        return {}
+
+
+def select_best_gpu(min_free_mb: int = 8000) -> Optional[int]:
+    """
+    自动选择空闲显存最大的 GPU
+    
+    Args:
+        min_free_mb: 最小要求空闲显存（MiB）
+        
+    Returns:
+        最佳 GPU 卡号，如果没有满足条件的返回 None
+    """
+    gpu_free = get_gpu_free_memory()
+    if not gpu_free:
+        return None
+    
+    # 按空闲显存降序排序
+    sorted_gpus = sorted(gpu_free.items(), key=lambda x: x[1], reverse=True)
+    
+    for gpu_id, free_mem in sorted_gpus:
+        if free_mem >= min_free_mb:
+            return gpu_id
+    
+    # 没有满足最小要求的，返回空闲最大的
+    if sorted_gpus:
+        return sorted_gpus[0][0]
+    return None
+
+
+def ensure_cpu_tensor(t: Any) -> Any:
+    """
+    确保张量在 CPU 上（用于保存缓存时确保设备无关）
+    
+    Args:
+        t: 任意对象，如果是 Tensor 则移到 CPU
+        
+    Returns:
+        CPU 上的张量或原对象
+    """
+    _lazy_import_torch()
+    if isinstance(t, torch.Tensor):
+        return t.detach().cpu()
+    return t
+
+
+def save_cache_payload(payload: Dict[str, Any], cache_file: Path) -> None:
+    """
+    保存缓存，确保所有张量在 CPU 上（设备无关）
+    
+    Args:
+        payload: 包含张量的字典
+        cache_file: 保存路径
+    """
+    _lazy_import_torch()
+    # 确保所有张量在 CPU 上
+    cpu_payload = {}
+    for key, value in payload.items():
+        cpu_payload[key] = ensure_cpu_tensor(value)
+    
+    torch.save(cpu_payload, cache_file)
+
+
+def load_cache_payload(cache_file: Path, device: str = "cpu") -> Dict[str, Any]:
+    """
+    加载缓存，支持指定目标设备
+    
+    Args:
+        cache_file: 缓存文件路径
+        device: 目标设备（默认 cpu）
+        
+    Returns:
+        包含张量的字典
+    """
+    _lazy_import_torch()
+    payload = torch.load(cache_file, map_location="cpu", weights_only=False)
+    
+    if device != "cpu":
+        # 移动张量到目标设备
+        for key, value in payload.items():
+            if isinstance(value, torch.Tensor):
+                payload[key] = value.to(device)
+    
+    return payload
+
+
+def setup_gpu(gpu: Optional[int] = None, auto_select: bool = True, min_free_mb: int = 8000) -> int:
+    """
+    设置 GPU 环境
+    
+    Args:
+        gpu: 指定的 GPU 卡号（None 表示自动选择）
+        auto_select: 当指定 GPU 无效时是否自动选择其他 GPU
+        min_free_mb: 自动选择时的最小空闲显存要求
+        
+    Returns:
+        实际使用的 GPU 卡号
+    """
+    gpu_free = get_gpu_free_memory()
+    
+    if gpu is not None:
+        # 检查指定 GPU 是否可用
+        if gpu in gpu_free:
+            free_mem = gpu_free[gpu]
+            if free_mem >= min_free_mb:
+                os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
+                print(f"[GPU] 使用指定 GPU {gpu}（空闲 {free_mem} MiB）")
+                return gpu
+            else:
+                print(f"[GPU] 警告: GPU {gpu} 空闲显存不足（{free_mem} MiB < {min_free_mb} MiB）")
+                if not auto_select:
+                    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
+                    return gpu
+        else:
+            print(f"[GPU] 警告: GPU {gpu} 不存在")
+            if not auto_select:
+                raise RuntimeError(f"GPU {gpu} 不存在")
+    
+    # 自动选择
+    best_gpu = select_best_gpu(min_free_mb)
+    if best_gpu is not None:
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(best_gpu)
+        print(f"[GPU] 自动选择 GPU {best_gpu}（空闲 {gpu_free.get(best_gpu, 0)} MiB）")
+        return best_gpu
+    
+    # 没有可用 GPU
+    print("[GPU] 警告: 没有找到可用 GPU，将使用 CPU")
+    return -1
 
 # 默认 ROI 配置（Harvard-Oxford Atlas）
 DEFAULT_ROI_NAMES = [
@@ -196,14 +379,20 @@ class TAUVisionEncoder:
         slices_per_batch: int = 64,  # 增大默认值以提高 GPU 利用率
         device: str = "cuda",
     ):
-        # 延迟导入 BiomedCLIP 模块
+        # 延迟导入 torch 和 BiomedCLIP 模块
+        _lazy_import_torch()
         _setup_clip_mri2pet_path()
         from clip_mri2pet.models.biomedclip_image import (
             BiomedCLIPImageEncoder,
             load_biomedclip_model,
         )
         
-        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+        # 支持 "cuda", "cuda:0", "cpu" 等格式
+        if device.startswith("cuda") and not torch.cuda.is_available():
+            print("[TAUVisionEncoder] 警告: CUDA 不可用，回退到 CPU")
+            self.device = torch.device("cpu")
+        else:
+            self.device = torch.device(device)
         self.slice_axis = slice_axis
         self.slices_per_batch = slices_per_batch
         
@@ -223,7 +412,7 @@ class TAUVisionEncoder:
         self.preprocess = preprocess
         print(f"[TAUVisionEncoder] 就绪，device={self.device}, slices_per_batch={slices_per_batch}")
     
-    def _load_volume(self, nifti_path: str) -> torch.Tensor:
+    def _load_volume(self, nifti_path: str) -> "torch.Tensor":
         """加载 NIfTI 体积并预处理"""
         nii = nib.load(nifti_path)
         volume = nii.get_fdata().astype(np.float32)
@@ -237,7 +426,7 @@ class TAUVisionEncoder:
         
         return torch.from_numpy(volume)
     
-    def _extract_slices(self, volume: torch.Tensor) -> List[torch.Tensor]:
+    def _extract_slices(self, volume: "torch.Tensor") -> List["torch.Tensor"]:
         """从体积中提取 2D 切片"""
         axis_map = {"sagittal": 0, "coronal": 1, "axial": 2}
         axis = axis_map.get(self.slice_axis, 2)
@@ -273,55 +462,55 @@ class TAUVisionEncoder:
         
         return slices
     
-    @torch.no_grad()
-    def encode(self, nifti_path: str) -> Dict[str, torch.Tensor]:
+    def encode(self, nifti_path: str) -> Dict[str, "torch.Tensor"]:
         """
         编码单个 TAU PET 体积
         
         Returns:
             Dict with keys: cls_token (512,), region_token (N, 768)
         """
-        volume = self._load_volume(nifti_path)
-        slices = self._extract_slices(volume)
-        
-        if len(slices) == 0:
-            # 返回零向量
-            return {
-                "cls_token": torch.zeros(512),
-                "region_token": torch.zeros(196, 768),
-            }
-        
-        # 批量编码切片
-        cls_tokens = []
-        patch_tokens = []
-        
-        for start in range(0, len(slices), self.slices_per_batch):
-            batch = torch.stack(slices[start:start + self.slices_per_batch], dim=0)
-            batch = batch.to(self.device)
+        with torch.no_grad():
+            volume = self._load_volume(nifti_path)
+            slices = self._extract_slices(volume)
             
-            cls, tokens = self.image_encoder.visual(batch)
-            cls_tokens.append(cls.cpu())
-            patch_tokens.append(tokens.cpu())
-        
-        # 聚合
-        cls_all = torch.cat(cls_tokens, dim=0)  # (num_slices, 512)
-        tokens_all = torch.cat(patch_tokens, dim=0)  # (num_slices, 196, 768)
-        
-        # 平均池化
-        pooled_cls = cls_all.mean(dim=0)  # (512,)
-        pooled_tokens = tokens_all.mean(dim=0)  # (196, 768)
-        
-        return {
-            "cls_token": pooled_cls,
-            "region_token": pooled_tokens,
-        }
+            if len(slices) == 0:
+                # 返回零向量
+                return {
+                    "cls_token": torch.zeros(512),
+                    "region_token": torch.zeros(196, 768),
+                }
+            
+            # 批量编码切片
+            cls_tokens = []
+            patch_tokens = []
+            
+            for start in range(0, len(slices), self.slices_per_batch):
+                batch = torch.stack(slices[start:start + self.slices_per_batch], dim=0)
+                batch = batch.to(self.device)
+                
+                cls, tokens = self.image_encoder.visual(batch)
+                cls_tokens.append(cls.cpu())
+                patch_tokens.append(tokens.cpu())
+            
+            # 聚合
+            cls_all = torch.cat(cls_tokens, dim=0)  # (num_slices, 512)
+            tokens_all = torch.cat(patch_tokens, dim=0)  # (num_slices, 196, 768)
+            
+            # 平均池化
+            pooled_cls = cls_all.mean(dim=0)  # (512,)
+            pooled_tokens = tokens_all.mean(dim=0)  # (196, 768)
+            
+            return {
+                "cls_token": pooled_cls,
+                "region_token": pooled_tokens,
+            }
 
 
 # ============================================================================
 # 批量并行缓存生成（单GPU + 多线程预加载）
 # ============================================================================
 
-def _preload_sample(sample: Dict[str, Any], encoder: TAUVisionEncoder) -> Tuple[Dict, List[torch.Tensor]]:
+def _preload_sample(sample: Dict[str, Any], encoder: "TAUVisionEncoder") -> Tuple[Dict, List[Any]]:
     """预加载单个样本的切片（在后台线程中执行）"""
     try:
         volume = encoder._load_volume(sample["nifti_path"])
@@ -338,9 +527,11 @@ def precompute_caches_parallel(
     tau_subdir: str = DEFAULT_TAU_SUBDIR,
     device: str = "cuda",
     force: bool = False,
-    gpu: int = 2,  # 默认使用卡2
+    gpu: Optional[int] = None,  # None 表示自动选择
     num_workers: int = 4,  # 数据预加载线程数
     slices_per_batch: int = 64,  # 每批切片数
+    auto_select_gpu: bool = True,  # 自动选择空闲 GPU
+    min_gpu_free_mb: int = 8000,  # 最小空闲显存要求
 ) -> Tuple[int, int, List[str]]:
     """
     使用单 GPU + 多线程预加载并行生成缓存
@@ -352,17 +543,20 @@ def precompute_caches_parallel(
         tau_subdir: TAU 数据子目录
         device: 计算设备
         force: 是否强制重新计算已存在的缓存
-        gpu: GPU 卡号（默认 2）
+        gpu: GPU 卡号（None 表示自动选择）
         num_workers: 数据预加载线程数
         slices_per_batch: 每批送入 GPU 的切片数
+        auto_select_gpu: 当指定 GPU 不可用时是否自动选择其他 GPU
+        min_gpu_free_mb: 自动选择时的最小空闲显存要求（MiB）
         
     Returns:
         (success_count, skip_count, failed_list)
     """
-    # 设置 GPU
-    if gpu is not None:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
-        print(f"CUDA_VISIBLE_DEVICES set to: {gpu}")
+    # 延迟导入 torch
+    _lazy_import_torch()
+    
+    # 智能 GPU 选择
+    actual_gpu = setup_gpu(gpu, auto_select=auto_select_gpu, min_free_mb=min_gpu_free_mb)
     
     # 创建缓存目录
     cache_path = Path(cache_dir)
@@ -472,7 +666,8 @@ def precompute_caches_parallel(
             payload["tau_id"] = sample["tau_id"]
             payload["nifti_path"] = sample["nifti_path"]
             
-            torch.save(payload, cache_file)
+            # 使用设备无关的保存方式
+            save_cache_payload(payload, cache_file)
             success_count += 1
             
         except Exception as e:
@@ -501,7 +696,9 @@ def precompute_caches(
     tau_subdir: str = DEFAULT_TAU_SUBDIR,
     device: str = "cuda",
     force: bool = False,
-    gpu: int = None,
+    gpu: Optional[int] = None,
+    auto_select_gpu: bool = True,
+    min_gpu_free_mb: int = 8000,
 ) -> Tuple[int, int, List[str]]:
     """
     预计算 vision embedding 缓存
@@ -513,15 +710,18 @@ def precompute_caches(
         tau_subdir: TAU 数据子目录
         device: 计算设备
         force: 是否强制重新计算已存在的缓存
-        gpu: GPU 卡号
+        gpu: GPU 卡号（None 表示自动选择）
+        auto_select_gpu: 当指定 GPU 不可用时是否自动选择其他 GPU
+        min_gpu_free_mb: 最小空闲显存要求（MiB）
         
     Returns:
         (success_count, skip_count, failed_list)
     """
-    # 设置 GPU
-    if gpu is not None:
-        os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
-        print(f"CUDA_VISIBLE_DEVICES set to: {gpu}")
+    # 延迟导入 torch
+    _lazy_import_torch()
+    
+    # 智能 GPU 选择
+    actual_gpu = setup_gpu(gpu, auto_select=auto_select_gpu, min_free_mb=min_gpu_free_mb)
     
     # 创建缓存目录
     cache_path = Path(cache_dir)
@@ -558,8 +758,8 @@ def precompute_caches(
             payload["tau_id"] = sample["tau_id"]
             payload["nifti_path"] = sample["nifti_path"]
             
-            # 保存
-            torch.save(payload, cache_file)
+            # 保存（设备无关）
+            save_cache_payload(payload, cache_file)
             success_count += 1
             
         except Exception as e:
@@ -590,6 +790,9 @@ def generate_missing_caches(
     Returns:
         (generated_count, missing_nifti_list)
     """
+    # 延迟导入 torch
+    _lazy_import_torch()
+    
     # 设置 GPU
     if gpu is not None:
         os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu)
@@ -648,7 +851,8 @@ def generate_missing_caches(
             payload["ptid"] = sample["ptid"]
             payload["tau_id"] = sample["tau_id"]
             payload["nifti_path"] = sample["nifti_path"]
-            torch.save(payload, cache_file)
+            # 保存（设备无关）
+            save_cache_payload(payload, cache_file)
             generated += 1
         except Exception as e:
             tqdm.write(f"[Error] {sample['cache_name']}: {e}")
@@ -705,12 +909,15 @@ def main():
     parser.add_argument("--csv", type=str, default=None, help="样本 CSV 路径（覆盖配置）")
     parser.add_argument("--cache-dir", type=str, default=None, help="缓存输出目录（覆盖配置）")
     parser.add_argument("--adni-root", type=str, default=None, help="ADNI 数据根目录（覆盖配置）")
-    parser.add_argument("--gpu", type=int, default=2, help="GPU 卡号（默认 2）")
+    parser.add_argument("--gpu", type=int, default=None, help="GPU 卡号（默认自动选择空闲最大的）")
     parser.add_argument("--num-workers", type=int, default=4, help="数据预加载线程数")
     parser.add_argument("--slices-per-batch", type=int, default=64, help="每批送入 GPU 的切片数")
     parser.add_argument("--force", action="store_true", help="强制重新生成已存在的缓存")
     parser.add_argument("--stats-only", action="store_true", help="仅显示缓存统计，不生成")
     parser.add_argument("--no-parallel", action="store_true", help="禁用多线程预加载，使用单线程模式")
+    parser.add_argument("--no-auto-gpu", action="store_true", help="禁用 GPU 自动选择")
+    parser.add_argument("--min-gpu-free", type=int, default=8000, help="最小 GPU 空闲显存要求（MiB）")
+    parser.add_argument("--list-gpus", action="store_true", help="列出所有可用 GPU 及显存状态")
     args = parser.parse_args()
     
     # 加载配置
@@ -722,11 +929,26 @@ def main():
     else:
         config = {}
     
+    # --list-gpus 模式
+    if args.list_gpus:
+        gpu_free = get_gpu_free_memory()
+        if not gpu_free:
+            print("[Error] 无法获取 GPU 信息")
+            return
+        print("[可用 GPU]")
+        for gpu_id, free_mem in sorted(gpu_free.items()):
+            status = "✓" if free_mem >= args.min_gpu_free else "✗"
+            print(f"  GPU {gpu_id}: {free_mem:>6} MiB 空闲  {status}")
+        best = select_best_gpu(args.min_gpu_free)
+        if best is not None:
+            print(f"\n推荐: GPU {best}")
+        return
+    
     # 参数优先级：命令行 > 配置文件 > 默认值
     csv_path = args.csv or config.get("data", {}).get("csv_path")
     cache_dir = args.cache_dir or config.get("data", {}).get("cache_dir")
     adni_root = args.adni_root or config.get("data", {}).get("adni_root", DEFAULT_ADNI_ROOT)
-    gpu = args.gpu  # 默认使用卡2
+    gpu = args.gpu  # None 表示自动选择
     
     if csv_path is None:
         print("[Error] 请指定 --csv 或在 config.yaml 中配置 data.csv_path")
@@ -739,7 +961,9 @@ def main():
     print(f"  CSV: {csv_path}")
     print(f"  Cache Dir: {cache_dir}")
     print(f"  ADNI Root: {adni_root}")
-    print(f"  GPU: {gpu}")
+    print(f"  GPU: {gpu if gpu is not None else '自动选择'}")
+    print(f"  Auto GPU: {not args.no_auto_gpu}")
+    print(f"  Min GPU Free: {args.min_gpu_free} MiB")
     print(f"  Num Workers: {args.num_workers}")
     print(f"  Slices per Batch: {args.slices_per_batch}")
     print(f"  Force: {args.force}")
@@ -779,6 +1003,8 @@ def main():
             gpu=gpu,
             num_workers=args.num_workers,
             slices_per_batch=args.slices_per_batch,
+            auto_select_gpu=not args.no_auto_gpu,
+            min_gpu_free_mb=args.min_gpu_free,
         )
     
     elapsed = datetime.now() - start_time

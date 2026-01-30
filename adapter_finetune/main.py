@@ -92,11 +92,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--plasma-csv", type=str, default="/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv", help="CSV with plasma biomarkers")
     parser.add_argument("--mri-csv", type=str, default="/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/MRI_PET_IDs.csv", help="CSV with MRI Study Date for examdate inference")
     parser.add_argument("--yaml", type=str, default=None, help="YAML with common texts and thresholds")
-    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--lambda1", type=float, default=0.5, help="Weight for bounded text loss")
+    parser.add_argument("--lambda1", type=float, default=0.1, help="Weight for bounded text loss")
     parser.add_argument("--lambda2", type=float, default=0.2, help="Weight for modality classifier")
-    parser.add_argument("--delta-min", type=float, default=0.4)
+    parser.add_argument("--delta-min", type=float, default=0.2)
     parser.add_argument("--delta-max", type=float, default=0.8)
     parser.add_argument("--max-steps", type=int, default=0, help="Optional cap on total update steps (0 = no cap)")
     parser.add_argument("--epochs", type=int, default=1000, help="Number of training epochs")
@@ -382,6 +382,9 @@ def main() -> None:
             "acc_mod": acc_mod,
             "clip_acc_i2t": clip_acc_i2t,
             "clip_acc_t2i": clip_acc_t2i,
+            "clip_acc_i2t_correct": clip_acc_i2t_correct,  # 用于 micro-average
+            "clip_acc_t2i_correct": clip_acc_t2i_correct,
+            "clip_acc_total": clip_acc_total,
             "mod_counts": mod_counts,
             "clip_losses": clip_losses,
             "first_texts": first_texts,
@@ -390,6 +393,11 @@ def main() -> None:
         }
 
     for epoch in range(1, args.epochs + 1):
+        # 切换到训练模式（Adapter 含 Dropout）
+        for adp in text_adapters.values():
+            adp.train()
+        modality_classifier.train()
+
         for batch in train_loader:
             if args.max_steps > 0 and global_step >= args.max_steps:
                 break
@@ -435,6 +443,11 @@ def main() -> None:
             )
 
         if val_loader is not None:
+            # 切换到评估模式（禁用 Dropout）
+            for adp in text_adapters.values():
+                adp.eval()
+            modality_classifier.eval()
+
             val_totals = {
                 "total_loss": 0.0,
                 "loss_clip": 0.0,
@@ -442,9 +455,12 @@ def main() -> None:
                 "loss_bound": 0.0,
                 "loss_mod": 0.0,
                 "acc_mod": 0.0,
-                "clip_acc_i2t": 0.0,
-                "clip_acc_t2i": 0.0,
             }
+            # 用于 micro-average 的累计
+            val_clip_i2t_correct = 0
+            val_clip_t2i_correct = 0
+            val_clip_total = 0
+            val_mod_counts = {m: 0 for m in MODALITIES}
             val_steps = 0
             with torch.no_grad():
                 for batch in val_loader:
@@ -455,21 +471,34 @@ def main() -> None:
                         if torch.is_tensor(value):
                             value = value.item()
                         val_totals[key] += float(value)
+                    # 累计用于 micro-average
+                    val_clip_i2t_correct += out["clip_acc_i2t_correct"]
+                    val_clip_t2i_correct += out["clip_acc_t2i_correct"]
+                    val_clip_total += out["clip_acc_total"]
+                    # 累计各模态数量
+                    for m in MODALITIES:
+                        val_mod_counts[m] += out["mod_counts"].get(m, 0)
             if val_steps > 0:
                 val_avg = {k: v / val_steps for k, v in val_totals.items()}
+                # micro-average clip acc（按样本数加权）
+                val_clip_acc_i2t = val_clip_i2t_correct / max(val_clip_total, 1)
+                val_clip_acc_t2i = val_clip_t2i_correct / max(val_clip_total, 1)
                 writer.add_scalar("val/loss_total", val_avg["total_loss"], epoch)
                 writer.add_scalar("val/loss_clip", val_avg["loss_clip"], epoch)
                 writer.add_scalar("val/loss_clip_unweighted", val_avg["loss_clip_unweighted"], epoch)
                 writer.add_scalar("val/loss_bound", val_avg["loss_bound"], epoch)
                 writer.add_scalar("val/loss_mod", val_avg["loss_mod"], epoch)
                 writer.add_scalar("val/acc_mod", val_avg["acc_mod"], epoch)
-                writer.add_scalar("val/clip_acc_i2t", val_avg["clip_acc_i2t"], epoch)
-                writer.add_scalar("val/clip_acc_t2i", val_avg["clip_acc_t2i"], epoch)
+                writer.add_scalar("val/clip_acc_i2t", val_clip_acc_i2t, epoch)
+                writer.add_scalar("val/clip_acc_t2i", val_clip_acc_t2i, epoch)
                 writer.add_scalar("val/model_logit_scale", float(logit_scale_param.exp().clamp(max=100).item()), epoch)
+                # 记录验证集各模态数量
+                for m in MODALITIES:
+                    writer.add_scalar(f"val/count_{m}", float(val_mod_counts[m]), epoch)
                 print(
                     f"[val] epoch={epoch} loss={val_avg['total_loss']:.4f} clip={val_avg['loss_clip']:.4f} "
                     f"bound={val_avg['loss_bound']:.4f} mod={val_avg['loss_mod']:.4f} acc={val_avg['acc_mod']:.3f} "
-                    f"clip_i2t={val_avg['clip_acc_i2t']:.3f} clip_t2i={val_avg['clip_acc_t2i']:.3f}"
+                    f"clip_i2t={val_clip_acc_i2t:.3f} clip_t2i={val_clip_acc_t2i:.3f} counts={val_mod_counts}"
                 )
 
         if args.save_every_epochs > 0 and (epoch % args.save_every_epochs == 0):
