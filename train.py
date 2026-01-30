@@ -1,4 +1,12 @@
+# 直接运行一次将自动保存缓存，不可使用precompute_cache.py
 #%%
+# ============ GPU 设备锁定（必须在 import torch 之前设置） ============
+# 防止 CUDA 使用非指定 GPU，避免显存泄漏
+import os
+_TARGET_GPU_IDS = [2,5]  # 指定使用的 GPU ID，与下方 device_id 保持一致
+os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, _TARGET_GPU_IDS))
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # 确保物理 GPU ID 顺序一致
+
 import pandas as pd
 from report_error import email_on_error
 from sklearn.model_selection import train_test_split
@@ -170,8 +178,8 @@ def main():
     from pathlib import Path
 
     # 0.训练参数设置
-    base_dir = "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration"
-    cache_dir = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_cache'
+    base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
+    cache_dir = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_main_cache'
     plasma_csv_path = "adapter_finetune/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # 确保缓存目录存在
@@ -180,10 +188,11 @@ def main():
     os.makedirs(os.path.join(cache_dir, "val"), exist_ok=True)
     print(f"✅ 缓存目录已创建: {cache_dir}")
     
-    # 多GPU配置：使用2块GPU进行模型并行
-    # 注意：这里的device_id是物理GPU编号（不使用CUDA_VISIBLE_DEVICES）
-    # 根据当前空闲显存选择: GPU 3, 5, 6 有24GB空闲
-    device_id = [2]  # 使用双GPU进行模型并行训练
+    # 多GPU配置
+    # 重要：由于在文件开头设置了 CUDA_VISIBLE_DEVICES，这里的 device_id 是逻辑 ID（从 0 开始）
+    # 物理 GPU ID 在文件开头的 _TARGET_GPU_IDS 中指定
+    # 例如：_TARGET_GPU_IDS = [2] 表示物理 GPU 2，此时 device_id = [0] 表示逻辑 GPU 0（即物理 GPU 2）
+    device_id = [0]  # 逻辑 GPU ID（对应物理 GPU 由 CUDA_VISIBLE_DEVICES 控制）
     # 定义裁剪的最小值和最大值
     clip_sample_min = 0  # 设置合适的最小值
     clip_sample_max = 1   # 设置合适的最大值
@@ -210,6 +219,7 @@ def main():
             print(f"Warning: Failed to set CUDA device {primary_device}: {e}")
             print("Continuing with default CUDA device or CPU...")
     size_of_dataset = None  # 设置为 None 以使用完整数据集，或设置为所需的样本数量
+    bs = 1  # batch_size
     n_epochs = 200
     val_interval =1
     checkpoint_dir = './checkpoint'
@@ -273,6 +283,7 @@ def main():
         "adapter_dropout": adapter_dropout,
         "clip_sample_min": clip_sample_min,
         "clip_sample_max": clip_sample_max,
+        "bs": bs,
         "log_every": log_every,
         "image_log_interval": image_log_interval,
         "use_legacy_mode": use_legacy_mode,
@@ -729,31 +740,46 @@ def main():
             return d
 
     # 定义 transform 函数
+    # 重要：transform 返回 CPU 张量，确保缓存可在不同 GPU 上加载
     if use_legacy_mode:
         # ============ 原始方案：context = desc_text_features[x] + modality_feature_optimized ============
+        # 预先将特征移到 CPU，避免缓存包含 GPU 设备信息
+        desc_text_features_cpu = desc_text_features.cpu()
+        fdg_feature_optimized_cpu = fdg_feature_optimized.cpu()
+        av45_feature_optimized_cpu = av45_feature_optimized.cpu()
+        tau_feature_optimized_cpu = tau_feature_optimized.cpu()
+
         def fdg_index_transform(x):
-            return torch.cat([desc_text_features[x].unsqueeze(0), fdg_feature_optimized], dim=0)
+            return torch.cat([desc_text_features_cpu[x].unsqueeze(0), fdg_feature_optimized_cpu], dim=0)
 
         def av45_index_transform(x):
-            return torch.cat([desc_text_features[x].unsqueeze(0), av45_feature_optimized], dim=0)
+            return torch.cat([desc_text_features_cpu[x].unsqueeze(0), av45_feature_optimized_cpu], dim=0)
 
         def tau_index_transform(x):
-            return torch.cat([desc_text_features[x].unsqueeze(0), tau_feature_optimized], dim=0)
+            return torch.cat([desc_text_features_cpu[x].unsqueeze(0), tau_feature_optimized_cpu], dim=0)
     else:
         # ============ Adapter 方案：context = text_features[x] + template_features[x] ============
+        # 预先将特征移到 CPU，避免缓存包含 GPU 设备信息
+        fdg_text_features_cpu = fdg_text_features.cpu()
+        av45_text_features_cpu = av45_text_features.cpu()
+        fdg_template_features_cpu = fdg_template_features.cpu()
+        av45_template_features_cpu = av45_template_features.cpu()
+        tau_text_features_cpu = tau_text_features.cpu() if tau_text_features is not None else None
+        tau_template_features_cpu = tau_template_features.cpu() if tau_template_features is not None else None
+
         def fdg_index_transform(x):
-            text_feat = fdg_text_features[x].unsqueeze(0)
-            tmpl_feat = fdg_template_features[x].unsqueeze(0)
+            text_feat = fdg_text_features_cpu[x].unsqueeze(0)
+            tmpl_feat = fdg_template_features_cpu[x].unsqueeze(0)
             return torch.cat([text_feat, tmpl_feat], dim=0)
 
         def av45_index_transform(x):
-            text_feat = av45_text_features[x].unsqueeze(0)
-            tmpl_feat = av45_template_features[x].unsqueeze(0)
+            text_feat = av45_text_features_cpu[x].unsqueeze(0)
+            tmpl_feat = av45_template_features_cpu[x].unsqueeze(0)
             return torch.cat([text_feat, tmpl_feat], dim=0)
 
         def tau_index_transform(x):
-            text_feat = tau_text_features[x].unsqueeze(0)
-            tmpl_feat = tau_template_features[x].unsqueeze(0)
+            text_feat = tau_text_features_cpu[x].unsqueeze(0)
+            tmpl_feat = tau_template_features_cpu[x].unsqueeze(0)
             return torch.cat([text_feat, tmpl_feat], dim=0)
 
 
@@ -888,7 +914,7 @@ def main():
     if len(cache_files) > 0:
         print(f"   缓存文件示例: {cache_files[0]}")
     
-    train_loader = DataLoader(train_ds, batch_size=1, shuffle=True, num_workers=0)
+    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=0)
 
     print(f"\n📦 创建验证集 PersistentDataset...")
     print(f"   数据量: {len(val_data)} 样本")
@@ -910,7 +936,7 @@ def main():
     print(f"   已有缓存文件数: {len(cache_files)}")
     if len(cache_files) > 0:
         print(f"   缓存文件示例: {cache_files[0]}")
-    val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, num_workers=0)
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     from generative.networks.nets import DiffusionModelUNet
@@ -960,7 +986,7 @@ def main():
     if last_epoch:
         # Load the checkpoint
         # checkpoint_dir = '/home/ssddata/liutuo/checkpoint/mri2pet _two trace_add clip_flow_noHistogramNormalized'
-        checkpoint = torch.load(f'{checkpoint_dir}/first_part_{last_epoch}.pth')
+        checkpoint = torch.load(f'{checkpoint_dir}/first_part_{last_epoch}.pth', map_location=device)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch'] + 1  # Start from the next epoch after the last saved one
@@ -971,7 +997,8 @@ def main():
     scheduler.set_timesteps(num_inference_steps=1000)
     epoch_loss_list = []
     val_epoch_loss_list = []
-    scaler = GradScaler()
+    # 显式指定 GradScaler 使用的设备，防止默认使用 cuda:0
+    scaler = GradScaler(device=device)
     global_step = 0  # 全局步数计数器（用于 TensorBoard 日志）
 
     # 5. 训练网络
@@ -1010,8 +1037,9 @@ def main():
                 time_embedding = torch.tensor([0], device=images.device, dtype=torch.long)
 
             # Create time - 使用 detach() 确保 t 不参与梯度计算
+            # 扩展 t 的维度以支持 batch_size > 1 的广播: (B,) -> (B, 1, 1, 1, 1)
             with torch.no_grad():
-                t = time_embedding.float() / 1000
+                t = (time_embedding.float() / 1000).view(-1, 1, 1, 1, 1)
 
             # 检查 FDG/AV45/TAU 数据是否为二值化（只有 0 和 1）
             has_fdg = not torch.all(seg_fdg == 0)  # 如果不是二值化数据，则参与计算
