@@ -4,7 +4,7 @@
 
 # 数据配置
 data:
-  csv_path: /home/ssddata/linshuijin/replicaLT/adapter_v2/data_csv/pairs_180d_dx_plasma_90d_matched.csv
+  csv_path: /mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched.csv
   # TAU 缓存目录（需预先用 precompute_cache.py 生成 .vision.pt）
   cache_dir: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_Adapter_cache
   # ADNI 数据根目录（用于生成缓存）
@@ -60,17 +60,17 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 5
-  batch_size: 4
-  epochs: 100
-  lr: 1e-4
+  gpu: 4
+  batch_size: 2
+  epochs: 200
+  lr: 2e-5
   weight_decay: 1e-5
   grad_clip: 1.0
   max_grad_norm: 1.0
   amp: true
   # 损失权重
-  lambda_img_class: 1.0
-  lambda_img_plasma: 1.0  # V2 核心损失，权重提升
+  lambda_img_class: 0.5
+  lambda_img_plasma: 2.0  # V2 核心损失，权重提升
   lambda_class_plasma: 0.1  # 较小，防止抢主任务
   lambda_reg: 0.01  # 正则（防止 class/plasma 塌缩）
   # V2 新增损失权重

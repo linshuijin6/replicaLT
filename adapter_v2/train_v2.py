@@ -209,6 +209,56 @@ def train_one_epoch(
             writer.add_scalar("train/loss_img_plasma", loss_dict["img_plasma"].item(), global_step)
             writer.add_scalar("train/loss_redundancy", loss_dict["redundancy"].item(), global_step)
             writer.add_scalar("train/logit_scale", outputs["logit_scale"].item(), global_step)
+            
+            # =====================================================================
+            # 定位型日志：诊断冗余约束和对齐问题
+            # =====================================================================
+            ctx_img_sim = outputs["ctx_img_sim"]
+            writer.add_scalar("debug/ctx_img_sim_mean", ctx_img_sim.mean().item(), global_step)
+            writer.add_scalar("debug/ctx_img_sim_max", ctx_img_sim.max().item(), global_step)
+            writer.add_scalar("debug/ctx_img_sim_min", ctx_img_sim.min().item(), global_step)
+            # 冗余惩罚的原始值（未加权）
+            redundancy_margin = train_cfg.get("redundancy_margin", 0.3)
+            raw_redundancy = torch.relu(ctx_img_sim.abs() - redundancy_margin).pow(2).mean().item()
+            writer.add_scalar("debug/redundancy_raw", raw_redundancy, global_step)
+            # ctx_img_sim 超过 margin 的比例
+            exceed_margin_ratio = (ctx_img_sim.abs() > redundancy_margin).float().mean().item()
+            writer.add_scalar("debug/exceed_margin_ratio", exceed_margin_ratio, global_step)
+            
+            # T_ctx 范数统计
+            if outputs.get("T_ctx") is not None:
+                T_ctx = outputs["T_ctx"]
+                T_ctx_norm = T_ctx.view(T_ctx.shape[0], -1).norm(dim=-1)
+                writer.add_scalar("debug/T_ctx_norm_mean", T_ctx_norm.mean().item(), global_step)
+                writer.add_scalar("debug/T_ctx_norm_max", T_ctx_norm.max().item(), global_step)
+            
+            # 各分支 embedding 的相似度分布（每50步记录一次，减少开销）
+            if batch_idx % 50 == 0:
+                img_emb = outputs["img_emb"]
+                plasma_emb = outputs["plasma_emb"]
+                class_emb = outputs["class_emb"]
+                
+                # 计算 batch 内相似度矩阵
+                img_plasma_sim = torch.matmul(img_emb, plasma_emb.t())  # (B, B)
+                # 对角线（正样本）相似度
+                diag_sim = img_plasma_sim.diag()
+                # 非对角线（负样本）相似度
+                B = img_plasma_sim.shape[0]
+                off_diag_mask = ~torch.eye(B, dtype=torch.bool, device=img_plasma_sim.device)
+                off_diag_sim = img_plasma_sim[off_diag_mask]
+                
+                writer.add_scalar("debug/img_plasma_pos_sim_mean", diag_sim.mean().item(), global_step)
+                writer.add_scalar("debug/img_plasma_neg_sim_mean", off_diag_sim.mean().item(), global_step)
+                writer.add_scalar("debug/img_plasma_pos_neg_gap", 
+                                  (diag_sim.mean() - off_diag_sim.mean()).item(), global_step)
+                
+                # plasma 有效样本数量
+                plasma_valid_count = plasma_mask.any(dim=-1).sum().item()
+                writer.add_scalar("debug/plasma_valid_count", plasma_valid_count, global_step)
+                
+                # img_class 相似度
+                img_class_sim = torch.matmul(img_emb, class_emb.t())
+                writer.add_scalar("debug/img_class_pos_sim_mean", img_class_sim.diag().mean().item(), global_step)
     
     # 平均
     for k in total_losses:
@@ -297,6 +347,40 @@ def validate(
     all_plasma_valid = torch.cat(all_plasma_valid, dim=0)  # (N,)
     
     # =========================================================================
+    # 定位型日志：验证集相似度矩阵诊断
+    # =========================================================================
+    valid_indices = torch.where(all_plasma_valid)[0]
+    if len(valid_indices) > 0:
+        img_valid = all_img_emb[valid_indices]
+        plasma_valid_embs = all_plasma_emb[valid_indices]
+        
+        # 相似度矩阵
+        sims = torch.matmul(img_valid, plasma_valid_embs.t())  # (M, M)
+        M = sims.shape[0]
+        
+        # 对角线（正样本）vs 非对角线（负样本）
+        diag_sims = sims.diag()
+        off_diag_mask = ~torch.eye(M, dtype=torch.bool)
+        off_diag_sims = sims[off_diag_mask]
+        
+        print(f"[Debug] Val retrieval matrix stats:")
+        print(f"        valid samples: {M}")
+        print(f"        pos sim (diag): mean={diag_sims.mean():.4f}, std={diag_sims.std():.4f}")
+        print(f"        neg sim (off-diag): mean={off_diag_sims.mean():.4f}, std={off_diag_sims.std():.4f}")
+        print(f"        pos-neg gap: {(diag_sims.mean() - off_diag_sims.mean()):.4f}")
+        
+        # 检查正样本排名
+        ranks = (sims >= diag_sims.unsqueeze(1)).sum(dim=1).float()  # 排名
+        print(f"        pos rank: mean={ranks.mean():.2f}, median={ranks.median():.2f}")
+        
+        # 保存诊断信息到返回结果
+        debug_pos_neg_gap = (diag_sims.mean() - off_diag_sims.mean()).item()
+        debug_pos_rank_mean = ranks.mean().item()
+    else:
+        debug_pos_neg_gap = 0.0
+        debug_pos_rank_mean = 0.0
+    
+    # =========================================================================
     # 核心验证指标：Image <-> Plasma Retrieval
     # =========================================================================
     retrieval_metrics = compute_img_plasma_retrieval(
@@ -308,6 +392,8 @@ def validate(
     
     result = {
         "loss": total_loss / max(n_batches, 1),
+        "debug_pos_neg_gap": debug_pos_neg_gap,
+        "debug_pos_rank_mean": debug_pos_rank_mean,
     }
     result.update(retrieval_metrics)
     
@@ -534,15 +620,16 @@ def main():
     # =========================================================================
     log_cfg = config["log"]
     log_dir = script_dir / log_cfg.get("dir", "./runs")
-    run_name = f"tau_cocoop_v2_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    writer = SummaryWriter(log_dir=str(log_dir / run_name))
+    run_name = f"pid{os.getpid()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_dir = log_dir / run_name
+    writer = SummaryWriter(log_dir=str(run_dir))
     
     writer.add_text("config", yaml.dump(config, default_flow_style=False))
     
     # =========================================================================
     # 训练循环
     # =========================================================================
-    ckpt_dir = log_dir / "checkpoints"
+    ckpt_dir = run_dir / "checkpoints"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     
     # 验证间隔
@@ -596,6 +683,10 @@ def main():
             writer.add_scalar("val/plasma2img_recall@1", val_metrics.get("plasma2img_recall@1", 0), epoch)
             writer.add_scalar("val/plasma2img_recall@5", val_metrics.get("plasma2img_recall@5", 0), epoch)
             writer.add_scalar("val/plasma2img_recall@10", val_metrics.get("plasma2img_recall@10", 0), epoch)
+            
+            # 诊断日志：epoch级别汇总
+            writer.add_scalar("debug_epoch/pos_neg_gap", val_metrics.get("debug_pos_neg_gap", 0), epoch)
+            writer.add_scalar("debug_epoch/pos_rank_mean", val_metrics.get("debug_pos_rank_mean", 0), epoch)
             
             # 主指标：img2plasma_recall@1
             current_recall = val_metrics.get("img2plasma_recall@1", 0)
