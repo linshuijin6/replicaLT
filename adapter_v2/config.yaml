@@ -4,7 +4,7 @@
 
 # 数据配置
 data:
-  csv_path: /mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_v2/data_csv/pairs_180d_dx_plasma_90d_matched.csv
+  csv_path: /home/ssddata/linshuijin/replicaLT/adapter_v2/data_csv/pairs_180d_dx_plasma_90d_matched.csv
   # TAU 缓存目录（需预先用 precompute_cache.py 生成 .vision.pt）
   cache_dir: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_Adapter_cache
   # ADNI 数据根目录（用于生成缓存）
