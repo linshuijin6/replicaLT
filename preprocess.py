@@ -51,11 +51,16 @@ def find_nii_file(base_dir, subdir, subject_id, image_id):
     return None
 
 
-def create_zero_nii(reference_nii_path, output_path):
+def create_zero_nii(reference_nii_path, output_path, overwrite=False):
     """
     根据参考的nii.gz文件创建一个相同格式但全0的nii.gz文件
+    
+    Args:
+        reference_nii_path: 参考nii.gz文件路径
+        output_path: 输出文件路径
+        overwrite: 是否覆盖已存在的文件
     """
-    if os.path.exists(output_path):
+    if os.path.exists(output_path) and not overwrite:
         return output_path
     
     try:
@@ -88,17 +93,31 @@ def normalize_examdate(date_str):
     date_str = str(date_str).strip()
     # 将 '/' 替换为 '-' 进行统一
     date_str = date_str.replace('/', '-')
+    
+    # 解析日期并重新格式化为 YYYY-MM-DD (补零格式)
+    try:
+        # 尝试解析 YYYY-M-D 或 YYYY-MM-DD 格式
+        parts = date_str.split('-')
+        if len(parts) == 3:
+            year = int(parts[0])
+            month = int(parts[1])
+            day = int(parts[2])
+            # 返回统一格式 YYYY-MM-DD
+            return f"{year:04d}-{month:02d}-{day:02d}"
+    except (ValueError, IndexError):
+        pass
+    
     return date_str
 
 
 def main():
     # ==================== 配置路径 ====================
     # 配对CSV路径
-    pairs_csv_path = '/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/data_csv/pairs_withPlasma.csv'
-    demog_csv_path = '/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/data_csv/pairs_with_demog.csv'
+    pairs_csv_path = '/home/ssddata/linshuijin/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched.csv'
+    demog_csv_path = '/home/ssddata/linshuijin/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_with_demog.csv'
     
     # 影像文件根目录
-    coregistration_base = '/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration'
+    coregistration_base = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF'
     
     # 各模态子目录
     mri_subdir = 'MRI'
@@ -107,7 +126,7 @@ def main():
     tau_subdir = 'PET_MNI/TAU'
     
     # 零填充文件保存目录
-    zero_files_dir = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_none'
+    zero_files_dir = '/mnt/nfsdata/nfsdata/linshuijin/zero'
     
     # JSON 文件保存路径
     train_json_path = "./train_data_with_description.json"
@@ -197,23 +216,23 @@ def main():
         tau_path = find_nii_file(coregistration_base, tau_subdir, subject_id, id_av1451)
         
         # 5. 对于缺失的模态，创建零填充文件
-        examdate_safe = str(examdate).replace('/', '-').replace(' ', '_')
+        # 文件命名格式: {subject_id}_{modality}_zero.nii.gz
         
         if fdg_path is None:
-            zero_fdg_path = os.path.join(zero_files_dir, 'FDG', f"{subject_id}_{examdate_safe}_zero.nii.gz")
-            fdg_path = create_zero_nii(mri_path, zero_fdg_path)
+            zero_fdg_path = os.path.join(zero_files_dir, 'FDG', f"{subject_id}_fdg_zero.nii.gz")
+            fdg_path = create_zero_nii(mri_path, zero_fdg_path, overwrite=True)
             if fdg_path:
                 zero_files_created['fdg'] += 1
         
         if av45_path is None:
-            zero_av45_path = os.path.join(zero_files_dir, 'AV45', f"{subject_id}_{examdate_safe}_zero.nii.gz")
-            av45_path = create_zero_nii(mri_path, zero_av45_path)
+            zero_av45_path = os.path.join(zero_files_dir, 'AV45', f"{subject_id}_av45_zero.nii.gz")
+            av45_path = create_zero_nii(mri_path, zero_av45_path, overwrite=True)
             if av45_path:
                 zero_files_created['av45'] += 1
         
         if tau_path is None:
-            zero_tau_path = os.path.join(zero_files_dir, 'TAU', f"{subject_id}_{examdate_safe}_zero.nii.gz")
-            tau_path = create_zero_nii(mri_path, zero_tau_path)
+            zero_tau_path = os.path.join(zero_files_dir, 'TAU', f"{subject_id}_tau_zero.nii.gz")
+            tau_path = create_zero_nii(mri_path, zero_tau_path, overwrite=True)
             if tau_path:
                 zero_files_created['tau'] += 1
         
@@ -246,18 +265,18 @@ def main():
         data["tau_index"] = idx
 
     # ==================== 生成BiomedCLIP嵌入 ====================
-    import torch
-    from transformers import AutoTokenizer, AutoModel
+    # import torch
+    # from transformers import AutoTokenizer, AutoModel
 
-    local_model_path = "/mnt/nfsdata/nfsdata/lsj.14/replicaLT/BiomedCLIP"
+    # local_model_path = "/mnt/nfsdata/nfsdata/lsj.14/replicaLT/BiomedCLIP"
     
-    print("\nLoading BiomedCLIP model...")
-    processor = AutoProcessor.from_pretrained(local_model_path, trust_remote_code=True)
-    model = AutoModel.from_pretrained(local_model_path, trust_remote_code=True)
+    # print("\nLoading BiomedCLIP model...")
+    # processor = AutoProcessor.from_pretrained(local_model_path, trust_remote_code=True)
+    # model = AutoModel.from_pretrained(local_model_path, trust_remote_code=True)
 
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    model.to(device)
-    model.eval()
+    # device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    # model.to(device)
+    # model.eval()
 
     # 获取有description的样本
     # modal_information = [data["description"] for data in paired_data if data["description"] is not None]

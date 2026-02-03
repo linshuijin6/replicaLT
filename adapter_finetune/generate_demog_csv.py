@@ -1,6 +1,11 @@
 """
 生成包含人口统计学信息的CSV表格
 字段：subject_id, examdate, sex, weight, diagnosis, age, description, MMSE, CDR, GDS, FAQ, NPI-Q, old_descr
+
+支持的输入文件格式:
+1. pairs_withPlasma.csv: PTID, EXAMDATE (2025/2/19格式), id_mri (带I前缀), ...
+2. pairs_180d_dx.csv: PTID, EXAMDATE (2017-06-21格式), DIAGNOSIS, id_mri (纯数字), ...
+3. pairs_180d_dx_plasma_*.csv: 综合格式
 """
 
 import pandas as pd
@@ -9,6 +14,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import re
 import os
+import argparse
 
 def parse_date(date_str):
     """解析日期字符串，支持多种格式"""
@@ -320,17 +326,138 @@ def generate_old_descr(age, sex, weight, cdr, mmse, gds, faq, npiq):
 
     return " ".join(parts)
 
-def main():
-    # 设置路径
-    base_path = '/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/data_csv'
-    pairs_path = os.path.join(base_path, 'pairs_withPlasma.csv')
-    mytable_path = os.path.join(base_path, 'All_Subjects_My_Table_25Jan2026.csv')
-    output_path = os.path.join(base_path, 'pairs_with_demog.csv')
+
+def detect_csv_format(df):
+    """
+    检测CSV文件格式，返回字段映射信息
     
-    print("读取数据文件...")
+    Returns:
+        dict: 包含字段映射和格式信息
+    """
+    columns = [c.upper() for c in df.columns]
+    
+    format_info = {
+        'ptid_col': 'PTID',  # 被试ID字段
+        'examdate_col': 'EXAMDATE',  # 检查日期字段
+        'has_diagnosis': 'DIAGNOSIS' in columns,  # 是否有诊断字段
+        'diagnosis_col': 'DIAGNOSIS' if 'DIAGNOSIS' in columns else None,
+        'id_prefix': '',  # id字段是否有I前缀
+        'date_format': None,  # 日期格式
+    }
+    
+    # 检测id字段是否有I前缀 (检查第一个非空的id_mri值)
+    id_mri_col = None
+    for c in df.columns:
+        if c.lower() == 'id_mri':
+            id_mri_col = c
+            break
+    
+    if id_mri_col:
+        for val in df[id_mri_col].dropna():
+            val_str = str(val).strip()
+            if val_str:
+                if val_str.startswith('I'):
+                    format_info['id_prefix'] = 'I'
+                break
+    
+    # 检测日期格式
+    examdate_col = None
+    for c in df.columns:
+        if c.upper() == 'EXAMDATE':
+            examdate_col = c
+            break
+    
+    if examdate_col:
+        for val in df[examdate_col].dropna():
+            val_str = str(val).strip()
+            if '/' in val_str:
+                format_info['date_format'] = 'slash'  # 2025/2/19
+            elif '-' in val_str:
+                format_info['date_format'] = 'dash'  # 2017-06-21
+            break
+    
+    return format_info
+
+
+def normalize_pairs_df(df, format_info):
+    """
+    标准化pairs DataFrame，使字段名和格式统一
+    
+    Args:
+        df: 原始DataFrame
+        format_info: detect_csv_format返回的格式信息
+    
+    Returns:
+        标准化后的DataFrame
+    """
+    # 创建副本避免修改原数据
+    df_norm = df.copy()
+    
+    # 标准化列名为大写
+    df_norm.columns = [c.upper() for c in df_norm.columns]
+    
+    # 确保PTID和EXAMDATE字段存在
+    if 'PTID' not in df_norm.columns:
+        raise ValueError("CSV文件必须包含PTID字段")
+    if 'EXAMDATE' not in df_norm.columns:
+        raise ValueError("CSV文件必须包含EXAMDATE字段")
+    
+    return df_norm
+
+
+def main():
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='生成包含人口统计学信息的CSV表格')
+    parser.add_argument('--pairs', '-p', type=str, default=None,
+                        help='输入的pairs CSV文件路径')
+    parser.add_argument('--mytable', '-m', type=str, default=None,
+                        help='All_Subjects_My_Table CSV文件路径')
+    parser.add_argument('--output', '-o', type=str, default=None,
+                        help='输出CSV文件路径')
+    args = parser.parse_args()
+    
+    # 设置默认路径
+    base_path = '/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/data_csv'
+    gen_csv_path = '/home/ssddata/linshuijin/replicaLT/adapter_finetune/gen_csv'
+    
+    # 根据参数设置路径
+    if args.pairs:
+        pairs_path = args.pairs
+    else:
+        # 默认使用pairs_withPlasma.csv，也可以改为pairs_180d_dx.csv
+        pairs_path = os.path.join(base_path, 'pairs_withPlasma.csv')
+    
+    if args.mytable:
+        mytable_path = args.mytable
+    else:
+        mytable_path = '/home/ssddata/linshuijin/replicaLT/adapter_finetune/ADNI_csv/All_Subjects_My_Table_25Jan2026.csv'
+    
+    if args.output:
+        output_path = args.output
+    else:
+        # 根据输入文件名生成输出文件名
+        input_basename = os.path.basename(pairs_path)
+        input_name = os.path.splitext(input_basename)[0]
+        output_path = os.path.join(os.path.dirname(pairs_path), f'{input_name}_with_demog.csv')
+    
+    print(f"输入pairs文件: {pairs_path}")
+    print(f"输入mytable文件: {mytable_path}")
+    print(f"输出文件: {output_path}")
+    
+    print("\n读取数据文件...")
     # 读取pairs表格
     df_pairs = pd.read_csv(pairs_path)
-    print(f"pairs表格: {len(df_pairs)} 行")
+    print(f"pairs表格: {len(df_pairs)} 行, 字段: {list(df_pairs.columns)}")
+    
+    # 检测CSV格式
+    format_info = detect_csv_format(df_pairs)
+    print(f"\n检测到的CSV格式:")
+    print(f"  - 是否有DIAGNOSIS字段: {format_info['has_diagnosis']}")
+    print(f"  - ID前缀: '{format_info['id_prefix']}' (空表示纯数字)")
+    print(f"  - 日期格式: {format_info['date_format']}")
+    
+    # 标准化DataFrame
+    df_pairs = normalize_pairs_df(df_pairs, format_info)
     
     # 读取my_table表格
     df_mytable = pd.read_csv(mytable_path)
@@ -361,18 +488,23 @@ def main():
     results = []
     matched_count = 0
     
+    # 获取原始pairs表格的所有字段（用于保留原始数据）
+    original_columns = list(df_pairs.columns)
+    
     for idx, pair_row in df_pairs.iterrows():
         subject_id = pair_row['PTID']
         examdate_str = pair_row['EXAMDATE']
         target_examdate = parse_date(examdate_str)
         
-        # 初始化结果
-        result = {
+        # 初始化结果 - 首先保留原始pairs表格中的所有字段
+        result = pair_row.to_dict()
+        
+        # 添加新的人口统计学字段
+        result.update({
             'subject_id': subject_id,
             'examdate': examdate_str,
             'sex': None,
             'weight': None,
-            'diagnosis': None,
             'age': None,
             'description': None,
             'MMSE': None,
@@ -381,7 +513,13 @@ def main():
             'FAQ': None,
             'NPI-Q': None,
             'old_descr': None
-        }
+        })
+        
+        # 如果pairs表格中已有DIAGNOSIS字段，先设置诊断
+        if format_info['has_diagnosis'] and 'DIAGNOSIS' in pair_row:
+            result['diagnosis'] = convert_diagnosis(pair_row['DIAGNOSIS'])
+        else:
+            result['diagnosis'] = None
         
         # 查找匹配的my_table行
         if subject_id in mytable_grouped.groups:
@@ -400,9 +538,13 @@ def main():
                     closest_row.get('VSWTUNIT')
                 )
 
-                # 5. 获取诊断
+                # 5. 获取诊断（如果pairs表格中没有DIAGNOSIS，则从mytable获取）
                 target_diagnosis_raw = closest_row.get('DIAGNOSIS')
-                result['diagnosis'] = convert_diagnosis(target_diagnosis_raw)
+                if result['diagnosis'] is None:
+                    result['diagnosis'] = convert_diagnosis(target_diagnosis_raw)
+                # 如果pairs已有DIAGNOSIS，使用pairs中的值用于聚合临床评估
+                elif format_info['has_diagnosis'] and 'DIAGNOSIS' in pair_row:
+                    target_diagnosis_raw = pair_row['DIAGNOSIS']
 
                 # 计算年龄
                 if subject_id in subject_birth_years and target_examdate is not None:

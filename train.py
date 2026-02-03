@@ -179,7 +179,7 @@ def main():
 
     # 0.训练参数设置
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
-    cache_dir = '/mnt/nfsdata/nfsdata/linshuijin/ADNI_CSF_main_cache'
+    cache_dir = '/mnt/nfsdata/nfsdata/linshuijin/ADNI_CSF_main_cache192'
     plasma_csv_path = "/home/ssddata/linshuijin/replicaLT/adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # 确保缓存目录存在
@@ -219,9 +219,9 @@ def main():
             print(f"Warning: Failed to set CUDA device {primary_device}: {e}")
             print("Continuing with default CUDA device or CPU...")
     size_of_dataset = None  # 设置为 None 以使用完整数据集，或设置为所需的样本数量
-    bs = 4  # batch_size
+    bs = 1  # batch_size
     n_epochs = 200
-    val_interval =1
+    val_interval =10
     checkpoint_dir = './checkpoint'
     logdir = './runs'  # TensorBoard 日志目录
     log_every = 1  # 每隔多少步记录一次日志
@@ -847,7 +847,7 @@ def main():
         # DebugShape(keys=pet_keys),
         mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
         mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[128, 128, 128]),  # 减小尺寸节省显存
+        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),  # 减小尺寸节省显存
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
         mt.NormalizeIntensityd(keys=pet_keys),
         mt.ScaleIntensityd(keys=pet_keys),
@@ -867,7 +867,7 @@ def main():
         # DebugShape(keys=pet_keys),
         mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
         mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[128, 128, 128]),  # 减小尺寸节省显存
+        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),  # 减小尺寸节省显存
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
         mt.NormalizeIntensityd(keys=pet_keys),
         mt.ScaleIntensityd(keys=pet_keys),
