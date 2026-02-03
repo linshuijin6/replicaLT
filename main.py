@@ -44,7 +44,7 @@ def main():
     clip_sample_max = 1  # 设置合适的最大值
 
     # 定义模态权重
-    alpha = 1.0  # FDG 损失权重
+    alpha = 1.0  # tau 损失权重
     beta = 1.0  # AV45 损失权重
 
     # 1. 加载 BiomedCLIP 模型和处理器
@@ -58,8 +58,8 @@ def main():
     model.to(device)
     model.eval()
     # 加载优化后的描述
-    # fdg_text_optimized = (
-    #     "FDG PET is a functional brain imaging technique that visualizes the dynamic changes in glucose metabolism, directly linked to neuronal energy demands and synaptic activity. It serves as a tool to assess functional connectivity and energy utilization across brain regions. Areas with decreased metabolic activity, such as those affected by neurodegenerative diseases, should exhibit reduced signal intensity. High-intensity metabolic hotspots in gray matter (e.g., the cerebral cortex and basal ganglia) are key markers of neuronal activity. "
+    # tau_text_optimized = (
+    #     "tau PET is a functional brain imaging technique that visualizes the dynamic changes in glucose metabolism, directly linked to neuronal energy demands and synaptic activity. It serves as a tool to assess functional connectivity and energy utilization across brain regions. Areas with decreased metabolic activity, such as those affected by neurodegenerative diseases, should exhibit reduced signal intensity. High-intensity metabolic hotspots in gray matter (e.g., the cerebral cortex and basal ganglia) are key markers of neuronal activity. "
 
     # )
 
@@ -82,22 +82,15 @@ def main():
         text_features_optimized = model.get_text_features(**inputs_optimized)
 
     # 计算相似度
-    fdg_feature_optimized = text_features_optimized[0]
-    fdg_feature_optimized = fdg_feature_optimized.unsqueeze(0)
+    tau_feature_optimized = text_features_optimized[0]
+    tau_feature_optimized = tau_feature_optimized.unsqueeze(0)
     av45_feature_optimized = text_features_optimized[1]
     av45_feature_optimized = av45_feature_optimized.unsqueeze(0)
     #
-    # cosine_similarity_optimized = F.cosine_similarity(fdg_feature_optimized, av45_feature_optimized).item()
+    # cosine_similarity_optimized = F.cosine_similarity(tau_feature_optimized, av45_feature_optimized).item()
     #
-    # print(f"Cosine similarity between optimized FDG PET and AV45 PET features: {cosine_similarity_optimized:.4f}")
+    # print(f"Cosine similarity between optimized tau PET and AV45 PET features: {cosine_similarity_optimized:.4f}")
     # 这里替换为您实际使用的 BiomedCLIP 模型和 tokenizer
-
-    # 数据目录（保持不变）
-    base_dir = "/mnt/nfsdata/nfsdata/linshuijin/ADNILT/ADNI1234_mri_fdg_av45_original"
-    mri_dir = "/mnt/nfsdata/nfsdata/linshuijin/ADNILT/ADNI1234_mri_fdg_av45_original/mri_strip_registered"
-    av45_dir = "/mnt/nfsdata/nfsdata/linshuijin/ADNILT/ADNI1234_mri_fdg_av45_original/PET1_AV45_strip_registered"
-    fdg_dir = "/mnt/nfsdata/nfsdata/linshuijin/ADNILT/ADNI1234_mri_fdg_av45_original/PET2_FDG_strip_registered"
-    csv_path = '/mnt/nfsdata/nfsdata/linshuijin/replicaLT/filtered_subjects_with_description.csv'
 
     # JSON 文件保存路径（保持不变）
     train_json_path = "./train_data_with_description.json"
@@ -110,7 +103,7 @@ def main():
     # # 获取文件列表（保持不变）
     # mri_files = sorted(os.listdir(mri_dir))
     # av45_files = sorted(os.listdir(av45_dir))
-    # fdg_files = sorted(os.listdir(fdg_dir))
+    # tau_files = sorted(os.listdir(tau_dir))
 
     # def get_subject_id(filename):
     #     """从文件名中提取统一的 subject ID（前三个部分，如 '002_S_0295'）"""
@@ -120,12 +113,12 @@ def main():
     # # 使用统一的 get_subject_id 处理所有文件（保持不变）
     # mri_dict = {get_subject_id(f): os.path.join(mri_dir, f) for f in mri_files}
     # av45_dict = {get_subject_id(f): os.path.join(av45_dir, f) for f in av45_files}
-    # fdg_dict = {get_subject_id(f): os.path.join(fdg_dir, f) for f in fdg_files}
+    # tau_dict = {get_subject_id(f): os.path.join(tau_dir, f) for f in tau_files}
 
     # # 匹配文件并加入描述信息和 Subject ID
     # paired_data = []
     # for patient_id, mri_file in mri_dict.items():
-    #     if patient_id in av45_dict and patient_id in fdg_dict:
+    #     if patient_id in av45_dict and patient_id in tau_dict:
     #         # 检查描述信息是否存在
     #         description = csv_dict.get(patient_id, None)  # 从 csv_dict 中获取 Description 信息
     #         # 构建数据条目
@@ -133,7 +126,7 @@ def main():
     #             "name": patient_id,  # 添加 name 字段
     #             "mri": os.path.join(mri_dir, mri_file),
     #             "av45": os.path.join(av45_dir, av45_dict[patient_id]),
-    #             "fdg": os.path.join(fdg_dir, fdg_dict[patient_id]),
+    #             "tau": os.path.join(tau_dir, tau_dict[patient_id]),
     #             "description": description  # 加入 Description 信息
     #         })
 
@@ -141,9 +134,9 @@ def main():
     #     paired_data = paired_data[:size_of_dataset]  # 根据需要调整数据集大小
 
     # print(f"Total matched pairs with description: {len(paired_data)}")
-    # # 在 paired_data 中新增键 fdg_index 和 av45_index
+    # # 在 paired_data 中新增键 tau_index 和 av45_index
     # for idx, data in enumerate(paired_data):
-    #     data["fdg_index"] = idx  # 将样本在 paired_data 中的索引作为 fdg_index
+    #     data["tau_index"] = idx  # 将样本在 paired_data 中的索引作为 tau_index
     #     data["av45_index"] = idx
     with open(train_json_path, "r") as f:
         train_data = json.load(f)
@@ -158,7 +151,7 @@ def main():
         
         Args:
             name: 受试者名称
-            modality: 模态类型 ('av45', 'fdg', 'tau')
+            modality: 模态类型 ('av45', 'tau', 'tau')
             reference_path: 参考 NIfTI 文件路径（用于获取正确的 affine 和形状）
         
         Returns:
@@ -191,7 +184,7 @@ def main():
         
         return zero_filepath
 
-    def fill_null_fields(data_list, modalities=['av45', 'fdg', 'tau']):
+    def fill_null_fields(data_list, modalities=['av45', 'tau', 'tau']):
         """
         填充数据列表中的 null 字段，用全零 NIfTI 文件路径替换。
         使用 MRI 文件作为参考来生成零数据。
@@ -212,7 +205,7 @@ def main():
         return data_list
 
     # 填充训练集中的 null 字段
-    train_data = fill_null_fields(train_data, modalities=['av45', 'fdg', 'tau'])
+    train_data = fill_null_fields(train_data, modalities=['av45', 'tau', 'tau'])
 
     # 验证验证集
     with open(val_json_path, "r") as f:
@@ -221,7 +214,7 @@ def main():
     print("First validation sample:", val_data[0])
 
     # 填充验证集中的 null 字段
-    val_data = fill_null_fields(val_data, modalities=['av45', 'fdg', 'tau'])
+    val_data = fill_null_fields(val_data, modalities=['av45', 'tau', 'tau'])
 
         # 转换数据格式
     train_data = [
@@ -229,9 +222,9 @@ def main():
             "name": item["name"],
             "mri": item["mri"],
             "av45": item["av45"],
-            "fdg": item["fdg"],
+            "tau": item["tau"],
             "description": item.get("description") or "",  # 确保 description 存在且不为 None
-            "fdg_index": item.get("fdg_index"),  # 保留 fdg_index
+            "tau_index": item.get("tau_index"),  # 保留 tau_index
             "av45_index": item.get("av45_index"),  # 保留 av45_index
         }
         for item in train_data
@@ -242,9 +235,9 @@ def main():
             "name": item["name"],
             "mri": item["mri"],
             "av45": item["av45"],
-            "fdg": item["fdg"],
+            "tau": item["tau"],
             "description": item.get("description") or "",  # 确保 description 存在且不为 None
-            "fdg_index": item.get("fdg_index"),  # 保留 fdg_index
+            "tau_index": item.get("tau_index"),  # 保留 tau_index
             "av45_index": item.get("av45_index"),  # 保留 av45_index
         }
         for item in val_data
@@ -280,7 +273,7 @@ def main():
     
     # 将特征转移到 CPU，确保缓存可以跨 GPU 使用
     desc_text_features_cpu = desc_text_features.cpu()
-    fdg_feature_optimized_cpu = fdg_feature_optimized.cpu()
+    tau_feature_optimized_cpu = tau_feature_optimized.cpu()
     av45_feature_optimized_cpu = av45_feature_optimized.cpu()
 
     # # 划分训练集和验证集
@@ -301,14 +294,14 @@ def main():
 
 
     # 定义 transform 函数（使用 CPU 张量，确保跨 GPU 兼容）
-    def fdg_index_transform_t(x):
-        return torch.cat([desc_text_features_cpu[x].unsqueeze(0), fdg_feature_optimized_cpu], dim=0)
+    def tau_index_transform_t(x):
+        return torch.cat([desc_text_features_cpu[x].unsqueeze(0), tau_feature_optimized_cpu], dim=0)
 
     def av45_index_transform_t(x):
         return torch.cat([desc_text_features_cpu[x].unsqueeze(0), av45_feature_optimized_cpu], dim=0)
 
-    def fdg_index_transform_v(x):
-        return torch.cat([desc_text_features_cpu[x+len(train_data)].unsqueeze(0), fdg_feature_optimized_cpu], dim=0)
+    def tau_index_transform_v(x):
+        return torch.cat([desc_text_features_cpu[x+len(train_data)].unsqueeze(0), tau_feature_optimized_cpu], dim=0)
 
     def av45_index_transform_v(x):
         return torch.cat([desc_text_features_cpu[x+len(train_data)].unsqueeze(0), av45_feature_optimized_cpu], dim=0)
@@ -340,31 +333,31 @@ def main():
     # 构建数据增强 pipeline
     # 定义训练集数据增强流程
     train_transforms = mt.Compose([
-        mt.Lambdad(keys=["mri", "av45", "fdg"], func=mat_load),  # 加载 NIfTI 文件
-        mt.EnsureChannelFirstd(keys=["mri", "av45", "fdg"], channel_dim='no_channel'),
-        mt.Orientationd(keys=["mri", "av45", "fdg"], axcodes="LPI"),
-        mt.CropForegroundd(keys=["mri", "av45", "fdg"], source_key="mri"),
+        mt.Lambdad(keys=["mri", "av45", "tau"], func=mat_load),  # 加载 NIfTI 文件
+        mt.EnsureChannelFirstd(keys=["mri", "av45", "tau"], channel_dim='no_channel'),
+        mt.Orientationd(keys=["mri", "av45", "tau"], axcodes="LPI"),
+        mt.CropForegroundd(keys=["mri", "av45", "tau"], source_key="mri"),
         mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=["mri", "av45", "fdg"], spatial_size=[160, 192, 160]),
-        mt.Spacingd(keys=["mri", "av45", "fdg"], pixdim=(1.0, 1.0, 1.0)),
-        mt.NormalizeIntensityd(keys=["mri", "av45", "fdg"]),
-        mt.ScaleIntensityd(keys=["mri", "av45", "fdg"]),
-        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform_t),  # 添加 fdg_index 转换
+        mt.ResizeWithPadOrCropd(keys=["mri", "av45", "tau"], spatial_size=[160, 192, 160]),
+        mt.Spacingd(keys=["mri", "av45", "tau"], pixdim=(1.0, 1.0, 1.0)),
+        mt.NormalizeIntensityd(keys=["mri", "av45", "tau"]),
+        mt.ScaleIntensityd(keys=["mri", "av45", "tau"]),
+        mt.Lambdad(keys=["tau_index"], func=tau_index_transform_t),  # 添加 tau_index 转换
         mt.Lambdad(keys=["av45_index"], func=av45_index_transform_t),  # 添加 av45_index 转换
     ])
 
     # 定义验证集数据增强流程（通常与训练集一致，但不含随机性增强）
     val_transforms = mt.Compose([
-        mt.Lambdad(keys=["mri", "av45", "fdg"], func=mat_load),
-        mt.EnsureChannelFirstd(keys=["mri", "av45", "fdg"], channel_dim='no_channel'),
-        mt.Orientationd(keys=["mri", "av45", "fdg"], axcodes="LPI"),
-        mt.CropForegroundd(keys=["mri", "av45", "fdg"], source_key="mri"),
+        mt.Lambdad(keys=["mri", "av45", "tau"], func=mat_load),
+        mt.EnsureChannelFirstd(keys=["mri", "av45", "tau"], channel_dim='no_channel'),
+        mt.Orientationd(keys=["mri", "av45", "tau"], axcodes="LPI"),
+        mt.CropForegroundd(keys=["mri", "av45", "tau"], source_key="mri"),
         mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=["mri", "av45", "fdg"], spatial_size=[160, 192, 160]),
-        mt.Spacingd(keys=["mri", "av45", "fdg"], pixdim=(1.0, 1.0, 1.0)),
-        mt.NormalizeIntensityd(keys=["mri", "av45", "fdg"]),
-        mt.ScaleIntensityd(keys=["mri", "av45", "fdg"]),
-        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform_v),
+        mt.ResizeWithPadOrCropd(keys=["mri", "av45", "tau"], spatial_size=[160, 192, 160]),
+        mt.Spacingd(keys=["mri", "av45", "tau"], pixdim=(1.0, 1.0, 1.0)),
+        mt.NormalizeIntensityd(keys=["mri", "av45", "tau"]),
+        mt.ScaleIntensityd(keys=["mri", "av45", "tau"]),
+        mt.Lambdad(keys=["tau_index"], func=tau_index_transform_v),
         mt.Lambdad(keys=["av45_index"], func=av45_index_transform_v),
     ])
 
@@ -410,21 +403,21 @@ def main():
     # for batch_data in train_loader:
     #     print("MRI shape:", batch_data["mri"].shape)
     #     print("AV45 shape:", batch_data["av45"].shape)
-    #     print("FDG shape:", batch_data["fdg"].shape)
+    #     print("tau shape:", batch_data["tau"].shape)
     #     print("description:", train_data[0]["description"])  # 从原始数据访问描述信息
     #     break
 
     # for batch in val_loader:
     #     image_mri = batch["mri"].to(device)
-    #     seg_fdg = batch["fdg"].to(device)  # this is the ground truth segmentation
+    #     seg_tau = batch["tau"].to(device)  # this is the ground truth segmentation
     #     seg_av45 = batch["av45"].to(device)
-    #     fdg_index = batch["fdg_index"].to(device)
+    #     tau_index = batch["tau_index"].to(device)
     #     av45_index = batch["av45_index"].to(device)
     #     names = batch["name"]  # Extract subject information
 
     #     for idx, name in enumerate(names):
     #         print(f"Subject name: {name}")
-    #     # compare_3d([image_mri, seg_fdg, seg_av45])
+    #     # compare_3d([image_mri, seg_tau, seg_av45])
     #     break  # Uncomment to compare only the first batch , label_1,label_2
 
     # 定义模型、优化器、调度器等
@@ -457,9 +450,9 @@ def main():
 
         for step, data in progress_bar:
             images = data["mri"].to(device)
-            seg_fdg = data["fdg"].to(device)  # this is the ground truth segmentation
+            seg_tau = data["tau"].to(device)  # this is the ground truth segmentation
             seg_av45 = data["av45"].to(device)
-            fdg_index = data["fdg_index"].to(device)
+            tau_index = data["tau_index"].to(device)
             av45_index = data["av45_index"].to(device)
 
             optimizer.zero_grad(set_to_none=True)
@@ -477,24 +470,24 @@ def main():
                 # Create time
                 t = time_embedding.float() / 1000
 
-                # 检查 FDG 数据是否为二值化（只有 0 和 1）
-                has_fdg = not torch.all(seg_fdg == 0)  # 如果不是二值化数据，则参与计算
+                # 检查 tau 数据是否为二值化（只有 0 和 1）
+                has_tau = not torch.all(seg_tau == 0)  # 如果不是二值化数据，则参与计算
                 has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
 
                 # 如果两个模态都没有有效数据，跳过这个样本
-                if not has_fdg and not has_av45:
+                if not has_tau and not has_av45:
                     continue
 
                 # 默认损失为 0
-                loss_fdg = torch.tensor(0.0, device=device, requires_grad=False)
+                loss_tau = torch.tensor(0.0, device=device, requires_grad=False)
                 loss_av45 = torch.tensor(0.0, device=device, requires_grad=False)
 
-                # 计算 FDG 损失
-                if has_fdg:  # 如果不是二值化数据，计算 FDG 损失
-                    x_t_fdg = t * seg_fdg + (1 - t) * images
-                    v_fdg_prediction = model(x=x_t_fdg, timesteps=time_embedding, context=fdg_index)
-                    v_fdg = seg_fdg - images
-                    loss_fdg = F.mse_loss(v_fdg.float(), v_fdg_prediction.float())
+                # 计算 tau 损失
+                if has_tau:  # 如果不是二值化数据，计算 tau 损失
+                    x_t_tau = t * seg_tau + (1 - t) * images
+                    v_tau_prediction = model(x=x_t_tau, timesteps=time_embedding, context=tau_index)
+                    v_tau = seg_tau - images
+                    loss_tau = F.mse_loss(v_tau.float(), v_tau_prediction.float())
 
                 # 计算 AV45 损失
                 if has_av45:  # 如果不是二值化数据，计算 AV45 损失
@@ -504,7 +497,7 @@ def main():
                     loss_av45 = F.mse_loss(v_av45.float(), v_av45_prediction.float())
 
                 # 加权总损失
-                loss = alpha * loss_fdg + beta * loss_av45
+                loss = alpha * loss_tau + beta * loss_av45
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -513,7 +506,7 @@ def main():
             epoch_loss += loss.item()
             progress_bar.set_postfix({
                 "loss": epoch_loss / (step + 1),
-                # "FDG": "✓" if has_fdg else "✗",
+                # "tau": "✓" if has_tau else "✗",
                 # "AV45": "✓" if has_av45 else "✗"
             })
 
@@ -527,13 +520,13 @@ def main():
             for step, data_val in enumerate(val_loader):
                 # 验证阶段的数据加载
                 images = data_val["mri"].to(device)
-                seg_fdg = data_val["fdg"].to(device)  # this is the ground truth segmentation
+                seg_tau = data_val["tau"].to(device)  # this is the ground truth segmentation
                 seg_av45 = data_val["av45"].to(device)
-                fdg_index = data_val["fdg_index"].to(device)
+                tau_index = data_val["tau_index"].to(device)
                 av45_index = data_val["av45_index"].to(device)
 
-                # 检查 FDG 和 AV45 数据是否为二值化（只有 0 和 1）
-                has_fdg = not torch.all(seg_fdg == 0)  # 如果不是二值化数据，则参与计算
+                # 检查 tau 和 AV45 数据是否为二值化（只有 0 和 1）
+                has_tau = not torch.all(seg_tau == 0)  # 如果不是二值化数据，则参与计算
                 has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
 
                 x_t = images
@@ -546,14 +539,14 @@ def main():
                         with torch.no_grad():
                             time_embedding = int(t * 1000)
 
-                            # FDG 输出（仅当非二值化时计算）
-                            if has_fdg:
-                                v_fdg_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(x_t.device),
-                                                     context=fdg_index)
-                                x_fdg_t = x_t + (v_fdg_output / N_sample_tensor)
-                                x_fdg_t = torch.clamp(x_fdg_t, min=clip_sample_min, max=clip_sample_max)
+                            # tau 输出（仅当非二值化时计算）
+                            if has_tau:
+                                v_tau_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(x_t.device),
+                                                     context=tau_index)
+                                x_tau_t = x_t + (v_tau_output / N_sample_tensor)
+                                x_tau_t = torch.clamp(x_tau_t, min=clip_sample_min, max=clip_sample_max)
                             else:
-                                x_fdg_t = None  # 跳过 FDG 计算
+                                x_tau_t = None  # 跳过 tau 计算
 
                             # AV45 输出（仅当非二值化时计算）
                             if has_av45:
@@ -565,19 +558,19 @@ def main():
                                 x_av45_t = None  # 跳过 AV45 计算
 
                 # 默认损失为 0
-                val_fdg_loss = torch.tensor(0.0, device=device)
+                val_tau_loss = torch.tensor(0.0, device=device)
                 val_av45_loss = torch.tensor(0.0, device=device)
 
-                # 计算 FDG 损失（仅当非二值化时计算）
-                if has_fdg and x_fdg_t is not None:
-                    val_fdg_loss = F.mse_loss(x_fdg_t.float(), seg_fdg.float())
+                # 计算 tau 损失（仅当非二值化时计算）
+                if has_tau and x_tau_t is not None:
+                    val_tau_loss = F.mse_loss(x_tau_t.float(), seg_tau.float())
 
                 # 计算 AV45 损失（仅当非二值化时计算）
                 if has_av45 and x_av45_t is not None:
                     val_av45_loss = F.mse_loss(x_av45_t.float(), seg_av45.float())
 
                 # 加权总损失
-                val_loss = alpha * val_fdg_loss + beta * val_av45_loss
+                val_loss = alpha * val_tau_loss + beta * val_av45_loss
 
                 val_epoch_loss += val_loss.item()
                 torch.cuda.empty_cache()
@@ -597,25 +590,25 @@ def main():
             print('Saved all parameters!\n')
 
             # 可视化和评估指标
-            current_fdg_img = x_fdg_t.to('cpu') if x_fdg_t is not None else None
+            current_tau_img = x_tau_t.to('cpu') if x_tau_t is not None else None
             current_av45_img = x_av45_t.to('cpu') if x_av45_t is not None else None
-            labels_fdg = seg_fdg.to('cpu')
+            labels_tau = seg_tau.to('cpu')
             labels_av45 = seg_av45.to('cpu')
 
-            # 如果存在非二值化的 FDG 或 AV45 数据，则进行可视化和评估
-            if current_fdg_img is not None or current_av45_img is not None:
-                compare_3d([images, labels_fdg, current_fdg_img, labels_av45, current_av45_img])
-                compare_3d_jet([current_fdg_img - labels_fdg, current_av45_img - labels_av45])
+            # 如果存在非二值化的 tau 或 AV45 数据，则进行可视化和评估
+            if current_tau_img is not None or current_av45_img is not None:
+                compare_3d([images, labels_tau, current_tau_img, labels_av45, current_av45_img])
+                compare_3d_jet([current_tau_img - labels_tau, current_av45_img - labels_av45])
 
             ssim_metric = SSIMMetric(spatial_dims=3, data_range=1.0, kernel_size=7)
             psnr_metric = PSNRMetric(1.0)
 
             # 计算 SSIM 和 PSNR（仅当非二值化时计算）
-            if has_fdg and current_fdg_img is not None:
-                ssim_fdg_value = ssim_metric(labels_fdg, current_fdg_img)
-                psnr_fdg_value = psnr_metric(labels_fdg, current_fdg_img)
-                print(f"FDG SSIM: {ssim_fdg_value.mean().item()}")
-                print(f"FDG PSNR: {psnr_fdg_value.mean().item()}")
+            if has_tau and current_tau_img is not None:
+                ssim_tau_value = ssim_metric(labels_tau, current_tau_img)
+                psnr_tau_value = psnr_metric(labels_tau, current_tau_img)
+                print(f"tau SSIM: {ssim_tau_value.mean().item()}")
+                print(f"tau PSNR: {psnr_tau_value.mean().item()}")
 
             if has_av45 and current_av45_img is not None:
                 ssim_av45_value = ssim_metric(labels_av45, current_av45_img)
