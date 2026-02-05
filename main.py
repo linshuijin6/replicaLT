@@ -3,7 +3,10 @@
 """ main code """
 import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"  # 避免多进程时的 tokenizer 警告
+from report_error import email_on_error
 
+
+@email_on_error()
 def main():
     from liutuo_utils import compare_3d_jet
     from generative.metrics import SSIMMetric
@@ -28,6 +31,9 @@ def main():
     from tqdm import tqdm
     from torch.amp import GradScaler, autocast  # 从 torch.amp 导入 GradScaler
     import time
+    from torch.utils.tensorboard import SummaryWriter
+    from datetime import datetime
+    from pathlib import Path
 
     size_of_dataset = None  # 设置为 None 以使用完整数据集，或设置为所需的样本数量
     n_epochs = 200
@@ -36,7 +42,17 @@ def main():
     val_epoch_loss_list = []
     scaler = GradScaler()
     total_start = time.time()
-    checkpoint_dir = '/home/ssddata/liutuo/checkpoint/mri2pet _two trace_add clip_flow_noHistogramNormalized'
+    logdir = './runs'  # TensorBoard 日志目录
+    log_every = 1  # 每隔多少步记录一次日志
+    image_log_interval = 10  # 每隔多少个 epoch 保存一次过程图像
+    run_name = None  # 自动生成 run_name
+
+    # ============ 训练模式设置 ============
+    # 可选值: "both", "tau", "av45"
+    # "both": 同时训练 MRI->TAU 和 MRI->AV45
+    # "tau": 只训练 MRI->TAU
+    # "av45": 只训练 MRI->AV45
+    train_mode = "tau"
 
     # 定义裁剪的最小值和最大值
     # 定义裁剪的最小值和最大值
@@ -57,6 +73,46 @@ def main():
     device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.eval()
+
+    # ============ TensorBoard 日志初始化 ============
+    if run_name:
+        final_run_name = run_name
+    else:
+        now = datetime.now()
+        final_run_name = f"{now:%m.%d}_{os.getpid()}"
+    run_dir = Path(logdir) / final_run_name
+    run_dir.mkdir(parents=True, exist_ok=True)
+    writer = SummaryWriter(log_dir=str(run_dir))
+    print(f"\n📝 TensorBoard 日志目录: {run_dir}")
+
+    # 保存超参数到 hparams.json
+    hparams = {
+        "n_epochs": n_epochs,
+        "val_interval": val_interval,
+        "alpha": alpha,
+        "beta": beta,
+        "clip_sample_min": clip_sample_min,
+        "clip_sample_max": clip_sample_max,
+        "gpu_id": gpu_id,
+        "log_every": log_every,
+        "image_log_interval": image_log_interval,
+        "train_mode": train_mode,  # 训练模式: "both", "tau", "av45"
+    }
+    
+    # 打印训练模式信息
+    mode_desc = {
+        "both": "MRI->TAU + MRI->AV45 (双模态)",
+        "tau": "MRI->TAU (仅TAU)",
+        "av45": "MRI->AV45 (仅AV45)"
+    }
+    print(f"\n🎯 训练模式: {train_mode} - {mode_desc.get(train_mode, '未知模式')}")
+    hparam_path = run_dir / "hparams.json"
+    with hparam_path.open("w", encoding="utf-8") as f:
+        json.dump(hparams, f, ensure_ascii=False, indent=2)
+    print(f"✅ 超参数已保存到: {hparam_path}")
+
+    global_step = 0  # 全局步数计数器（用于 TensorBoard 日志）
+
     # 加载优化后的描述
     # tau_text_optimized = (
     #     "tau PET is a functional brain imaging technique that visualizes the dynamic changes in glucose metabolism, directly linked to neuronal energy demands and synaptic activity. It serves as a tool to assess functional connectivity and energy utilization across brain regions. Areas with decreased metabolic activity, such as those affected by neurodegenerative diseases, should exhibit reduced signal intensity. High-intensity metabolic hotspots in gray matter (e.g., the cerebral cortex and basal ganglia) are key markers of neuronal activity. "
@@ -217,17 +273,19 @@ def main():
     val_data = fill_null_fields(val_data, modalities=['av45', 'tau', 'tau'])
 
         # 转换数据格式
+    # 重新分配索引：train_data 使用 0~len(train_data)-1
+    # val_data 使用 0~len(val_data)-1（在 transform 中会加上 len(train_data) 偏移）
     train_data = [
         {
             "name": item["name"],
             "mri": item["mri"],
             "av45": item["av45"],
             "tau": item["tau"],
-            "description": item.get("description") or "",  # 确保 description 存在且不为 None
-            "tau_index": item.get("tau_index"),  # 保留 tau_index
-            "av45_index": item.get("av45_index"),  # 保留 av45_index
+            "description": item.get("old_descr") or "",  # 确保 description 存在且不为 None
+            "tau_index": idx,  # 使用本地索引，对应 desc_text_features_cpu[0:len(train_data)]
+            "av45_index": idx,
         }
-        for item in train_data
+        for idx, item in enumerate(train_data)
     ]
 
     val_data = [
@@ -236,11 +294,11 @@ def main():
             "mri": item["mri"],
             "av45": item["av45"],
             "tau": item["tau"],
-            "description": item.get("description") or "",  # 确保 description 存在且不为 None
-            "tau_index": item.get("tau_index"),  # 保留 tau_index
-            "av45_index": item.get("av45_index"),  # 保留 av45_index
+            "description": item.get("old_descr") or "",  # 确保 description 存在且不为 None
+            "tau_index": idx,  # 使用本地索引，transform 中会加上 len(train_data) 偏移
+            "av45_index": idx,
         }
-        for item in val_data
+        for idx, item in enumerate(val_data)
     ]
     # import torch
     # from transformers import AutoTokenizer, AutoModel
@@ -366,8 +424,8 @@ def main():
     
     # 定义缓存目录
     cache_dir = "/mnt/nfsdata/nfsdata/linshuijin/cache"
-    train_cache_dir = os.path.join(cache_dir, "train")
-    val_cache_dir = os.path.join(cache_dir, "val")
+    train_cache_dir = cache_dir
+    val_cache_dir = cache_dir
     os.makedirs(train_cache_dir, exist_ok=True)
     os.makedirs(val_cache_dir, exist_ok=True)
     
@@ -449,11 +507,12 @@ def main():
         progress_bar.set_description(f"Epoch {epoch}")
 
         for step, data in progress_bar:
-            images = data["mri"].to(device)
-            seg_tau = data["tau"].to(device)  # this is the ground truth segmentation
-            seg_av45 = data["av45"].to(device)
-            tau_index = data["tau_index"].to(device)
-            av45_index = data["av45_index"].to(device)
+            # 使用 non_blocking=True 异步传输，配合 pin_memory 加速
+            images = data["mri"].to(device, non_blocking=True)
+            seg_tau = data["tau"].to(device, non_blocking=True)  # this is the ground truth segmentation
+            seg_av45 = data["av45"].to(device, non_blocking=True)
+            tau_index = data["tau_index"].to(device, non_blocking=True)
+            av45_index = data["av45_index"].to(device, non_blocking=True)
 
             optimizer.zero_grad(set_to_none=True)
             timesteps = torch.randint(0, 1000, (len(images),)).to(device)  # pick a random time step t
@@ -471,10 +530,14 @@ def main():
                 t = time_embedding.float() / 1000
 
                 # 检查 tau 数据是否为二值化（只有 0 和 1）
-                has_tau = not torch.all(seg_tau == 0)  # 如果不是二值化数据，则参与计算
-                has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
+                has_tau_data = not torch.all(seg_tau == 0)  # 如果不是二值化数据，则有有效数据
+                has_av45_data = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则有有效数据
+                
+                # 根据训练模式决定是否参与计算
+                has_tau = has_tau_data and train_mode in ["both", "tau"]
+                has_av45 = has_av45_data and train_mode in ["both", "av45"]
 
-                # 如果两个模态都没有有效数据，跳过这个样本
+                # 如果两个模态都没有有效数据（根据训练模式），跳过这个样本
                 if not has_tau and not has_av45:
                     continue
 
@@ -504,30 +567,52 @@ def main():
             scaler.update()
 
             epoch_loss += loss.item()
+            global_step += 1
+
+            # ============ TensorBoard 日志记录 ============
+            if log_every > 0 and global_step % log_every == 0:
+                avg_loss = epoch_loss / (step + 1)
+                lr = optimizer.param_groups[0].get("lr", 2.5e-5)
+                writer.add_scalar("train/loss", avg_loss, global_step)
+                writer.add_scalar("train/step_loss", loss.item(), global_step)
+                writer.add_scalar("optim/lr", lr, global_step)
+                writer.add_scalar("train/epoch", epoch, global_step)
+                if has_tau:
+                    writer.add_scalar("train/loss_tau", loss_tau.item(), global_step)
+                if has_av45:
+                    writer.add_scalar("train/loss_av45", loss_av45.item(), global_step)
             progress_bar.set_postfix({
                 "loss": epoch_loss / (step + 1),
                 # "tau": "✓" if has_tau else "✗",
                 # "AV45": "✓" if has_av45 else "✗"
             })
 
-            torch.cuda.empty_cache()
+            # 移除了 torch.cuda.empty_cache()，避免 CUDA 同步导致性能下降
 
-        epoch_loss_list.append(epoch_loss / (step + 1))
+        # Epoch 结束后记录平均损失
+        epoch_avg_loss = epoch_loss / (step + 1)
+        epoch_loss_list.append(epoch_avg_loss)
+        writer.add_scalar("train/epoch_loss", epoch_avg_loss, epoch)
+        
         if (epoch + 1) % val_interval == 0:
             model.eval()
             val_epoch_loss = 0
 
             for step, data_val in enumerate(val_loader):
-                # 验证阶段的数据加载
-                images = data_val["mri"].to(device)
-                seg_tau = data_val["tau"].to(device)  # this is the ground truth segmentation
-                seg_av45 = data_val["av45"].to(device)
-                tau_index = data_val["tau_index"].to(device)
-                av45_index = data_val["av45_index"].to(device)
+                # 验证阶段使用 non_blocking=True 异步传输
+                images = data_val["mri"].to(device, non_blocking=True)
+                seg_tau = data_val["tau"].to(device, non_blocking=True)  # this is the ground truth segmentation
+                seg_av45 = data_val["av45"].to(device, non_blocking=True)
+                tau_index = data_val["tau_index"].to(device, non_blocking=True)
+                av45_index = data_val["av45_index"].to(device, non_blocking=True)
 
                 # 检查 tau 和 AV45 数据是否为二值化（只有 0 和 1）
-                has_tau = not torch.all(seg_tau == 0)  # 如果不是二值化数据，则参与计算
-                has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
+                has_tau_data = not torch.all(seg_tau == 0)  # 如果不是二值化数据，则有有效数据
+                has_av45_data = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则有有效数据
+                
+                # 根据训练模式决定是否参与计算
+                has_tau = has_tau_data and train_mode in ["both", "tau"]
+                has_av45 = has_av45_data and train_mode in ["both", "av45"]
 
                 x_t = images
                 N_sample = 1
@@ -573,32 +658,54 @@ def main():
                 val_loss = alpha * val_tau_loss + beta * val_av45_loss
 
                 val_epoch_loss += val_loss.item()
-                torch.cuda.empty_cache()
+                # 移除了 torch.cuda.empty_cache()，验证阶段不需要频繁清理
 
             print("Epoch", epoch + 1, "Validation loss", val_epoch_loss / (step + 1))
             val_epoch_loss_list.append(val_epoch_loss / (step + 1))
 
+            # 验证集日志记录
+            val_avg_loss = val_epoch_loss / (step + 1)
+            writer.add_scalar("val/loss", val_avg_loss, epoch)
+
             # Saving model parameters
             print('epoch:', epoch + 1)
             print('learning rate:', optimizer.state_dict()['param_groups'][0]['lr'])
+            
+            # 保存 checkpoint 到 run_dir
+            ckpt_path = run_dir / f"ckpt_epoch{epoch + 1}.pt"
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'epoch': epoch
+                'epoch': epoch,
+                'global_step': global_step,
             }
-            torch.save(checkpoint, f'{checkpoint_dir}/first_part_{epoch + 1}.pth')
-            print('Saved all parameters!\n')
+            torch.save(checkpoint, str(ckpt_path))
+            print(f"✅ Checkpoint saved: {ckpt_path}")
+            
+            # 也保存到 checkpoint_dir（保持兼容）
+            # torch.save(checkpoint, f'{checkpoint_dir}/first_part_{epoch + 1}.pth')
+            # print('Saved all parameters!\n')
 
             # 可视化和评估指标
             current_tau_img = x_tau_t.to('cpu') if x_tau_t is not None else None
             current_av45_img = x_av45_t.to('cpu') if x_av45_t is not None else None
             labels_tau = seg_tau.to('cpu')
             labels_av45 = seg_av45.to('cpu')
+            images_cpu = images.to('cpu')
 
-            # 如果存在非二值化的 tau 或 AV45 数据，则进行可视化和评估
-            if current_tau_img is not None or current_av45_img is not None:
-                compare_3d([images, labels_tau, current_tau_img, labels_av45, current_av45_img])
+            # 根据训练模式进行可视化
+            if current_tau_img is not None and current_av45_img is not None:
+                # 双模态模式：显示所有
+                compare_3d([images_cpu, labels_tau, current_tau_img, labels_av45, current_av45_img])
                 compare_3d_jet([current_tau_img - labels_tau, current_av45_img - labels_av45])
+            elif current_tau_img is not None:
+                # 仅 TAU 模式
+                compare_3d([images_cpu, labels_tau, current_tau_img])
+                compare_3d_jet([current_tau_img - labels_tau])
+            elif current_av45_img is not None:
+                # 仅 AV45 模式
+                compare_3d([images_cpu, labels_av45, current_av45_img])
+                compare_3d_jet([current_av45_img - labels_av45])
 
             ssim_metric = SSIMMetric(spatial_dims=3, data_range=1.0, kernel_size=7)
             psnr_metric = PSNRMetric(1.0)
@@ -609,13 +716,21 @@ def main():
                 psnr_tau_value = psnr_metric(labels_tau, current_tau_img)
                 print(f"tau SSIM: {ssim_tau_value.mean().item()}")
                 print(f"tau PSNR: {psnr_tau_value.mean().item()}")
+                writer.add_scalar("val/TAU_SSIM", ssim_tau_value.mean().item(), epoch)
+                writer.add_scalar("val/TAU_PSNR", psnr_tau_value.mean().item(), epoch)
 
             if has_av45 and current_av45_img is not None:
                 ssim_av45_value = ssim_metric(labels_av45, current_av45_img)
                 psnr_av45_value = psnr_metric(labels_av45, current_av45_img)
                 print(f"AV45 SSIM: {ssim_av45_value.mean().item()}")
                 print(f"AV45 PSNR: {psnr_av45_value.mean().item()}")
+                writer.add_scalar("val/AV45_SSIM", ssim_av45_value.mean().item(), epoch)
+                writer.add_scalar("val/AV45_PSNR", psnr_av45_value.mean().item(), epoch)
 
+    # 训练结束，关闭 writer
+    writer.flush()
+    writer.close()
+    print(f"\n🎉 训练完成！日志保存在: {run_dir}")
 
     return True
 

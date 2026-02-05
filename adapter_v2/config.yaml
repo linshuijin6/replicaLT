@@ -61,7 +61,7 @@ model:
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
   gpu: 4
-  batch_size: 2
+  batch_size: 4
   epochs: 200
   lr: 2e-5
   weight_decay: 1e-5

@@ -234,6 +234,30 @@ def convert_diagnosis(diagnosis):
         pass
     return None
 
+
+def clean_image_id(value):
+    """
+    清理image_id值，移除浮点数格式的".0"后缀
+    例如：1592895.0 -> 1592895
+    保持空值为空
+    """
+    if pd.isna(value) or value == '':
+        return None
+    
+    # 转换为字符串
+    val_str = str(value).strip()
+    
+    # 如果是浮点数格式（如"1592895.0"），去除".0"后缀
+    if val_str.endswith('.0'):
+        val_str = val_str[:-2]
+    
+    # 如果结果为空或只有空白，返回None
+    if not val_str:
+        return None
+    
+    return val_str
+
+
 def generate_description(age, sex, weight):
     """生成description文本"""
     if age is None or sex is None or weight is None:
@@ -408,11 +432,11 @@ def normalize_pairs_df(df, format_info):
 def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='生成包含人口统计学信息的CSV表格')
-    parser.add_argument('--pairs', '-p', type=str, default=None,
+    parser.add_argument('--pairs', '-p', type=str, default='/home/ssddata/linshuijin/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched.csv',
                         help='输入的pairs CSV文件路径')
-    parser.add_argument('--mytable', '-m', type=str, default=None,
+    parser.add_argument('--mytable', '-m', type=str, default='/home/ssddata/linshuijin/replicaLT/adapter_finetune/ADNI_csv/All_Subjects_My_Table_25Jan2026.csv',
                         help='All_Subjects_My_Table CSV文件路径')
-    parser.add_argument('--output', '-o', type=str, default=None,
+    parser.add_argument('--output', '-o', type=str, default='/home/ssddata/linshuijin/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_with_demog.csv',
                         help='输出CSV文件路径')
     args = parser.parse_args()
     
@@ -589,6 +613,12 @@ def main():
     
     # 创建结果DataFrame
     df_result = pd.DataFrame(results)
+    
+    # 清理ID相关列的".0"后缀
+    id_columns = [col for col in df_result.columns if col.upper().startswith('ID_') or col.lower() in ['id_mri', 'id_fdg', 'id_av45', 'id_av1451']]
+    print(f"\n清理ID列格式: {id_columns}")
+    for col in id_columns:
+        df_result[col] = df_result[col].apply(clean_image_id)
     
     # 保存结果
     df_result.to_csv(output_path, index=False)

@@ -8,6 +8,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, _TARGET_GPU_IDS))
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # 确保物理 GPU ID 顺序一致
 
 import pandas as pd
+import random
 from report_error import email_on_error
 from sklearn.model_selection import train_test_split
 from typing import Dict
@@ -914,7 +915,9 @@ def main():
     if len(cache_files) > 0:
         print(f"   缓存文件示例: {cache_files[0]}")
     
-    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=0)
+    # num_workers > 0 可以在后台并行加载缓存数据，避免 I/O 阻塞 GPU 训练
+    # pin_memory=True 可以加速 CPU->GPU 数据传输
+    train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
 
     print(f"\n📦 创建验证集 PersistentDataset...")
     print(f"   数据量: {len(val_data)} 样本")
@@ -936,7 +939,7 @@ def main():
     print(f"   已有缓存文件数: {len(cache_files)}")
     if len(cache_files) > 0:
         print(f"   缓存文件示例: {cache_files[0]}")
-    val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, num_workers=4, pin_memory=True, persistent_workers=True)
 
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     from generative.networks.nets import DiffusionModelUNet
@@ -1009,15 +1012,16 @@ def main():
         progress_bar.set_description(f"Epoch {epoch}")
 
         for step, data in progress_bar:
-            # 使用 .clone().detach() 确保所有张量完全独立，切断与 PersistentDataset 缓存的计算图连接
-            images = data["mri"].clone().detach().to(device)
-            seg_fdg = data["fdg"].clone().detach().to(device)  # this is the ground truth segmentation
-            seg_av45 = data["av45"].clone().detach().to(device)
-            fdg_index = data["fdg_index"].clone().detach().to(device)
-            av45_index = data["av45_index"].clone().detach().to(device)
+            # PersistentDataset 返回的数据已经是独立张量，直接 .to(device) 即可
+            # 使用 non_blocking=True 允许异步传输，配合 pin_memory 可以加速
+            images = data["mri"].to(device, non_blocking=True)
+            seg_fdg = data["fdg"].to(device, non_blocking=True)  # this is the ground truth segmentation
+            seg_av45 = data["av45"].to(device, non_blocking=True)
+            fdg_index = data["fdg_index"].to(device, non_blocking=True)
+            av45_index = data["av45_index"].to(device, non_blocking=True)
             if tau_available:
-                seg_tau = data["tau"].clone().detach().to(device)
-                tau_index = data["tau_index"].clone().detach().to(device)
+                seg_tau = data["tau"].to(device, non_blocking=True)
+                tau_index = data["tau_index"].to(device, non_blocking=True)
             else:
                 seg_tau = None
                 tau_index = None
@@ -1064,7 +1068,6 @@ def main():
             
             # 随机选择一个模态进行训练
             if len(available_modalities) > 0:
-                import random
                 selected_modality = random.choice(available_modalities)
                 
                 if selected_modality == 'fdg':
@@ -1081,7 +1084,7 @@ def main():
                     scaler.scale(loss_fdg).backward()
                     total_loss = loss_fdg.item() * accumulation_steps
                     del x_t_fdg, v_fdg_prediction, v_fdg, loss_fdg
-                    
+
                 elif selected_modality == 'av45':
                     with autocast(device_type='cuda', enabled=True):
                         x_t_av45 = t * seg_av45 + (1 - t) * images
@@ -1112,7 +1115,8 @@ def main():
                     total_loss = loss_tau.item() * accumulation_steps
                     del x_t_tau, v_tau_prediction, v_tau, loss_tau
                 
-                torch.cuda.empty_cache()
+                # 注意：移除了 torch.cuda.empty_cache()，它会导致 CUDA 同步，严重影响性能
+                # 只在显存不足时才考虑启用（可以在每 N 个 step 调用一次）
             
             # ============ 梯度累积：每 accumulation_steps 步才更新参数 ============
             # 只有在至少有一个模态参与训练时才更新优化器
@@ -1140,7 +1144,7 @@ def main():
                 "accum": f"{(step % accumulation_steps) + 1}/{accumulation_steps}"
             })
 
-            torch.cuda.empty_cache()
+            # 移除了 torch.cuda.empty_cache()，避免每个 batch 都进行 CUDA 同步
 
         # Epoch 结束后记录平均损失
         epoch_avg_loss = epoch_loss / (step + 1)
@@ -1151,15 +1155,15 @@ def main():
             val_epoch_loss = 0
 
             for step, data_val in enumerate(val_loader):
-                # 验证阶段的数据加载 - 使用 .clone().detach() 确保张量独立
-                images = data_val["mri"].clone().detach().to(device)
-                seg_fdg = data_val["fdg"].clone().detach().to(device)
-                seg_av45 = data_val["av45"].clone().detach().to(device)
-                fdg_index = data_val["fdg_index"].clone().detach().to(device)
-                av45_index = data_val["av45_index"].clone().detach().to(device)
+                # 验证阶段使用 non_blocking=True 异步传输
+                images = data_val["mri"].to(device, non_blocking=True)
+                seg_fdg = data_val["fdg"].to(device, non_blocking=True)
+                seg_av45 = data_val["av45"].to(device, non_blocking=True)
+                fdg_index = data_val["fdg_index"].to(device, non_blocking=True)
+                av45_index = data_val["av45_index"].to(device, non_blocking=True)
                 if tau_available:
-                    seg_tau = data_val["tau"].clone().detach().to(device)
-                    tau_index = data_val["tau_index"].clone().detach().to(device)
+                    seg_tau = data_val["tau"].to(device, non_blocking=True)
+                    tau_index = data_val["tau_index"].to(device, non_blocking=True)
                 else:
                     seg_tau = None
                     tau_index = None
@@ -1232,7 +1236,7 @@ def main():
                 val_loss = alpha * val_fdg_loss + beta * val_av45_loss + gamma * val_tau_loss
 
                 val_epoch_loss += val_loss.item()
-                torch.cuda.empty_cache()
+                # 移除了 torch.cuda.empty_cache()，验证阶段不需要频繁清理
 
             print("Epoch", epoch + 1, "Validation loss", val_epoch_loss / (step + 1))
             val_epoch_loss_list.append(val_epoch_loss / (step + 1))

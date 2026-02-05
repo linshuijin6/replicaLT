@@ -27,26 +27,67 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 
+# 全局缓存：存储每个目录的文件索引 {目录路径: {image_id: 文件完整路径}}
+_file_cache = {}
+
+
+def build_file_index(directory):
+    """
+    构建目录的文件索引，提取image_id作为key
+    只扫描一次目录，后续查找为O(1)
+    """
+    if directory in _file_cache:
+        return _file_cache[directory]
+    
+    index = {}
+    if os.path.exists(directory):
+        print(f"  Building file index for: {directory}")
+        for filename in os.listdir(directory):
+            if filename.endswith('.nii.gz'):
+                filepath = os.path.join(directory, filename)
+                # 从文件名中提取image_id (格式: subject_id__Ixxxxxx.nii.gz 或 subject_id__xxxxxx.nii.gz)
+                # 尝试提取 I开头的ID 或 纯数字ID
+                parts = filename.replace('.nii.gz', '').split('_')
+                for part in parts:
+                    # 去掉I前缀
+                    if part.startswith('I') and part[1:].isdigit():
+                        index[part[1:]] = filepath  # 存储不带I前缀的ID
+                        index[part] = filepath       # 也存储带I前缀的ID
+                    elif part.isdigit():
+                        index[part] = filepath
+    
+    _file_cache[directory] = index
+    print(f"  Indexed {len(index)} files in {directory}")
+    return index
+
+
 def find_nii_file(base_dir, subdir, subject_id, image_id):
     """
     根据subject_id和image_id查找nii.gz文件
-    文件名格式: <subject_id>*<image_id>.nii.gz
+    使用预建索引进行O(1)查找，大幅提升性能
     """
     if pd.isna(image_id) or image_id == '':
         return None
     
-    search_pattern = os.path.join(base_dir, subdir, f"{subject_id}*{image_id}.nii.gz")
-    matches = glob.glob(search_pattern)
+    # 清理image_id：去除.0后缀，转为字符串
+    image_id_str = str(image_id).strip()
+    if image_id_str.endswith('.0'):
+        image_id_str = image_id_str[:-2]
     
-    if matches:
-        return matches[0]
+    directory = os.path.join(base_dir, subdir)
+    index = build_file_index(directory)
     
-    # 如果没找到，尝试更宽松的搜索模式
-    search_pattern = os.path.join(base_dir, subdir, f"*{image_id}.nii.gz")
-    matches = glob.glob(search_pattern)
+    # 尝试直接匹配
+    if image_id_str in index:
+        return index[image_id_str]
     
-    if matches:
-        return matches[0]
+    # 尝试带I前缀匹配
+    if f"I{image_id_str}" in index:
+        return index[f"I{image_id_str}"]
+    
+    # 尝试去掉I前缀匹配
+    if image_id_str.startswith('I') and image_id_str[1:] in index:
+        return index[image_id_str[1:]]
     
     return None
 
@@ -220,19 +261,19 @@ def main():
         
         if fdg_path is None:
             zero_fdg_path = os.path.join(zero_files_dir, 'FDG', f"{subject_id}_fdg_zero.nii.gz")
-            fdg_path = create_zero_nii(mri_path, zero_fdg_path, overwrite=True)
+            fdg_path = create_zero_nii(mri_path, zero_fdg_path, overwrite=False)
             if fdg_path:
                 zero_files_created['fdg'] += 1
         
         if av45_path is None:
             zero_av45_path = os.path.join(zero_files_dir, 'AV45', f"{subject_id}_av45_zero.nii.gz")
-            av45_path = create_zero_nii(mri_path, zero_av45_path, overwrite=True)
+            av45_path = create_zero_nii(mri_path, zero_av45_path, overwrite=False)
             if av45_path:
                 zero_files_created['av45'] += 1
         
         if tau_path is None:
             zero_tau_path = os.path.join(zero_files_dir, 'TAU', f"{subject_id}_tau_zero.nii.gz")
-            tau_path = create_zero_nii(mri_path, zero_tau_path, overwrite=True)
+            tau_path = create_zero_nii(mri_path, zero_tau_path, overwrite=False)
             if tau_path:
                 zero_files_created['tau'] += 1
         
