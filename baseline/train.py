@@ -29,14 +29,14 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-
+from report_error import email_on_error
 # 添加 baseline 到 path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import Config, get_default_config
-from dataset import create_dataloaders
-from model import create_model, ResidualUNet3D
-from losses import create_loss, MetricsCalculator
+from .config import Config, get_default_config
+from .dataset import create_dataloaders
+from .model import create_model, ResidualUNet3D
+from .losses import create_loss, MetricsCalculator
 
 
 # ============================================================================
@@ -126,16 +126,30 @@ class Trainer:
         self.logger.info("创建模型...")
         self.model = create_model(config).to(self.device)
         self.logger.info(f"模型参数量: {self.model.get_num_parameters():,}")
+
+        # 加载预训练 backbone 权重
+        if config.condition.pretrained_backbone:
+            self._load_pretrained_backbone(config.condition.pretrained_backbone)
         
         # 损失函数
         self.loss_fn = create_loss(config)
         
-        # 优化器
-        self.optimizer = optim.AdamW(
-            self.model.parameters(),
-            lr=config.train.learning_rate,
-            weight_decay=config.train.weight_decay,
-        )
+        # 优化器（条件模式下使用差异学习率）
+        if config.condition.mode != "none":
+            film_params = [p for n, p in self.model.named_parameters()
+                           if "film_" in n or "condition_encoder" in n]
+            backbone_params = [p for n, p in self.model.named_parameters()
+                               if "film_" not in n and "condition_encoder" not in n]
+            self.optimizer = optim.AdamW([
+                {"params": backbone_params, "lr": config.train.learning_rate},
+                {"params": film_params, "lr": config.train.learning_rate * 3},
+            ], weight_decay=config.train.weight_decay)
+        else:
+            self.optimizer = optim.AdamW(
+                self.model.parameters(),
+                lr=config.train.learning_rate,
+                weight_decay=config.train.weight_decay,
+            )
         
         # 学习率调度器
         num_training_steps = len(self.train_loader) * config.train.epochs
@@ -159,6 +173,8 @@ class Trainer:
         self.best_val_mae = float("inf")
         self.best_val_ssim = 0.0
         self.patience_counter = 0
+        self.debug_print = False
+        self.debug_batches = 1
     
     def _save_config(self):
         """保存配置"""
@@ -170,6 +186,7 @@ class Trainer:
             "model": vars(self.config.model),
             "loss": vars(self.config.loss),
             "train": vars(self.config.train),
+            "condition": vars(self.config.condition),
             "output_dir": self.config.output_dir,
             "device": self.config.device,
         }
@@ -192,21 +209,36 @@ class Trainer:
         for batch_idx, batch in enumerate(pbar):
             mri = batch["mri"].to(self.device)
             tau = batch["tau"].to(self.device)
-            weights = batch["weight"].to(self.device)
+            weights = batch["weight"].to(self.device) if self.config.train.use_quality_weight else None
             
+            condition = None
+            if self.config.condition.mode != "none":
+                condition = {
+                    "clinical": batch["clinical"].to(self.device),
+                    "plasma": batch["plasma"].to(self.device),
+                    "clinical_mask": batch["clinical_mask"].to(self.device),
+                    "plasma_mask": batch["plasma_mask"].to(self.device),
+                    "sex": batch["sex"].to(self.device),
+                    "source": batch["source"].to(self.device),
+                }
+
             # 前向传播
             if self.config.train.use_amp:
                 with autocast():
-                    pred = self.model(mri)
+                    pred = self.model(mri, condition)
                     loss, loss_dict = self.loss_fn(pred, tau, weights)
-                    loss = loss / self.config.train.accumulation_steps
+                    film_reg = self.model.get_film_reg_loss()
+                    loss_total = loss + film_reg
+                    loss = loss_total / self.config.train.accumulation_steps
                 
                 # 反向传播
                 self.scaler.scale(loss).backward()
             else:
-                pred = self.model(mri)
+                pred = self.model(mri, condition)
                 loss, loss_dict = self.loss_fn(pred, tau, weights)
-                loss = loss / self.config.train.accumulation_steps
+                film_reg = self.model.get_film_reg_loss()
+                loss_total = loss + film_reg
+                loss = loss_total / self.config.train.accumulation_steps
                 loss.backward()
             
             # 梯度累积
@@ -222,22 +254,48 @@ class Trainer:
                 self.global_step += 1
             
             # 记录
-            epoch_losses.append(loss_dict["loss"])
+            loss_total_val = loss_total.item() if isinstance(loss_total, torch.Tensor) else float(loss_total)
+            loss_dict["loss_total"] = loss_total_val
+            loss_dict["film_reg"] = film_reg.item() if isinstance(film_reg, torch.Tensor) else float(film_reg)
+            epoch_losses.append(loss_total_val)
             epoch_l1.append(loss_dict["l1"])
             epoch_ssim.append(loss_dict["ssim"])
+
+            if self.debug_print and batch_idx < self.debug_batches:
+                msg = {
+                    "epoch": self.current_epoch,
+                    "batch": batch_idx,
+                    "mri_shape": tuple(mri.shape),
+                    "tau_shape": tuple(tau.shape),
+                    "loss_total": loss_dict["loss_total"],
+                    "film_reg": loss_dict["film_reg"],
+                }
+                if condition is not None:
+                    msg.update({
+                        "clinical_mean": float(condition["clinical"].mean().item()),
+                        "clinical_std": float(condition["clinical"].std().item()),
+                        "plasma_mean": float(condition["plasma"].mean().item()),
+                        "plasma_std": float(condition["plasma"].std().item()),
+                        "clinical_mask_mean": float(condition["clinical_mask"].mean().item()),
+                        "plasma_mask_mean": float(condition["plasma_mask"].mean().item()),
+                        "sex_ids": condition["sex"].detach().cpu().unique().tolist(),
+                        "source_ids": condition["source"].detach().cpu().unique().tolist(),
+                    })
+                self.logger.info(f"[DEBUG] {msg}")
             
             # 更新进度条
             pbar.set_postfix({
-                "loss": f"{loss_dict['loss']:.4f}",
+                "loss": f"{loss_dict['loss_total']:.4f}",
                 "L1": f"{loss_dict['l1']:.4f}",
                 "SSIM": f"{loss_dict['ssim']:.4f}",
             })
             
             # TensorBoard
             if self.global_step % 10 == 0:
-                self.writer.add_scalar("train/loss", loss_dict["loss"], self.global_step)
+                self.writer.add_scalar("train/loss", loss_dict["loss_total"], self.global_step)
                 self.writer.add_scalar("train/l1", loss_dict["l1"], self.global_step)
                 self.writer.add_scalar("train/ssim", loss_dict["ssim"], self.global_step)
+                self.writer.add_scalar("train/film_reg", loss_dict["film_reg"], self.global_step)
                 self.writer.add_scalar("train/lr", self.scheduler.get_last_lr()[0], self.global_step)
         
         return {
@@ -258,12 +316,22 @@ class Trainer:
         for batch in tqdm(self.val_loader, desc="Validating"):
             mri = batch["mri"].to(self.device)
             tau = batch["tau"].to(self.device)
+            condition = None
+            if self.config.condition.mode != "none":
+                condition = {
+                    "clinical": batch["clinical"].to(self.device),
+                    "plasma": batch["plasma"].to(self.device),
+                    "clinical_mask": batch["clinical_mask"].to(self.device),
+                    "plasma_mask": batch["plasma_mask"].to(self.device),
+                    "sex": batch["sex"].to(self.device),
+                    "source": batch["source"].to(self.device),
+                }
             
             if self.config.train.use_amp:
                 with autocast():
-                    pred = self.model(mri)
+                    pred = self.model(mri, condition)
             else:
-                pred = self.model(mri)
+                pred = self.model(mri, condition)
             
             # 计算指标
             for i in range(pred.size(0)):
@@ -328,6 +396,9 @@ class Trainer:
         
         for epoch in range(self.config.train.epochs):
             self.current_epoch = epoch + 1
+
+            if self.config.condition.mode != "none":
+                self._apply_freeze_schedule()
             
             # 训练
             train_metrics = self.train_epoch()
@@ -388,11 +459,49 @@ class Trainer:
         
         return self.best_val_mae, self.best_val_ssim
 
+    def _apply_freeze_schedule(self):
+        freeze_epochs = self.config.condition.freeze_backbone_epochs
+        if self.current_epoch <= freeze_epochs:
+            self._set_backbone_trainable(False)
+        else:
+            if not all(p.requires_grad for n, p in self.model.named_parameters() if "condition_encoder" not in n and "film_" not in n):
+                self._set_backbone_trainable(True)
+                for group in self.optimizer.param_groups:
+                    group["lr"] = self.config.train.learning_rate * self.config.condition.joint_lr_factor
+
+    def _set_backbone_trainable(self, trainable: bool):
+        for name, param in self.model.named_parameters():
+            if "condition_encoder" in name or "film_" in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = trainable
+
+    def _load_pretrained_backbone(self, ckpt_path: str):
+        """从 baseline checkpoint 加载 backbone 权重（跳过 FiLM / condition_encoder）"""
+        self.logger.info(f"加载预训练 backbone: {ckpt_path}")
+        ckpt = torch.load(ckpt_path, map_location=self.device)
+        src_state = ckpt.get("model_state_dict", ckpt)
+
+        model_state = self.model.state_dict()
+        loaded, skipped = [], []
+        for key, val in src_state.items():
+            if "condition_encoder" in key or "film_" in key:
+                skipped.append(key)
+                continue
+            if key in model_state and model_state[key].shape == val.shape:
+                model_state[key] = val
+                loaded.append(key)
+            else:
+                skipped.append(key)
+
+        self.model.load_state_dict(model_state)
+        self.logger.info(f"  已加载 {len(loaded)} 个参数, 跳过 {len(skipped)} 个")
+
 
 # ============================================================================
 # 主函数
 # ============================================================================
-
+@email_on_error()
 def main():
     parser = argparse.ArgumentParser(description="MRI → TAU-PET Baseline Training")
     parser.add_argument("--epochs", type=int, default=None, help="训练轮数")
@@ -400,8 +509,16 @@ def main():
     parser.add_argument("--lr", type=float, default=None, help="学习率")
     parser.add_argument("--resume", type=str, default=None, help="恢复训练的 checkpoint 路径")
     parser.add_argument("--output_dir", type=str, default=None, help="输出目录")
+    parser.add_argument("--condition_mode", type=str, default=None, help="条件模式: none/clinical/plasma/both")
+    parser.add_argument("--cuda_visible_devices", type=str, default=None, help="指定可见 GPU，如 0,1,2,3")
+    parser.add_argument("--pretrained_backbone", type=str, default=None, help="预训练 backbone 权重路径（baseline best_model.pth）")
+    parser.add_argument("--debug_print", action="store_true", help="打印关键变量")
+    parser.add_argument("--debug_batches", type=int, default=1, help="每个 epoch 打印的 batch 数")
     args = parser.parse_args()
     
+    if args.cuda_visible_devices:
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_visible_devices
+
     # 创建配置
     config = get_default_config()
     
@@ -418,9 +535,17 @@ def main():
         os.makedirs(os.path.join(config.output_dir, "checkpoints"), exist_ok=True)
         os.makedirs(os.path.join(config.output_dir, "visualizations"), exist_ok=True)
         os.makedirs(os.path.join(config.output_dir, "predictions"), exist_ok=True)
+    if args.condition_mode:
+        config.condition.mode = args.condition_mode
+    if args.pretrained_backbone:
+        config.condition.pretrained_backbone = args.pretrained_backbone
+    if args.cuda_visible_devices:
+        config.cuda_visible_devices = args.cuda_visible_devices
     
     # 创建训练器
     trainer = Trainer(config)
+    trainer.debug_print = args.debug_print
+    trainer.debug_batches = args.debug_batches
     
     # 恢复训练
     if args.resume:

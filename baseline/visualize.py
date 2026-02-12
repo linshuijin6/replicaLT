@@ -30,10 +30,10 @@ import nibabel as nib
 # 添加 baseline 到 path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import Config, get_default_config
-from dataset import create_dataloaders
-from model import create_model
-from losses import MetricsCalculator
+from .config import Config, get_default_config
+from .dataset import create_dataloaders
+from .model import create_model
+from .losses import MetricsCalculator
 
 
 # ============================================================================
@@ -58,25 +58,27 @@ def create_custom_colormap() -> LinearSegmentedColormap:
 
 
 def get_slice_indices(volume_depth: int, n_slices: int = 3) -> List[int]:
-    """
-    获取切片索引
-    
-    Args:
-        volume_depth: 体积的深度
-        n_slices: 切片数量（默认 3：中间 + 前后各 1/4 处）
-    
-    Returns:
-        切片索引列表
-    """
+    """获取轴向切片索引（默认 3：中间 + 前后各 1/4 处）"""
     if n_slices == 3:
         return [
-            volume_depth // 4,      # 前 1/4 处
-            volume_depth // 2,      # 中间
-            3 * volume_depth // 4,  # 后 3/4 处
+            volume_depth // 4,
+            volume_depth // 2,
+            3 * volume_depth // 4,
         ]
-    else:
-        step = volume_depth // (n_slices + 1)
-        return [step * (i + 1) for i in range(n_slices)]
+    step = volume_depth // (n_slices + 1)
+    return [step * (i + 1) for i in range(n_slices)]
+
+
+def get_orthogonal_slices(volume: np.ndarray) -> List[Tuple[str, int, np.ndarray]]:
+    """获取三正交方向切片 (Axial/Coronal/Sagittal)。"""
+    z_idx = volume.shape[0] // 2
+    y_idx = volume.shape[1] // 2
+    x_idx = volume.shape[2] // 2
+    return [
+        ("Axial", z_idx, volume[z_idx, :, :]),
+        ("Coronal", y_idx, volume[:, y_idx, :]),
+        ("Sagittal", x_idx, volume[:, :, x_idx]),
+    ]
 
 
 def plot_comparison(
@@ -87,6 +89,7 @@ def plot_comparison(
     metrics: Dict[str, float],
     save_path: str,
     n_slices: int = 3,
+    view_mode: str = "orthogonal",
 ):
     """
     绘制 MRI / GT / Pred 对比图
@@ -100,12 +103,28 @@ def plot_comparison(
         save_path: 保存路径
         n_slices: 切片数量
     """
-    # 获取切片索引（轴向切片，沿第一个维度 D）
-    slice_indices = get_slice_indices(mri.shape[0], n_slices)
+    # 获取切片索引/视图
+    if view_mode == "axial":
+        slice_indices = get_slice_indices(mri.shape[0], n_slices)
+        view_specs = [("Axial", idx, mri[idx, :, :], gt[idx, :, :], pred[idx, :, :]) for idx in slice_indices]
+    else:
+        view_specs = []
+        for name, idx, mri_slice in get_orthogonal_slices(mri):
+            if name == "Axial":
+                gt_slice = gt[idx, :, :]
+                pred_slice = pred[idx, :, :]
+            elif name == "Coronal":
+                gt_slice = gt[:, idx, :]
+                pred_slice = pred[:, idx, :]
+            else:
+                gt_slice = gt[:, :, idx]
+                pred_slice = pred[:, :, idx]
+            view_specs.append((name, idx, mri_slice, gt_slice, pred_slice))
     
     # 创建图形
-    fig = plt.figure(figsize=(16, 4 * n_slices + 1))
-    gs = gridspec.GridSpec(n_slices + 1, 4, height_ratios=[1] * n_slices + [0.1])
+    n_rows = len(view_specs)
+    fig = plt.figure(figsize=(16, 4 * n_rows + 1))
+    gs = gridspec.GridSpec(n_rows + 1, 4, height_ratios=[1] * n_rows + [0.1])
     
     # 自定义差异颜色映射
     diff_cmap = create_custom_colormap()
@@ -117,41 +136,37 @@ def plot_comparison(
     vmin, vmax = 0, 1
     diff_max = np.max(diff)
     
-    for row, slice_idx in enumerate(slice_indices):
-        # 提取切片
-        mri_slice = mri[slice_idx, :, :]
-        gt_slice = gt[slice_idx, :, :]
-        pred_slice = pred[slice_idx, :, :]
-        diff_slice = diff[slice_idx, :, :]
+    for row, (view_name, slice_idx, mri_slice, gt_slice, pred_slice) in enumerate(view_specs):
+        diff_slice = np.abs(pred_slice - gt_slice)
         
         # MRI
         ax1 = fig.add_subplot(gs[row, 0])
         im1 = ax1.imshow(mri_slice.T, cmap='gray', vmin=vmin, vmax=vmax, origin='lower')
-        ax1.set_title(f'MRI (slice {slice_idx})', fontsize=10)
+        ax1.set_title(f'MRI {view_name} (slice {slice_idx})', fontsize=10)
         ax1.axis('off')
         
         # Ground Truth
         ax2 = fig.add_subplot(gs[row, 1])
         im2 = ax2.imshow(gt_slice.T, cmap='hot', vmin=vmin, vmax=vmax, origin='lower')
-        ax2.set_title(f'Ground Truth TAU', fontsize=10)
+        ax2.set_title('Ground Truth TAU', fontsize=10)
         ax2.axis('off')
         
         # Prediction
         ax3 = fig.add_subplot(gs[row, 2])
         im3 = ax3.imshow(pred_slice.T, cmap='hot', vmin=vmin, vmax=vmax, origin='lower')
-        ax3.set_title(f'Predicted TAU', fontsize=10)
+        ax3.set_title('Predicted TAU', fontsize=10)
         ax3.axis('off')
         
         # Difference
         ax4 = fig.add_subplot(gs[row, 3])
         im4 = ax4.imshow(diff_slice.T, cmap=diff_cmap, vmin=0, vmax=max(0.1, diff_max), origin='lower')
-        ax4.set_title(f'|Pred - GT|', fontsize=10)
+        ax4.set_title('|Pred - GT|', fontsize=10)
         ax4.axis('off')
     
     # 添加颜色条
-    cax1 = fig.add_subplot(gs[n_slices, 0])
-    cax2 = fig.add_subplot(gs[n_slices, 1:3])
-    cax3 = fig.add_subplot(gs[n_slices, 3])
+    cax1 = fig.add_subplot(gs[n_rows, 0])
+    cax2 = fig.add_subplot(gs[n_rows, 1:3])
+    cax3 = fig.add_subplot(gs[n_rows, 3])
     
     plt.colorbar(im1, cax=cax1, orientation='horizontal', label='MRI Intensity')
     plt.colorbar(im2, cax=cax2, orientation='horizontal', label='TAU Intensity')
@@ -250,6 +265,7 @@ class Visualizer:
         n_samples: Optional[int] = None,
         save_nifti_files: bool = False,
         random_select: bool = False,
+        view_mode: str = "orthogonal",
     ):
         """
         可视化测试集样本
@@ -330,6 +346,7 @@ class Visualizer:
                     meta=sample_meta,
                     metrics=metrics,
                     save_path=vis_path,
+                    view_mode=view_mode,
                 )
                 
                 # 保存 NIfTI
@@ -354,6 +371,7 @@ class Visualizer:
         self,
         n_per_stratum: int = 2,
         save_nifti_files: bool = False,
+        view_mode: str = "orthogonal",
     ):
         """
         分层可视化（每个分层采样若干样本）
@@ -451,6 +469,7 @@ class Visualizer:
                     meta=sample_meta,
                     metrics=metrics,
                     save_path=vis_path,
+                    view_mode=view_mode,
                 )
                 
                 if save_nifti_files:
@@ -477,6 +496,13 @@ def main():
     parser.add_argument("--random", action="store_true", help="随机选择样本")
     parser.add_argument("--output_dir", type=str, default=None, help="输出目录")
     parser.add_argument("--no_amp", action="store_true", help="禁用混合精度")
+    parser.add_argument(
+        "--view_mode",
+        type=str,
+        default="orthogonal",
+        choices=["orthogonal", "axial"],
+        help="可视化视角: orthogonal(三方向) 或 axial(多切片)",
+    )
     args = parser.parse_args()
     
     # 创建配置
@@ -495,12 +521,14 @@ def main():
         visualizer.visualize_stratified(
             n_per_stratum=args.n_per_stratum,
             save_nifti_files=args.save_nifti,
+            view_mode=args.view_mode,
         )
     else:
         visualizer.visualize_samples(
             n_samples=args.n_samples,
             save_nifti_files=args.save_nifti,
             random_select=args.random,
+            view_mode=args.view_mode,
         )
 
 

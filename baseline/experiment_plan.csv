@@ -1,0 +1,5 @@
+experiment_id,condition_mode,description,output_dir_template,metrics,notes
+A_baseline,none,MRI->TAU baseline (no condition),baseline/runs/exp_baseline_<timestamp>,MAE/PSNR/SSIM + top5/top10 + dx/plasma groups,Same split/HP as others
+B_clinical,clinical,MRI + clinical (age/sex/CDR/MMSE/FAQ/GDS/NPI-Q),baseline/runs/exp_clinical_<timestamp>,MAE/PSNR/SSIM + top5/top10 + dx/plasma groups,FiLM at bottleneck+decoder_last
+C_plasma,plasma,MRI + plasma (pT217/Aβ42/Aβ40/Aβ42Aβ40/pT217Aβ42/NfL/GFAP),baseline/runs/exp_plasma_<timestamp>,MAE/PSNR/SSIM + top5/top10 + dx/plasma groups,Per-source robust scaling
+D_both,both,MRI + clinical + plasma,baseline/runs/exp_both_<timestamp>,MAE/PSNR/SSIM + top5/top10 + dx/plasma groups,Check additive/complimentary effect

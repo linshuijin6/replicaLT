@@ -15,6 +15,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import List, Optional
 
+from .condition import FiLMLayer, TabularEncoder
+
 
 # ============================================================================
 # 基础组件
@@ -273,11 +275,21 @@ class ResidualUNet3D(nn.Module):
         norm_type: str = "instance",
         activation: str = "leaky_relu",
         dropout_rate: float = 0.0,
+        condition_dim: Optional[int] = None,
+        film_hidden_dim: int = 128,
+        film_reg_lambda: float = 0.0,
+        clinical_dim: int = 7,
+        plasma_dim: int = 7,
+        condition_mode: str = "both",
     ):
         super().__init__()
         
         self.use_residual_output = use_residual_output
         self.num_scales = num_scales
+        self.condition_dim = condition_dim
+        self.film_reg_lambda = film_reg_lambda
+        self.use_film = condition_dim is not None
+        self.condition_mode = condition_mode
         
         # 特征通道数: [32, 64, 128, 256] for num_scales=4
         features = [base_features * (2 ** i) for i in range(num_scales)]
@@ -343,8 +355,23 @@ class ResidualUNet3D(nn.Module):
         
         # 输出层
         self.outc = nn.Conv3d(features[0], out_channels, 1)
+
+        # FiLM 条件注入（bottleneck + 最后一个解码层）
+        if self.use_film:
+            self.condition_encoder = TabularEncoder(
+                clinical_dim=clinical_dim,
+                plasma_dim=plasma_dim,
+                embed_dim=condition_dim,
+                mode=condition_mode,
+            )
+            self.film_bottleneck = FiLMLayer(condition_dim, features[-1] * 2, hidden_dim=film_hidden_dim)
+            self.film_dec_last = FiLMLayer(condition_dim, features[0], hidden_dim=film_hidden_dim)
+        else:
+            self.condition_encoder = None
+            self.film_bottleneck = None
+            self.film_dec_last = None
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, condition: Optional[object] = None) -> torch.Tensor:
         """
         Args:
             x: [B, 1, D, H, W] MRI 输入
@@ -367,11 +394,26 @@ class ResidualUNet3D(nn.Module):
         
         # 瓶颈
         x = self.bottleneck(skips[-1])
+        if self.use_film:
+            if condition is None:
+                raise ValueError("Condition is required when FiLM is enabled.")
+            if isinstance(condition, dict):
+                condition = self.condition_encoder(
+                    condition["clinical"],
+                    condition["plasma"],
+                    condition.get("clinical_mask"),
+                    condition.get("plasma_mask"),
+                    condition["sex"],
+                    condition["source"],
+                )
+            x = self.film_bottleneck(x, condition)
         
         # 解码器
         for i, up in enumerate(self.up_blocks):
             skip_idx = len(skips) - 1 - i
             x = up(x, skips[skip_idx])
+            if self.use_film and i == len(self.up_blocks) - 1:
+                x = self.film_dec_last(x, condition)
         
         # 输出
         delta = self.outc(x)
@@ -383,6 +425,12 @@ class ResidualUNet3D(nn.Module):
             pred = torch.sigmoid(delta)
         
         return pred
+
+    def get_film_reg_loss(self) -> torch.Tensor:
+        if not self.use_film or self.film_reg_lambda <= 0:
+            return torch.tensor(0.0, device=next(self.parameters()).device)
+        reg = self.film_bottleneck.reg_loss() + self.film_dec_last.reg_loss()
+        return reg * self.film_reg_lambda
     
     def get_num_parameters(self) -> int:
         """获取模型参数数量"""
@@ -403,10 +451,16 @@ def create_model(config) -> ResidualUNet3D:
         base_features=config.model.base_features,
         num_scales=config.model.num_scales,
         use_residual=config.model.use_residual,
-        use_residual_output=config.model.use_residual,
+        use_residual_output=config.model.use_residual_output,
         norm_type=config.model.norm_type,
         activation=config.model.activation,
         dropout_rate=config.model.dropout_rate,
+        condition_dim=(config.condition.embed_dim if config.condition.mode != "none" else None),
+        film_hidden_dim=config.condition.film_hidden_dim,
+        film_reg_lambda=config.condition.film_reg_lambda,
+        clinical_dim=len(config.condition.clinical_fields),
+        plasma_dim=len(config.condition.plasma_fields),
+        condition_mode=config.condition.mode,
     )
     
     return model

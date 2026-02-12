@@ -30,10 +30,10 @@ import nibabel as nib
 # 添加 baseline 到 path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import Config, get_default_config
-from dataset import create_dataloaders, center_crop_3d
-from model import create_model
-from losses import MetricsCalculator
+from .config import Config, get_default_config
+from .dataset import create_dataloaders, center_crop_3d
+from .model import create_model
+from .losses import MetricsCalculator, ssim_3d
 
 
 # ============================================================================
@@ -49,6 +49,7 @@ class Evaluator:
         checkpoint_path: str,
         save_predictions: bool = False,
         use_amp: bool = True,
+        roi_mask_path: Optional[str] = None,
     ):
         self.config = config
         self.checkpoint_path = checkpoint_path
@@ -70,6 +71,11 @@ class Evaluator:
         
         # 评估指标
         self.metrics_calc = MetricsCalculator()
+
+        # ROI mask（可选，接口预留）
+        self.roi_mask = None
+        if roi_mask_path:
+            self.roi_mask = self._load_roi_mask(roi_mask_path)
         
         # 结果目录
         self.results_dir = os.path.dirname(checkpoint_path)
@@ -108,17 +114,29 @@ class Evaluator:
             mri = batch["mri"].to(self.device)
             tau = batch["tau"].to(self.device)
             meta = batch["meta"]
+            condition = None
+            if self.config.condition.mode != "none" and "clinical" in batch:
+                condition = {
+                    "clinical": batch["clinical"].to(self.device),
+                    "plasma": batch["plasma"].to(self.device),
+                    "clinical_mask": batch["clinical_mask"].to(self.device),
+                    "plasma_mask": batch["plasma_mask"].to(self.device),
+                    "sex": batch["sex"].to(self.device),
+                    "source": batch["source"].to(self.device),
+                }
             
             # 预测
             if self.use_amp:
                 with autocast():
-                    pred = self.model(mri)
+                    pred = self.model(mri, condition)
             else:
-                pred = self.model(mri)
+                pred = self.model(mri, condition)
             
             # 对每个样本计算指标
             for i in range(pred.size(0)):
                 metrics = self.metrics_calc.compute(pred[i:i+1], tau[i:i+1])
+                topk_metrics = self._compute_topk_metrics(pred[i:i+1], tau[i:i+1])
+                roi_metrics = self._compute_roi_metrics(pred[i:i+1], tau[i:i+1])
                 
                 result = {
                     "ptid": meta["ptid"][i],
@@ -131,7 +149,16 @@ class Evaluator:
                     "mae": metrics["mae"],
                     "psnr": metrics["psnr"],
                     "ssim": metrics["ssim"],
+                    "top5_mae": topk_metrics.get("top5_mae"),
+                    "top5_ssim": topk_metrics.get("top5_ssim"),
+                    "top10_mae": topk_metrics.get("top10_mae"),
+                    "top10_ssim": topk_metrics.get("top10_ssim"),
+                    "roi_mae": roi_metrics.get("roi_mae"),
+                    "roi_ssim": roi_metrics.get("roi_ssim"),
                 }
+                if "pt217_f" in meta:
+                    val = meta["pt217_f"][i]
+                    result["pt217_f"] = val.item() if isinstance(val, torch.Tensor) else float(val)
                 results.append(result)
                 
                 # 保存预测结果
@@ -164,29 +191,40 @@ class Evaluator:
         
         # 文件名格式: ptid_mfr_quality_diagnosis_pred.nii.gz
         base_name = f"{meta['ptid']}_{meta['pet_mfr']}_{meta['quality_class']}_{meta['diagnosis']}"
+        safe_base_name = self._sanitize_filename(base_name)
         
         # 创建 NIfTI（简单的 affine）
         affine = np.eye(4)
         
+        # nibabel 不支持 float16，统一转为 float32
+        pred = pred.astype(np.float32, copy=False)
+        tau = tau.astype(np.float32, copy=False)
+        mri = mri.astype(np.float32, copy=False)
+
         # 保存预测
         pred_nii = nib.Nifti1Image(pred, affine)
-        nib.save(pred_nii, os.path.join(predictions_dir, f"{base_name}_pred.nii.gz"))
+        nib.save(pred_nii, os.path.join(predictions_dir, f"{safe_base_name}_pred.nii.gz"))
         
         # 保存 ground truth
         tau_nii = nib.Nifti1Image(tau, affine)
-        nib.save(tau_nii, os.path.join(predictions_dir, f"{base_name}_gt.nii.gz"))
+        nib.save(tau_nii, os.path.join(predictions_dir, f"{safe_base_name}_gt.nii.gz"))
         
         # 保存差异图
-        diff = np.abs(pred - tau)
+        diff = np.abs(pred - tau).astype(np.float32, copy=False)
         diff_nii = nib.Nifti1Image(diff, affine)
-        nib.save(diff_nii, os.path.join(predictions_dir, f"{base_name}_diff.nii.gz"))
+        nib.save(diff_nii, os.path.join(predictions_dir, f"{safe_base_name}_diff.nii.gz"))
+
+    @staticmethod
+    def _sanitize_filename(name: str) -> str:
+        """将路径不安全字符替换为下划线，避免创建意外子目录。"""
+        return "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in name)
     
     def _compute_stratified_metrics(
         self, 
         df: pd.DataFrame
     ) -> Dict[str, Dict[str, float]]:
         """计算分层指标"""
-        metrics_cols = ["mae", "psnr", "ssim"]
+        metrics_cols = ["mae", "psnr", "ssim", "top5_mae", "top5_ssim", "top10_mae", "top10_ssim", "roi_mae", "roi_ssim"]
         
         def compute_stats(subset: pd.DataFrame) -> Dict[str, float]:
             stats = {"n": len(subset)}
@@ -223,8 +261,68 @@ class Evaluator:
                 subset = df[df["diagnosis"] == dx]
                 if len(subset) > 0:
                     stratified[f"dx_{dx}"] = compute_stats(subset)
+
+        # 按 plasma 高低分组（pT217）
+        if "pt217_f" in df.columns:
+            pt217_vals = pd.to_numeric(df["pt217_f"], errors="coerce")
+            valid = pt217_vals.dropna()
+            if len(valid) > 0:
+                threshold = valid.median()
+                high = df[pt217_vals >= threshold]
+                low = df[pt217_vals < threshold]
+                if len(high) > 0:
+                    stratified["plasma_pt217_high"] = compute_stats(high)
+                if len(low) > 0:
+                    stratified["plasma_pt217_low"] = compute_stats(low)
         
         return stratified
+
+    def _compute_topk_metrics(self, pred: torch.Tensor, tau: torch.Tensor) -> Dict[str, float]:
+        pred = pred.float()
+        tau = tau.float()
+        results = {}
+        for k in (5, 10):
+            tau_flat = tau.view(-1)
+            if tau_flat.numel() == 0:
+                results[f"top{k}_mae"] = float("nan")
+                results[f"top{k}_ssim"] = float("nan")
+                continue
+            threshold = torch.quantile(tau_flat, 1.0 - k / 100.0)
+            mask = (tau >= threshold).float()
+            if mask.sum() == 0:
+                results[f"top{k}_mae"] = float("nan")
+                results[f"top{k}_ssim"] = float("nan")
+                continue
+            masked_mae = torch.abs(pred - tau)[mask.bool()].mean().item()
+            masked_pred = pred * mask
+            masked_tau = tau * mask
+            masked_ssim = ssim_3d(masked_pred, masked_tau, reduction="mean").item()
+            results[f"top{k}_mae"] = masked_mae
+            results[f"top{k}_ssim"] = masked_ssim
+        return results
+
+    def _load_roi_mask(self, path: str) -> np.ndarray:
+        img = nib.load(path)
+        img = nib.as_closest_canonical(img)
+        data = img.get_fdata(dtype=np.float32)
+        data = np.transpose(data, (2, 1, 0))
+        data = center_crop_3d(data, self.config.data.target_shape)
+        return data
+
+    def _compute_roi_metrics(self, pred: torch.Tensor, tau: torch.Tensor) -> Dict[str, float]:
+        if self.roi_mask is None:
+            return {}
+        mask = torch.from_numpy(self.roi_mask).to(pred.device)
+        if mask.max() <= 0:
+            return {}
+        mask = (mask > 0).float().unsqueeze(0).unsqueeze(0)
+        pred = pred.float()
+        tau = tau.float()
+        masked_pred = pred * mask
+        masked_tau = tau * mask
+        masked_mae = torch.abs(masked_pred - masked_tau)[mask.bool()].mean().item()
+        masked_ssim = ssim_3d(masked_pred, masked_tau, reduction="mean").item()
+        return {"roi_mae": masked_mae, "roi_ssim": masked_ssim}
     
     def save_results(
         self, 
@@ -320,6 +418,8 @@ def main():
     parser.add_argument("--save_predictions", action="store_true", help="保存预测结果")
     parser.add_argument("--no_amp", action="store_true", help="禁用混合精度")
     parser.add_argument("--output_dir", type=str, default=None, help="输出目录（默认与 checkpoint 同目录）")
+    parser.add_argument("--roi_mask", type=str, default=None, help="ROI mask NIfTI 路径（可选）")
+    parser.add_argument("--condition_mode", type=str, default=None, help="条件模式: none/clinical/plasma/both")
     args = parser.parse_args()
     
     # 创建配置
@@ -328,6 +428,8 @@ def main():
     # 覆盖输出目录
     if args.output_dir:
         config.output_dir = args.output_dir
+    if args.condition_mode:
+        config.condition.mode = args.condition_mode
     
     # 创建评估器
     evaluator = Evaluator(
@@ -335,6 +437,7 @@ def main():
         checkpoint_path=args.checkpoint,
         save_predictions=args.save_predictions,
         use_amp=not args.no_amp,
+        roi_mask_path=args.roi_mask,
     )
     
     # 运行评估

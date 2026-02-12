@@ -75,8 +75,13 @@ def ssim_3d(
     """
     B, C, D, H, W = pred.shape
     
+    # 强制 float32 计算，避免混合精度 (float16) 导致方差为负 / SSIM > 1
+    orig_dtype = pred.dtype
+    pred = pred.float()
+    target = target.float()
+
     # 高斯核
-    kernel = gaussian_kernel_3d(window_size, sigma, C, pred.device)
+    kernel = gaussian_kernel_3d(window_size, sigma, C, pred.device).float()
     
     # 动态参数
     k1, k2 = 0.01, 0.03
@@ -96,6 +101,10 @@ def ssim_3d(
     sigma_pred_sq = F.conv3d(pred ** 2, kernel, padding=padding, groups=C) - mu_pred_sq
     sigma_target_sq = F.conv3d(target ** 2, kernel, padding=padding, groups=C) - mu_target_sq
     sigma_pred_target = F.conv3d(pred * target, kernel, padding=padding, groups=C) - mu_pred_target
+    
+    # 钳位方差为非负（浮点误差可能导致 E[X^2]-E[X]^2 < 0）
+    sigma_pred_sq = torch.clamp(sigma_pred_sq, min=0.0)
+    sigma_target_sq = torch.clamp(sigma_target_sq, min=0.0)
     
     # SSIM
     numerator = (2 * mu_pred_target + c1) * (2 * sigma_pred_target + c2)
@@ -333,6 +342,12 @@ class MetricsCalculator:
         Returns:
             metrics: dict with MAE, PSNR, SSIM
         """
+        # 评估指标统一用 float32，避免混合精度导致类型不一致
+        if pred.dtype != torch.float32:
+            pred = pred.float()
+        if target.dtype != torch.float32:
+            target = target.float()
+
         if pred.dim() == 4:
             pred = pred.unsqueeze(0)
             target = target.unsqueeze(0)

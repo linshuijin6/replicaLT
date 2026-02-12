@@ -20,7 +20,15 @@ import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from sklearn.model_selection import train_test_split
 
-from config import Config
+from .config import Config
+from .condition import (
+    TabularStats,
+    CLINICAL_FIELDS,
+    PLASMA_FIELDS,
+    LOG1P_FIELDS,
+    normalize_source,
+    source_to_id,
+)
 
 
 # ============================================================================
@@ -39,14 +47,24 @@ DIAGNOSIS_MAP = {
 
 def normalize_diagnosis(raw) -> Optional[str]:
     """将诊断标签规范化为 CN/MCI/AD"""
-    if pd.isna(raw):
+    # 处理 None 和 NaN
+    if raw is None:
         return None
+    try:
+        if pd.isna(raw):
+            return None
+    except (ValueError, TypeError):
+        pass
+    
     # 尝试数值映射
     if isinstance(raw, (int, float)):
-        if np.isfinite(raw):
-            key = int(raw) if float(raw).is_integer() else raw
-            if key in DIAGNOSIS_MAP:
-                return DIAGNOSIS_MAP[key]
+        try:
+            if np.isfinite(raw):
+                key = int(raw) if float(raw).is_integer() else raw
+                if key in DIAGNOSIS_MAP:
+                    return DIAGNOSIS_MAP[key]
+        except (ValueError, TypeError):
+            pass
     # 字符串映射
     if isinstance(raw, str):
         upper = raw.strip().upper()
@@ -136,7 +154,18 @@ def build_sample_list(config: Config) -> pd.DataFrame:
     """
     # 读取 pairs 表
     pairs_df = pd.read_csv(config.data.pairs_csv)
-    pairs_df.columns = [c.lower() for c in pairs_df.columns]
+    
+    # 处理重复列名：保留第一个，删除后续同名列
+    orig_cols = pairs_df.columns.tolist()
+    lower_cols = [c.lower() for c in orig_cols]
+    seen = {}
+    keep_idx = []
+    for i, lc in enumerate(lower_cols):
+        if lc not in seen:
+            seen[lc] = i
+            keep_idx.append(i)
+    pairs_df = pairs_df.iloc[:, keep_idx]
+    pairs_df.columns = [lower_cols[i] for i in keep_idx]
     
     # 标准化列名
     col_map = {
@@ -200,6 +229,13 @@ def build_sample_list(config: Config) -> pd.DataFrame:
     missing_mri = 0
     missing_tau = 0
     
+    extra_fields = list({
+        *config.condition.clinical_fields,
+        *config.condition.plasma_fields,
+        "sex",
+        config.condition.source_col,
+    })
+
     for _, row in pairs_df.iterrows():
         ptid = str(row["ptid"])
         mri_id = str(row["mri_id"])
@@ -226,7 +262,7 @@ def build_sample_list(config: Config) -> pd.DataFrame:
             missing_tau += 1
             continue
         
-        samples.append({
+        sample = {
             "ptid": ptid,
             "mri_id": mri_id,
             "tau_id": tau_id,
@@ -236,7 +272,13 @@ def build_sample_list(config: Config) -> pd.DataFrame:
             "quality_class": row["quality_class"],
             "train_weight": row["train_weight"],
             "pet_mfr": row["pet_mfr"],
-        })
+        }
+        for field in extra_fields:
+            if field in row.index:
+                sample[field] = row[field]
+            else:
+                sample[field] = None
+        samples.append(sample)
     
     print(f"[build_sample_list] 有效样本: {len(samples)}, 缺失 MRI: {missing_mri}, 缺失 TAU: {missing_tau}")
     
@@ -275,6 +317,13 @@ def stratified_split(
         stratify=df["_stratify_key"],
         random_state=config.data.seed,
     )
+    
+    # 第二次划分前重新检查分层键
+    key_counts_2 = val_test_df["_stratify_key"].value_counts()
+    rare_keys_2 = key_counts_2[key_counts_2 < 2].index
+    if len(rare_keys_2) > 0:
+        val_test_df = val_test_df.copy()
+        val_test_df.loc[val_test_df["_stratify_key"].isin(rare_keys_2), "_stratify_key"] = "rare_combined_2"
     
     # 第二次划分: val vs test
     test_ratio = config.data.test_ratio / val_test_ratio
@@ -413,11 +462,21 @@ class MRITauDataset(Dataset):
         target_shape: Tuple[int, int, int] = (160, 192, 160),
         return_weight: bool = True,
         augment: bool = False,
+        condition_mode: str = "none",
+        tabular_stats: Optional[TabularStats] = None,
+        source_col: str = "plasma_source",
+        clinical_fields: Optional[List[str]] = None,
+        plasma_fields: Optional[List[str]] = None,
     ):
         self.df = df.reset_index(drop=True)
         self.target_shape = target_shape
         self.return_weight = return_weight
         self.augment = augment
+        self.condition_mode = condition_mode
+        self.tabular_stats = tabular_stats
+        self.source_col = source_col
+        self.clinical_fields = clinical_fields or CLINICAL_FIELDS
+        self.plasma_fields = plasma_fields or PLASMA_FIELDS
         
         # 验证
         self.bad_samples = []
@@ -428,7 +487,11 @@ class MRITauDataset(Dataset):
     def _load_and_preprocess(self, path: str) -> np.ndarray:
         """加载并预处理 NIfTI 文件"""
         img = nib.load(path)
+        # Reorient to canonical (RAS+) so axis meaning is consistent across files.
+        img = nib.as_closest_canonical(img)
         data = img.get_fdata(dtype=np.float32)
+        # Convert from (X, Y, Z) to (D=Z, H=Y, W=X) for model/visualization.
+        data = np.transpose(data, (2, 1, 0))
         
         # 中央裁剪
         data = center_crop_3d(data, self.target_shape)
@@ -479,6 +542,13 @@ class MRITauDataset(Dataset):
                 "pet_mfr": row["pet_mfr"],
             }
         }
+
+        if self.condition_mode != "none" and self.tabular_stats is not None:
+            cond = self._build_condition(row)
+            result.update(cond)
+            result["meta"]["plasma_source"] = normalize_source(row.get(self.source_col))
+            if "pt217_f" in row.index:
+                result["meta"]["pt217_f"] = row.get("pt217_f")
         
         if self.return_weight:
             result["weight"] = torch.tensor(row["train_weight"], dtype=torch.float32)
@@ -486,6 +556,95 @@ class MRITauDataset(Dataset):
             result["weight"] = torch.tensor(1.0, dtype=torch.float32)
         
         return result
+
+    def _safe_float(self, x: Any) -> Optional[float]:
+        if x is None:
+            return None
+        try:
+            if pd.isna(x):
+                return None
+        except (ValueError, TypeError):
+            pass
+        try:
+            return float(x)
+        except (ValueError, TypeError):
+            return None
+
+    def _is_missing(self, value: Optional[float], plasma: bool = False) -> bool:
+        if value is None:
+            return True
+        if not np.isfinite(value):
+            return True
+        if plasma and value <= -3.9:
+            return True
+        return False
+
+    def _normalize_field(
+        self,
+        value: Optional[float],
+        stats: Tuple[float, float],
+        log1p: bool = False,
+    ) -> Tuple[float, float]:
+        if value is None or not np.isfinite(value):
+            return 0.0, 1.0
+        v = float(value)
+        if log1p:
+            v = float(np.log1p(v))
+        median, iqr = stats
+        return (v - median) / (iqr + 1e-8), 0.0
+
+    def _build_condition(self, row: pd.Series) -> Dict[str, torch.Tensor]:
+        clinical_vals = []
+        clinical_mask = []
+        plasma_vals = []
+        plasma_mask = []
+
+        plasma_source = row.get(self.source_col)
+        plasma_stats = self.tabular_stats.get_plasma_stats(plasma_source)
+
+        for field in self.clinical_fields:
+            raw = row.get(field)
+            v = self._safe_float(raw)
+            if self._is_missing(v, plasma=False):
+                clinical_vals.append(0.0)
+                clinical_mask.append(1.0)
+            else:
+                stats = self.tabular_stats.clinical_stats.get(field, (0.0, 1.0))
+                normed, mask = self._normalize_field(v, stats, log1p=False)
+                clinical_vals.append(normed)
+                clinical_mask.append(mask)
+
+        for field in self.plasma_fields:
+            raw = row.get(field)
+            v = self._safe_float(raw)
+            if self._is_missing(v, plasma=True):
+                plasma_vals.append(0.0)
+                plasma_mask.append(1.0)
+            else:
+                stats = plasma_stats.get(field, self.tabular_stats.plasma_stats.get("__global__", {}).get(field, (0.0, 1.0)))
+                normed, mask = self._normalize_field(v, stats, log1p=field in LOG1P_FIELDS)
+                plasma_vals.append(normed)
+                plasma_mask.append(mask)
+
+        sex_raw = row.get("sex")
+        sex_id = 0
+        if isinstance(sex_raw, str):
+            sx = sex_raw.strip().lower()
+            if sx in {"m", "male", "man"}:
+                sex_id = 1
+            elif sx in {"f", "female", "woman"}:
+                sex_id = 2
+
+        source_id = source_to_id(plasma_source)
+
+        return {
+            "clinical": torch.tensor(clinical_vals, dtype=torch.float32),
+            "plasma": torch.tensor(plasma_vals, dtype=torch.float32),
+            "clinical_mask": torch.tensor(clinical_mask, dtype=torch.float32),
+            "plasma_mask": torch.tensor(plasma_mask, dtype=torch.float32),
+            "sex": torch.tensor(sex_id, dtype=torch.long),
+            "source": torch.tensor(source_id, dtype=torch.long),
+        }
     
     def _augment(
         self,
@@ -530,24 +689,49 @@ def create_dataloaders(
     stats_path = os.path.join(config.output_dir, "split_statistics.txt")
     print_split_statistics(train_df, val_df, test_df, stats_path)
     
+    # 条件特征统计（仅使用训练集）
+    tabular_stats = None
+    if config.condition.mode != "none":
+        tabular_stats = TabularStats.from_dataframe(
+            train_df,
+            clinical_fields=config.condition.clinical_fields,
+            plasma_fields=config.condition.plasma_fields,
+            source_col=config.condition.source_col,
+        )
+
     # 创建 Dataset
     train_dataset = MRITauDataset(
         train_df,
         target_shape=config.data.target_shape,
         return_weight=True,
         augment=True,
+        condition_mode=config.condition.mode,
+        tabular_stats=tabular_stats,
+        source_col=config.condition.source_col,
+        clinical_fields=config.condition.clinical_fields,
+        plasma_fields=config.condition.plasma_fields,
     )
     val_dataset = MRITauDataset(
         val_df,
         target_shape=config.data.target_shape,
         return_weight=False,
         augment=False,
+        condition_mode=config.condition.mode,
+        tabular_stats=tabular_stats,
+        source_col=config.condition.source_col,
+        clinical_fields=config.condition.clinical_fields,
+        plasma_fields=config.condition.plasma_fields,
     )
     test_dataset = MRITauDataset(
         test_df,
         target_shape=config.data.target_shape,
         return_weight=False,
         augment=False,
+        condition_mode=config.condition.mode,
+        tabular_stats=tabular_stats,
+        source_col=config.condition.source_col,
+        clinical_fields=config.condition.clinical_fields,
+        plasma_fields=config.condition.plasma_fields,
     )
     
     # 创建 DataLoader
