@@ -17,19 +17,29 @@ data:
 
 # Plasma 配置
 plasma:
-  # 5 个 plasma 指标的字段名（与 CSV 列名对齐）
-  keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
+  # 全部可选项（canonical key，默认与 CSV 列名一致）
+  # 可选：AB42_AB40_F, pT217_F, pT217_AB42_F, NfL_Q, GFAP_Q
+  available_keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
+  # 实际启用项（支持 1 个或多个）；大小写不敏感，可通过 key_aliases 兼容别名
+  selected_keys: ["pT217_F"]
+  # 大小写/别名兼容映射（左侧可写任意别名，右侧需指向 canonical key）
+  key_aliases:
+    ab42_ab40_f: AB42_AB40_F
+    pt217_f: pT217_F
+    pt217_ab42_f: pT217_AB42_F
+    nfl_q: NfL_Q
+    gfap_q: GFAP_Q
   # 权重温度（softmax(plasma_z / T)）
   temperature: 1.0
   # 归一化统计（若为 null 则训练时自动计算 z-score 均值/标准差）
   norm_stats: null
-  # 5 个 plasma 语义提示文本
-  prompts:
-    - "plasma biomarker indicates amyloid-beta 42/40 ratio pathology"
-    - "plasma biomarker indicates phosphorylated tau 217 pathology"
-    - "plasma biomarker indicates combined pTau217 and amyloid pathology"
-    - "plasma biomarker indicates neurofilament light chain neurodegeneration"
-    - "plasma biomarker indicates glial fibrillary acidic protein astrogliosis"
+  # 按 key 定义语义提示（训练时会按 selected_keys 顺序自动组装）
+  prompts_by_key:
+    AB42_AB40_F: "plasma biomarker indicates amyloid-beta 42/40 ratio pathology"
+    pT217_F: "plasma biomarker indicates phosphorylated tau 217 pathology"
+    pT217_AB42_F: "plasma biomarker indicates combined pTau217 and amyloid pathology"
+    NfL_Q: "plasma biomarker indicates neurofilament light chain neurodegeneration"
+    GFAP_Q: "plasma biomarker indicates glial fibrillary acidic protein astrogliosis"
 
 # 类别（诊断）配置
 classes:
@@ -61,9 +71,9 @@ model:
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
   gpu: 4
-  batch_size: 4
+  batch_size: 16
   epochs: 200
-  lr: 2e-5
+  lr: 2e-4
   weight_decay: 1e-5
   grad_clip: 1.0
   max_grad_norm: 1.0
@@ -73,6 +83,9 @@ training:
   lambda_img_plasma: 2.0  # V2 核心损失，权重提升
   lambda_class_plasma: 0.1  # 较小，防止抢主任务
   lambda_reg: 0.01  # 正则（防止 class/plasma 塌缩）
+  # 若需“软屏蔽 plasma 训练信号”，可设为：
+  # lambda_img_plasma=0.0, lambda_class_plasma=0.0, lambda_reg=0.0
+  # （注意：此方式仍会执行 plasma 分支前向，仅不通过这些项反传梯度）
   # V2 新增损失权重
   lambda_redundancy: 0.1  # Context Net 冗余约束
   lambda_ctx_norm: 0.01  # Context 范数正则

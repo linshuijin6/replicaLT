@@ -66,6 +66,53 @@ def contrastive_loss(
     return 0.5 * (loss_a2b + loss_b2a)
 
 
+def class_prototype_loss(
+    img_emb: torch.Tensor,
+    class_emb_all: torch.Tensor,
+    label_idx: torch.Tensor,
+    logit_scale: torch.Tensor,
+) -> torch.Tensor:
+    """
+    类别原型级图文对齐损失（每样本对 C 个类别原型做 softmax）。
+
+    Args:
+        img_emb: (B, D) - 图像 embedding（已 L2 归一化）
+        class_emb_all: (B, C, D) - 每样本的 C 个类别原型 embedding（已 L2 归一化）
+        label_idx: (B,) - 类别标签，范围 [0, C-1]，无效标签可为 -1
+        logit_scale: () - 可学习的 logit scale（exp 后）
+
+    Returns:
+        loss: () - 标量损失
+    """
+    if class_emb_all.dim() != 3:
+        raise ValueError(
+            f"class_emb_all 维度错误: expect (B, C, D), got {tuple(class_emb_all.shape)}"
+        )
+
+    B, C, D = class_emb_all.shape
+    if img_emb.shape[0] != B or img_emb.shape[1] != D:
+        raise ValueError(
+            "img_emb 与 class_emb_all 形状不匹配: "
+            f"img_emb={tuple(img_emb.shape)}, class_emb_all={tuple(class_emb_all.shape)}"
+        )
+    if label_idx.shape[0] != B:
+        raise ValueError(
+            f"label_idx 长度不匹配: label_idx={tuple(label_idx.shape)}, B={B}"
+        )
+
+    valid_mask = (label_idx >= 0) & (label_idx < C)
+    if not valid_mask.any():
+        return torch.tensor(0.0, device=img_emb.device, requires_grad=True)
+
+    img_valid = img_emb[valid_mask]
+    class_valid = class_emb_all[valid_mask]
+    target_valid = label_idx[valid_mask].long()
+
+    # logits: (B_valid, C)
+    logits = logit_scale * torch.einsum("bd,bcd->bc", img_valid, class_valid)
+    return F.cross_entropy(logits, target_valid)
+
+
 # ============================================================================
 # 正则损失
 # ============================================================================
@@ -129,6 +176,8 @@ def compute_total_loss(
     plasma_emb: torch.Tensor,
     logit_scale: torch.Tensor,
     plasma_mask: torch.Tensor,
+    class_emb_all: Optional[torch.Tensor] = None,
+    label_idx: Optional[torch.Tensor] = None,
     lambda_img_class: float = 1.0,
     lambda_img_plasma: float = 0.5,
     lambda_class_plasma: float = 0.1,
@@ -145,6 +194,8 @@ def compute_total_loss(
         plasma_emb: (B, D) - plasma embedding（已 L2 归一化）
         logit_scale: () - 可学习的 logit scale
         plasma_mask: (B, 5) - plasma 有效 mask
+        class_emb_all: (B, C, D) - 每样本类别原型 embedding（可选）
+        label_idx: (B,) - 类别标签（可选）
         lambda_*: 各损失权重
         reg_type: 正则类型 "high_sim_penalty" | "weak_orth"
         reg_cos_max: 用于 high_sim_penalty 的阈值
@@ -166,7 +217,16 @@ def compute_total_loss(
     # =========================================================================
     # L_img_class: Image ↔ Class
     # =========================================================================
-    L_img_class = contrastive_loss(img_emb, class_emb, logit_scale)
+    if class_emb_all is not None and label_idx is not None:
+        L_img_class = class_prototype_loss(
+            img_emb=img_emb,
+            class_emb_all=class_emb_all,
+            label_idx=label_idx,
+            logit_scale=logit_scale,
+        )
+    else:
+        # 兼容旧调用：回退到 batch 实例级 CLIP-style
+        L_img_class = contrastive_loss(img_emb, class_emb, logit_scale)
     
     # =========================================================================
     # L_img_plasma: Image ↔ Plasma（只计算 plasma 有效的样本）

@@ -148,12 +148,12 @@ def compute_plasma_weights(
     计算 plasma 加权权重：softmax(plasma_z / T) with mask
     
     Args:
-        plasma_values: (B, 5) - z-score 归一化的 plasma 值
-        plasma_mask: (B, 5) - 有效 mask
+        plasma_values: (B, K) - z-score 归一化的 plasma 值
+        plasma_mask: (B, K) - 有效 mask
         temperature: softmax 温度
         
     Returns:
-        weights: (B, 5) - 归一化权重，缺失位置为 0
+        weights: (B, K) - 归一化权重，缺失位置为 0
     """
     # 对无效位置设置 -inf
     logits = plasma_values / max(temperature, 1e-6)
@@ -166,11 +166,12 @@ def compute_plasma_weights(
     # 处理全缺失情况（softmax 后全为 nan）
     # 若某样本全缺失，使用均匀权重
     all_missing = ~plasma_mask.any(dim=-1, keepdim=True)  # (B, 1)
-    uniform = torch.ones_like(weights) / 5.0
+    n_plasma = max(int(weights.shape[-1]), 1)
+    uniform = torch.ones_like(weights) / float(n_plasma)
     weights = torch.where(all_missing.expand_as(weights), uniform, weights)
     
     # 确保无 nan
-    weights = torch.nan_to_num(weights, nan=0.2)
+    weights = torch.nan_to_num(weights, nan=(1.0 / float(n_plasma)))
     
     return weights
 
@@ -440,6 +441,7 @@ class CoCoOpTAUModel(nn.Module):
             Dict:
                 img_emb: (B, 512) - 图像 embedding，L2 归一化
                 class_emb: (B, 512) - 类别 embedding，L2 归一化
+                class_emb_all: (B, 3, 512) - 三类类别 embedding，L2 归一化
                 plasma_emb: (B, 512) - plasma embedding，L2 归一化
                 plasma_weights: (B, 5) - plasma 权重
                 logit_scale: () - 可学习的 logit scale
@@ -486,18 +488,22 @@ class CoCoOpTAUModel(nn.Module):
         # class_features: (B, 3, text_width) 例如 (B, 3, 512)
         class_features = self.text_encoder(class_prompts, class_token_ids)
         
+        # 投影所有类别特征（用于类别原型级损失）
+        # class_emb_all: (B, 3, 512)
+        class_emb_all = self.proj_class(class_features)
+        class_emb_all = F.normalize(class_emb_all, dim=-1)
+
         # 根据 diagnosis_id 选择对应的类别特征
         # indices: (B,)
         batch_indices = torch.arange(B, device=device)
         # 处理无效 diagnosis_id（-1 变为 0 以避免索引错误）
         valid_diag_id = diagnosis_id.clamp(min=0)
-        # class_feat_pos: (B, text_width)
-        class_feat_pos = class_features[batch_indices, valid_diag_id]
-        
-        # Project
+        # class_emb_pos: (B, 512)
+        class_emb_pos = class_emb_all[batch_indices, valid_diag_id]
+
+        # class_emb: (B, 512) 保持与旧接口兼容
         # class_emb: (B, 512)
-        class_emb = self.proj_class(class_feat_pos)
-        class_emb = F.normalize(class_emb, dim=-1)
+        class_emb = class_emb_pos
         
         # =====================================================================
         # 3. Plasma Branch
@@ -538,6 +544,7 @@ class CoCoOpTAUModel(nn.Module):
         return {
             "img_emb": img_emb,           # (B, 512) - L2 归一化
             "class_emb": class_emb,       # (B, 512) - L2 归一化
+            "class_emb_all": class_emb_all,  # (B, 3, 512) - L2 归一化
             "plasma_emb": plasma_emb,     # (B, 512) - L2 归一化
             "plasma_weights": plasma_weights,  # (B, 5)
             "logit_scale": self.logit_scale.exp().clamp(max=100.0),  # ()
