@@ -934,6 +934,16 @@ def main():
     selected_plasma_keys, plasma_prompts = resolve_plasma_config(config)
     config.setdefault("plasma", {})["keys"] = selected_plasma_keys
     print(f"[Plasma] Selected keys ({len(selected_plasma_keys)}): {selected_plasma_keys}")
+
+    plasma_weight_mode = str(config.get("plasma", {}).get("weight_mode", "sigmoid")).strip().lower()
+    if len(selected_plasma_keys) == 1 and plasma_weight_mode == "softmax":
+        print("[Plasma] WARN: 单 plasma key 下 softmax 会退化为恒为 1 的权重，自动切换为 sigmoid")
+        plasma_weight_mode = "sigmoid"
+    if plasma_weight_mode not in {"softmax", "sigmoid"}:
+        raise ValueError(
+            f"Unsupported plasma.weight_mode: {plasma_weight_mode}. Expected 'softmax' or 'sigmoid'."
+        )
+    print(f"[Plasma] weight_mode={plasma_weight_mode}")
     
     # =========================================================================
     # 缓存验证与补充生成
@@ -1101,6 +1111,7 @@ def main():
         ctx_hidden_dim=model_cfg.get("ctx_hidden_dim", 1024),
         share_ctx_base=model_cfg.get("share_ctx_base", False),
         plasma_temperature=config["plasma"].get("temperature", 1.0),
+        plasma_weight_mode=plasma_weight_mode,
     )
     model = model.to(device)
     

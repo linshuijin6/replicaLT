@@ -143,37 +143,43 @@ def compute_plasma_weights(
     plasma_values: torch.Tensor,
     plasma_mask: torch.Tensor,
     temperature: float = 1.0,
+    mode: str = "sigmoid",
 ) -> torch.Tensor:
     """
-    计算 plasma 加权权重：softmax(plasma_z / T) with mask
+    计算 plasma 加权权重（支持 softmax / sigmoid）
     
     Args:
         plasma_values: (B, K) - z-score 归一化的 plasma 值
         plasma_mask: (B, K) - 有效 mask
-        temperature: softmax 温度
+        temperature: 温度参数
+        mode: 权重模式，"softmax" 或 "sigmoid"
         
     Returns:
         weights: (B, K) - 归一化权重，缺失位置为 0
     """
-    # 对无效位置设置 -inf
-    logits = plasma_values / max(temperature, 1e-6)
-    # mask: True 表示有效，False 表示缺失
-    logits = logits.masked_fill(~plasma_mask, float("-inf"))
-    
-    # Softmax
-    weights = F.softmax(logits, dim=-1)
-    
-    # 处理全缺失情况（softmax 后全为 nan）
-    # 若某样本全缺失，使用均匀权重
-    all_missing = ~plasma_mask.any(dim=-1, keepdim=True)  # (B, 1)
-    n_plasma = max(int(weights.shape[-1]), 1)
-    uniform = torch.ones_like(weights) / float(n_plasma)
-    weights = torch.where(all_missing.expand_as(weights), uniform, weights)
-    
-    # 确保无 nan
-    weights = torch.nan_to_num(weights, nan=(1.0 / float(n_plasma)))
-    
-    return weights
+    temp = max(float(temperature), 1e-6)
+    mode = str(mode).strip().lower()
+    mask_f = plasma_mask.to(dtype=plasma_values.dtype)
+
+    if mode == "softmax":
+        logits = plasma_values / temp
+        logits = logits.masked_fill(~plasma_mask, float("-inf"))
+        weights = F.softmax(logits, dim=-1)
+
+        all_missing = ~plasma_mask.any(dim=-1, keepdim=True)
+        n_plasma = max(int(weights.shape[-1]), 1)
+        uniform = torch.ones_like(weights) / float(n_plasma)
+        weights = torch.where(all_missing.expand_as(weights), uniform, weights)
+        weights = torch.nan_to_num(weights, nan=(1.0 / float(n_plasma)))
+        return weights
+
+    if mode == "sigmoid":
+        weights = torch.sigmoid(plasma_values / temp) * mask_f
+        all_missing = ~plasma_mask.any(dim=-1, keepdim=True)
+        weights = torch.where(all_missing.expand_as(weights), torch.zeros_like(weights), weights)
+        return torch.nan_to_num(weights, nan=0.0)
+
+    raise ValueError(f"Unsupported plasma weight mode: {mode}. Expected 'softmax' or 'sigmoid'.")
 
 
 # ============================================================================
@@ -214,6 +220,7 @@ class CoCoOpTAUModel(nn.Module):
         ctx_hidden_dim: int = 1024,
         share_ctx_base: bool = False,
         plasma_temperature: float = 1.0,
+        plasma_weight_mode: str = "sigmoid",
     ):
         """
         Args:
@@ -226,11 +233,18 @@ class CoCoOpTAUModel(nn.Module):
             ctx_hidden_dim: ContextNet 隐藏层维度
             share_ctx_base: 是否共享 class/plasma 的 base context
             plasma_temperature: plasma 权重温度
+            plasma_weight_mode: plasma 权重模式（softmax/sigmoid）
         """
         super().__init__()
         
         self.class_names = class_names or ["CN", "MCI", "AD"]
         self.plasma_temperature = plasma_temperature
+        self.plasma_weight_mode = str(plasma_weight_mode).strip().lower()
+        if self.plasma_weight_mode not in {"softmax", "sigmoid"}:
+            raise ValueError(
+                f"Unsupported plasma_weight_mode: {plasma_weight_mode}. "
+                "Expected 'softmax' or 'sigmoid'."
+            )
         self.ctx_len = ctx_len
         
         # =====================================================================
@@ -526,7 +540,10 @@ class CoCoOpTAUModel(nn.Module):
         # 计算 plasma 权重
         # plasma_weights: (B, 5)
         plasma_weights = compute_plasma_weights(
-            plasma_values, plasma_mask, self.plasma_temperature
+            plasma_values,
+            plasma_mask,
+            self.plasma_temperature,
+            mode=self.plasma_weight_mode,
         )
         
         # 加权汇聚
