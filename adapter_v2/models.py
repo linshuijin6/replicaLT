@@ -136,53 +136,6 @@ class ProjectionHead(nn.Module):
 
 
 # ============================================================================
-# Plasma 权重计算
-# ============================================================================
-
-def compute_plasma_weights(
-    plasma_values: torch.Tensor,
-    plasma_mask: torch.Tensor,
-    temperature: float = 1.0,
-    mode: str = "sigmoid",
-) -> torch.Tensor:
-    """
-    计算 plasma 加权权重（支持 softmax / sigmoid）
-    
-    Args:
-        plasma_values: (B, K) - z-score 归一化的 plasma 值
-        plasma_mask: (B, K) - 有效 mask
-        temperature: 温度参数
-        mode: 权重模式，"softmax" 或 "sigmoid"
-        
-    Returns:
-        weights: (B, K) - 归一化权重，缺失位置为 0
-    """
-    temp = max(float(temperature), 1e-6)
-    mode = str(mode).strip().lower()
-    mask_f = plasma_mask.to(dtype=plasma_values.dtype)
-
-    if mode == "softmax":
-        logits = plasma_values / temp
-        logits = logits.masked_fill(~plasma_mask, float("-inf"))
-        weights = F.softmax(logits, dim=-1)
-
-        all_missing = ~plasma_mask.any(dim=-1, keepdim=True)
-        n_plasma = max(int(weights.shape[-1]), 1)
-        uniform = torch.ones_like(weights) / float(n_plasma)
-        weights = torch.where(all_missing.expand_as(weights), uniform, weights)
-        weights = torch.nan_to_num(weights, nan=(1.0 / float(n_plasma)))
-        return weights
-
-    if mode == "sigmoid":
-        weights = torch.sigmoid(plasma_values / temp) * mask_f
-        all_missing = ~plasma_mask.any(dim=-1, keepdim=True)
-        weights = torch.where(all_missing.expand_as(weights), torch.zeros_like(weights), weights)
-        return torch.nan_to_num(weights, nan=0.0)
-
-    raise ValueError(f"Unsupported plasma weight mode: {mode}. Expected 'softmax' or 'sigmoid'.")
-
-
-# ============================================================================
 # CoCoOp 主模型
 # ============================================================================
 
@@ -200,13 +153,14 @@ class CoCoOpTAUModel(nn.Module):
        - class_prompts + T_ctx -> TextEncoder -> class_features: (B, 3, D_text)
        - 取对应 diagnosis 的特征 -> ProjectionHead -> class_emb: (B, 512)
        
-    3. Plasma Branch:
-       - plasma_prompts + T_ctx -> TextEncoder -> plasma_features: (B, 5, D_text)
-       - plasma_weights 加权汇聚 -> ProjectionHead -> plasma_emb: (B, 512)
+     3. Plasma Branch:
+         - plasma_prompts + T_ctx -> TextEncoder -> plasma_features: (B, K, D_text)
+         - concat([plasma_features, plasma_z]) -> ProjectionHead -> per_key_emb: (B, K, 512)
+         - masked mean 聚合 -> plasma_emb: (B, 512)
     
     输出：
     - img_emb, class_emb, plasma_emb 各 (B, 512)
-    - plasma_weights: (B, 5)
+    - plasma_values/plasma_mask: (B, K)
     """
     
     def __init__(
@@ -232,19 +186,14 @@ class CoCoOpTAUModel(nn.Module):
             proj_dim: projection 输出维度
             ctx_hidden_dim: ContextNet 隐藏层维度
             share_ctx_base: 是否共享 class/plasma 的 base context
-            plasma_temperature: plasma 权重温度
-            plasma_weight_mode: plasma 权重模式（softmax/sigmoid）
+            plasma_temperature: 兼容旧参数（已弃用）
+            plasma_weight_mode: 兼容旧参数（已弃用）
         """
         super().__init__()
         
         self.class_names = class_names or ["CN", "MCI", "AD"]
         self.plasma_temperature = plasma_temperature
         self.plasma_weight_mode = str(plasma_weight_mode).strip().lower()
-        if self.plasma_weight_mode not in {"softmax", "sigmoid"}:
-            raise ValueError(
-                f"Unsupported plasma_weight_mode: {plasma_weight_mode}. "
-                "Expected 'softmax' or 'sigmoid'."
-            )
         self.ctx_len = ctx_len
         
         # =====================================================================
@@ -294,6 +243,7 @@ class CoCoOpTAUModel(nn.Module):
             "plasma biomarker indicates neurofilament light chain neurodegeneration",
             "plasma biomarker indicates glial fibrillary acidic protein astrogliosis",
         ]
+        self.num_plasma_keys = len(self.plasma_prompts)
         
         # =====================================================================
         # 可学习 Context Base Tokens
@@ -357,9 +307,10 @@ class CoCoOpTAUModel(nn.Module):
             dropout=0.1,
         )
         
-        # Plasma projection: text_width -> proj_dim
+        # Plasma projection: (text_width + 1) -> proj_dim
+        # 额外 1 维来自每个 key 的 z-score 数值
         self.proj_plasma = ProjectionHead(
-            in_dim=self.text_width,
+            in_dim=self.text_width + 1,
             out_dim=proj_dim,
             hidden_dim=proj_dim,
             dropout=0.1,
@@ -448,8 +399,8 @@ class CoCoOpTAUModel(nn.Module):
         Args:
             tau_tokens: (B, N, Dv) - patch tokens
             diagnosis_id: (B,) - 诊断类别 ID [0, 1, 2]
-            plasma_values: (B, 5) - z-score 归一化的 plasma 值
-            plasma_mask: (B, 5) - 有效 mask
+            plasma_values: (B, K) - z-score 归一化的 plasma 值
+            plasma_mask: (B, K) - 有效 mask
             
         Returns:
             Dict:
@@ -457,7 +408,7 @@ class CoCoOpTAUModel(nn.Module):
                 class_emb: (B, 512) - 类别 embedding，L2 归一化
                 class_emb_all: (B, 3, 512) - 三类类别 embedding，L2 归一化
                 plasma_emb: (B, 512) - plasma embedding，L2 归一化
-                plasma_weights: (B, 5) - plasma 权重
+                plasma_values/plasma_mask: (B, K)
                 logit_scale: () - 可学习的 logit scale
         """
         B = tau_tokens.shape[0]
@@ -527,33 +478,52 @@ class CoCoOpTAUModel(nn.Module):
         ctx_plasma = self.base_ctx_plasma.unsqueeze(0) + T_ctx
         
         # 构建 prompt embedding
-        # plasma_prompts_emb: (B, 5, seq_len, ctx_dim)
-        # plasma_token_ids: (B, 5, seq_len)
+        # plasma_prompts_emb: (B, K, seq_len, ctx_dim)
+        # plasma_token_ids: (B, K, seq_len)
         plasma_prompts_emb, plasma_token_ids = self._build_prompts_with_context(
             self.plasma_prompts, ctx_plasma, device
         )
         
         # Text encoder
-        # plasma_features: (B, 5, text_width)
+        # plasma_features: (B, K, text_width)
         plasma_features = self.text_encoder(plasma_prompts_emb, plasma_token_ids)
-        
-        # 计算 plasma 权重
-        # plasma_weights: (B, 5)
-        plasma_weights = compute_plasma_weights(
-            plasma_values,
-            plasma_mask,
-            self.plasma_temperature,
-            mode=self.plasma_weight_mode,
-        )
-        
-        # 加权汇聚
-        # plasma_summary: (B, text_width)
-        plasma_summary = torch.einsum("bk,bkd->bd", plasma_weights, plasma_features)
-        
-        # Project
+
+        if plasma_values.shape[1] != self.num_plasma_keys:
+            raise ValueError(
+                f"plasma_values 维度错误: got K={plasma_values.shape[1]}, expected {self.num_plasma_keys}"
+            )
+
+        # plasma_values/plasma_mask: (B, K)
+        plasma_values = plasma_values.to(plasma_features.dtype)
+        plasma_mask_f = plasma_mask.to(plasma_features.dtype)
+
+        # z-score 显式注入：concat([text_feature, z])
+        # plasma_z: (B, K, 1)
+        plasma_z = plasma_values.unsqueeze(-1)
+        # 缺失值位置置 0（由 mask 控制，不参与有效聚合）
+        plasma_z = plasma_z * plasma_mask_f.unsqueeze(-1)
+
+        # plasma_feat_plus_z: (B, K, text_width + 1)
+        plasma_feat_plus_z = torch.cat([plasma_features, plasma_z], dim=-1)
+
+        # 逐 key 共享投影
+        # per_key_emb: (B, K, 512)
+        per_key_emb = self.proj_plasma(plasma_feat_plus_z)
+
+        # masked mean 聚合
+        # valid_count: (B, 1)
+        valid_count = plasma_mask_f.sum(dim=1, keepdim=True)
+        # masked_sum: (B, 512)
+        masked_sum = (per_key_emb * plasma_mask_f.unsqueeze(-1)).sum(dim=1)
+        # plasma_emb_raw: (B, 512)
+        plasma_emb_raw = masked_sum / valid_count.clamp_min(1.0)
+        # all_missing: (B, 1)
+        all_missing = valid_count <= 0
+        plasma_emb_raw = torch.where(all_missing, torch.zeros_like(plasma_emb_raw), plasma_emb_raw)
+
         # plasma_emb: (B, 512)
-        plasma_emb = self.proj_plasma(plasma_summary)
-        plasma_emb = F.normalize(plasma_emb, dim=-1)
+        plasma_emb = F.normalize(plasma_emb_raw, dim=-1)
+        plasma_emb = torch.where(all_missing, torch.zeros_like(plasma_emb), plasma_emb)
         
         # =====================================================================
         # 返回
@@ -563,11 +533,11 @@ class CoCoOpTAUModel(nn.Module):
             "class_emb": class_emb,       # (B, 512) - L2 归一化
             "class_emb_all": class_emb_all,  # (B, 3, 512) - L2 归一化
             "plasma_emb": plasma_emb,     # (B, 512) - L2 归一化
-            "plasma_weights": plasma_weights,  # (B, 5)
+            "plasma_z_used": plasma_z.squeeze(-1),  # (B, K)
             "logit_scale": self.logit_scale.exp().clamp(max=100.0),  # ()
             # 额外输出用于调试
             "class_features_all": class_features,  # (B, 3, text_width)
-            "plasma_features_all": plasma_features,  # (B, 5, text_width)
+            "plasma_features_all": plasma_features,  # (B, K, text_width)
         }
     
     def get_trainable_params(self) -> List[nn.Parameter]:

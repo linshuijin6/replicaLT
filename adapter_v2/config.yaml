@@ -29,9 +29,7 @@ plasma:
     pt217_ab42_f: pT217_AB42_F
     nfl_q: NfL_Q
     gfap_q: GFAP_Q
-  # 权重温度（softmax(plasma_z / T)）
-  temperature: 1.0
-  # 归一化统计（若为 null 则训练时自动计算 z-score 均值/标准差）
+  # 归一化统计（若为 null 则训练时自动计算 z-score 均值/标准差；格式: {source: {key: {mean, std}}}）
   norm_stats: null
   # 按 key 定义语义提示（训练时会按 selected_keys 顺序自动组装）
   prompts_by_key:
@@ -40,6 +38,7 @@ plasma:
     pT217_AB42_F: "plasma biomarker indicates combined pTau217 and amyloid pathology"
     NfL_Q: "plasma biomarker indicates neurofilament light chain neurodegeneration"
     GFAP_Q: "plasma biomarker indicates glial fibrillary acidic protein astrogliosis"
+  # 数值注入策略固定为：concat(text_feature, z_score) + shared projection + masked mean
 
 # 类别（诊断）配置
 classes:
@@ -70,8 +69,8 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 4
-  batch_size: 16
+  gpu: 2
+  batch_size: 8
   epochs: 200
   lr: 2e-4
   weight_decay: 1e-5
