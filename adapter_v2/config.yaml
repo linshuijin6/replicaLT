@@ -70,9 +70,10 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 4
-  batch_size: 16
+  gpu: 1
+  batch_size: 8
   epochs: 200
+  patience: 20  # 早停：验证指标连续多少个 epoch 未提升则停止训练
   lr: 2e-4
   weight_decay: 1e-5
   grad_clip: 1.0

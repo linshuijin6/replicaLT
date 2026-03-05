@@ -1075,7 +1075,7 @@ def main():
     parser.add_argument("--stage1_patience", type=int, default=15, help="Stage-1 早停 patience；<=0 关闭早停")
     parser.add_argument("--stage1_freeze_logit_scale", action="store_true", help="Stage-1 冻结 logit_scale（用于降低步级抖动）")
     parser.add_argument("--plasma_warmup_frac", type=float, default=0.3, help="Stage-2 w_plasma warmup 比例")
-    parser.add_argument("--plasma_weight_max", type=float, default=0.1, help="Stage-2 plasma loss 最大权重")
+    parser.add_argument("--plasma_weight_max", type=float, default=1.0, help="Stage-2 plasma loss 最大权重")
     parser.add_argument("--plasma_feature_name", type=str, default="pT217_F", help="Stage-2 单 key plasma 名称")
 
     args = parser.parse_args()

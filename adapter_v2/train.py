@@ -907,6 +907,7 @@ def main():
     # 覆盖参数
     seed = args.seed if args.seed is not None else config["training"].get("seed", 42)
     epochs = args.epochs if args.epochs is not None else config["training"]["epochs"]
+    patience = int(config["training"].get("patience", 20))
     
     set_seed(seed)
     
@@ -1145,7 +1146,8 @@ def main():
     # =========================================================================
     ckpt_dir = run_dir / "ckpt"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
-    
+    epochs_without_improve = 0
+
     for epoch in range(start_epoch, epochs):
         print(f"\n{'='*60}")
         print(f"Epoch {epoch + 1}/{epochs}")
@@ -1198,7 +1200,9 @@ def main():
         writer.add_scalar("val/plasma_margin_drop_cross_mean", val_metrics["plasma_margin_drop_cross_mean"], epoch)
         
         # 保存 checkpoint
-        current_metric = val_metrics.get("inject_macro_f1", 0.0)
+        current_metric = float(val_metrics.get("inject_macro_f1", float("-inf")))
+        if not np.isfinite(current_metric):
+            current_metric = float("-inf")
         save_every = config["log"].get("save_every", 5)
         
         if (epoch + 1) % save_every == 0:
@@ -1207,15 +1211,26 @@ def main():
                 str(ckpt_dir / f"epoch_{epoch+1:03d}.pt")
             )
         
-        # 保存 best model
+        # 保存 best model + 早停计数
         if current_metric > best_metric:
             best_metric = current_metric
+            epochs_without_improve = 0
             save_checkpoint(
                 model, optimizer, epoch, best_metric,
                 str(ckpt_dir / "best.pt")
             )
             print(f"[Best] New best inject_macro_f1: {best_metric:.4f}")
-    
+        else:
+            epochs_without_improve += 1
+            print(f"[EarlyStop] no improvement: {epochs_without_improve}/{patience}")
+
+        if epochs_without_improve >= patience:
+            print(
+                f"[EarlyStop] Triggered at epoch {epoch + 1}. "
+                f"Best inject_macro_f1: {best_metric:.4f}"
+            )
+            break
+
     writer.close()
     print(f"\nTraining finished. Best inject_macro_f1: {best_metric:.4f}")
 
