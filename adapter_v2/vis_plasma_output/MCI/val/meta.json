@@ -1,0 +1,33 @@
+{
+  "class_name": "MCI",
+  "class_id": 1,
+  "split": "val",
+  "n_samples": 31,
+  "n_valid_plasma": 31,
+  "plasma_key": "pT217_F",
+  "plasma_key_idx": 0,
+  "n_plasma_keys": 1,
+  "spearman_rho": 0.9997982447270901,
+  "shuffle_success": true,
+  "color_norm": "rank",
+  "plasma_val_stats": {
+    "min": -0.8019852042198181,
+    "max": 5.093217849731445,
+    "median": 0.05513080209493637,
+    "mean": 0.31982019543647766,
+    "std": 1.2046849727630615,
+    "p5": -0.7463064193725586,
+    "p25": -0.5354018807411194,
+    "p75": 0.6760337352752686,
+    "p95": 1.7305562496185303,
+    "skewness": 2.0593631267547607
+  },
+  "umap_params": {
+    "n_neighbors": 15,
+    "min_dist": 0.1,
+    "random_state": 42
+  },
+  "seed": 42,
+  "checkpoint": "/home/ssddata/linshuijin/replicaLT/adapter_v2/runs/02.28_2125545/ckpt/best.pt",
+  "warning_k1_degeneracy": "K=1: softmax over single key always outputs weight=1.0. Plasma value magnitude has NO effect on plasma_emb. The high Spearman rho likely reflects image-to-biomarker correlation (via ContextNet) rather than direct plasma value encoding. Consider using multiple plasma keys or a different aggregation."
+}

@@ -1,0 +1,27 @@
+=== Starting all tar jobs ===
+[2026年 02月 08日 星期日 12:42:27 CST] MRI (1360 files)...
+[2026年 02月 08日 星期日 12:44:40 CST] MRI done
+[2026年 02月 08日 星期日 12:44:42 CST] TAU (1120 files)...
+[2026年 02月 08日 星期日 12:46:07 CST] TAU done
+[2026年 02月 08日 星期日 12:46:08 CST] AV45 (537 files)...
+[2026年 02月 08日 星期日 12:47:47 CST] AV45 done
+[2026年 02月 08日 星期日 12:47:47 CST] FDG (184 files)...
+[2026年 02月 08日 星期日 12:48:21 CST] FDG done
+[2026年 02月 08日 星期日 12:48:21 CST] Copying CSV...
+cp: cannot create regular file '/mnt/nfsdata/nfsdata/linshuijin/ADNI_pairs_export/pairs_180d_dx_plasma_90d_matched_with_demog.csv': File exists
+[2026年 02月 08日 星期日 12:48:21 CST] CSV copied
+=== Verification ===
+total 19G
+-rw-rw-r-- 1 linshuijin labmember 8.3G  2月  8  2026 MRI.tar
+-rw-rw-r-- 1 linshuijin labmember 1.1K  2月  8  2026 pack.log
+-rw-rw-r-- 1 linshuijin labmember  588  2月  8  2026 pack_nohup.log
+-rw-rw-r-- 1 linshuijin labmember 1.1M  2月  8  2026 pairs_180d_dx_plasma_90d_matched_with_demog.csv
+-rw-rw-r-- 1 linshuijin labmember 3.2G  2月  8  2026 PET_AV45.tar
+-rw-rw-r-- 1 linshuijin labmember 963M  2月  8  2026 PET_FDG.tar
+-rw-rw-r-- 1 linshuijin labmember 5.6G  2月  8  2026 PET_TAU.tar
+---
+/mnt/nfsdata/nfsdata/linshuijin/ADNI_pairs_export/MRI.tar: 1360 files
+/mnt/nfsdata/nfsdata/linshuijin/ADNI_pairs_export/PET_AV45.tar: 537 files
+/mnt/nfsdata/nfsdata/linshuijin/ADNI_pairs_export/PET_FDG.tar: 184 files
+/mnt/nfsdata/nfsdata/linshuijin/ADNI_pairs_export/PET_TAU.tar: 1120 files
+[2026年 02月 08日 星期日 12:49:11 CST] ALL DONE
