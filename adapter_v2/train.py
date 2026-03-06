@@ -17,6 +17,9 @@ import json
 import yaml
 import random
 import argparse
+import hashlib
+import platform
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from report_error import email_on_error
@@ -70,6 +73,230 @@ def load_config(config_path: str) -> dict:
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     return config
+
+
+def _sha256_file(path: Path) -> str | None:
+    if not path.exists() or not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _to_jsonable(value):
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {k: _to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_to_jsonable(v) for v in value]
+    return value
+
+
+def _run_command(cmd: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(cwd) if cwd is not None else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        return proc.returncode, proc.stdout, proc.stderr
+    except Exception as exc:
+        return 1, "", str(exc)
+
+
+def _collect_git_artifacts(meta_dir: Path, repo_root: Path) -> dict:
+    git_meta = {
+        "repo_root": str(repo_root),
+        "is_git_repo": False,
+        "branch": None,
+        "head_commit": None,
+        "is_dirty": None,
+        "porcelain": [],
+        "has_worktree_changes": False,
+        "has_staged_changes": False,
+        "worktree_diff_path": None,
+        "staged_diff_path": None,
+        "worktree_diff_error": None,
+        "staged_diff_error": None,
+    }
+
+    rc, out, _ = _run_command(["git", "rev-parse", "--is-inside-work-tree"], cwd=repo_root)
+    if rc != 0 or out.strip().lower() != "true":
+        return git_meta
+
+    git_meta["is_git_repo"] = True
+
+    rc, out, _ = _run_command(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root)
+    if rc == 0:
+        git_meta["head_commit"] = out.strip() or None
+
+    rc, out, _ = _run_command(["git", "branch", "--show-current"], cwd=repo_root)
+    if rc == 0:
+        git_meta["branch"] = out.strip() or None
+
+    rc, out, _ = _run_command(["git", "status", "--porcelain"], cwd=repo_root)
+    if rc == 0:
+        porcelain_lines = [line.rstrip("\n") for line in out.splitlines() if line.strip()]
+        git_meta["porcelain"] = porcelain_lines
+        git_meta["is_dirty"] = len(porcelain_lines) > 0
+
+    rc, out, err = _run_command(["git", "diff"], cwd=repo_root)
+    if rc == 0:
+        worktree_diff = out
+        git_meta["has_worktree_changes"] = bool(worktree_diff.strip())
+        if git_meta["has_worktree_changes"]:
+            diff_path = meta_dir / "code_worktree.diff"
+            diff_path.write_text(worktree_diff, encoding="utf-8")
+            git_meta["worktree_diff_path"] = str(diff_path)
+    else:
+        git_meta["worktree_diff_error"] = err.strip() if err else "git diff failed"
+
+    rc, out, err = _run_command(["git", "diff", "--cached"], cwd=repo_root)
+    if rc == 0:
+        staged_diff = out
+        git_meta["has_staged_changes"] = bool(staged_diff.strip())
+        if git_meta["has_staged_changes"]:
+            diff_path = meta_dir / "code_staged.diff"
+            diff_path.write_text(staged_diff, encoding="utf-8")
+            git_meta["staged_diff_path"] = str(diff_path)
+    else:
+        git_meta["staged_diff_error"] = err.strip() if err else "git diff --cached failed"
+
+    if git_meta["is_dirty"] is None:
+        git_meta["is_dirty"] = git_meta["has_worktree_changes"] or git_meta["has_staged_changes"]
+
+    return git_meta
+
+
+def _snapshot_split_file(split_path: Path, meta_dir: Path) -> dict:
+    info = {
+        "split_source_path": str(split_path),
+        "split_exists": split_path.exists(),
+        "split_sha256": None,
+        "snapshot_path": None,
+    }
+    if not split_path.exists() or not split_path.is_file():
+        return info
+
+    snapshot_path = meta_dir / "fixed_split.json"
+    content = split_path.read_text(encoding="utf-8")
+    snapshot_path.write_text(content, encoding="utf-8")
+    info["snapshot_path"] = str(snapshot_path)
+    info["split_sha256"] = _sha256_file(split_path)
+    return info
+
+
+def _snapshot_repro_metadata(
+    run_dir: Path,
+    script_dir: Path,
+    repo_root: Path,
+    args: argparse.Namespace,
+    config: dict,
+    config_path: Path,
+    csv_path: Path,
+    split_path: Path,
+    seed: int,
+    train_count: int,
+    val_count: int,
+):
+    meta_dir = run_dir / "meta"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+
+    resolved_cfg_path = meta_dir / "resolved_config.yaml"
+    with open(resolved_cfg_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(_to_jsonable(config), f, allow_unicode=True, sort_keys=False)
+
+    cli_args_path = meta_dir / "cli_args.json"
+    with open(cli_args_path, "w", encoding="utf-8") as f:
+        json.dump(vars(args), f, indent=2, ensure_ascii=False)
+
+    runtime_info = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "script_path": str(Path(__file__).resolve()),
+        "script_dir": str(script_dir.resolve()),
+        "repo_root": str(repo_root.resolve()),
+        "cwd": str(Path.cwd().resolve()),
+        "python_executable": sys.executable,
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "torch_version": torch.__version__,
+        "cuda_available": torch.cuda.is_available(),
+        "cuda_version": torch.version.cuda,
+        "cudnn_version": torch.backends.cudnn.version(),
+        "seed": seed,
+        "train_samples": int(train_count),
+        "val_samples": int(val_count),
+    }
+    if torch.cuda.is_available():
+        runtime_info["gpu_count"] = torch.cuda.device_count()
+        runtime_info["gpu_names"] = [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]
+
+    runtime_path = meta_dir / "runtime.json"
+    with open(runtime_path, "w", encoding="utf-8") as f:
+        json.dump(runtime_info, f, indent=2, ensure_ascii=False)
+
+    key_files = [
+        script_dir / "train.py",
+        script_dir / "dataset.py",
+        script_dir / "models.py",
+        script_dir / "losses.py",
+        script_dir / "precompute_cache.py",
+        config_path.resolve(),
+    ]
+    file_hashes = {}
+    for file_path in key_files:
+        file_hashes[str(file_path)] = _sha256_file(file_path)
+
+    csv_info = {
+        "csv_path": str(csv_path),
+        "csv_exists": csv_path.exists(),
+        "csv_sha256": _sha256_file(csv_path),
+    }
+    split_info = _snapshot_split_file(split_path, meta_dir)
+    git_info = _collect_git_artifacts(meta_dir=meta_dir, repo_root=repo_root)
+
+    rc, out, err = _run_command([sys.executable, "-m", "pip", "freeze"], cwd=repo_root)
+    requirements_path = meta_dir / "requirements.txt"
+    pip_freeze_ok = rc == 0
+    pip_freeze_error = None
+    if pip_freeze_ok:
+        requirements_path.write_text(out, encoding="utf-8")
+    else:
+        pip_freeze_error = err.strip() if err else "pip freeze failed"
+
+    repro_manifest = {
+        "resolved_config_path": str(resolved_cfg_path),
+        "cli_args_path": str(cli_args_path),
+        "runtime_path": str(runtime_path),
+        "requirements_path": str(requirements_path) if pip_freeze_ok else None,
+        "pip_freeze_ok": pip_freeze_ok,
+        "pip_freeze_error": pip_freeze_error,
+        "file_hashes_sha256": file_hashes,
+        "csv_info": csv_info,
+        "split_info": split_info,
+        "git": git_info,
+        "replay_order": [
+            "checkout git.head_commit",
+            "apply git.staged_diff_path if exists",
+            "apply git.worktree_diff_path if exists",
+        ],
+    }
+
+    manifest_path = meta_dir / "repro_manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(repro_manifest, f, indent=2, ensure_ascii=False)
+
+    print(f"[Repro] Metadata saved to: {meta_dir}")
+    if git_info.get("has_staged_changes"):
+        print(f"[Repro] Captured staged diff: {git_info.get('staged_diff_path')}")
+    if git_info.get("has_worktree_changes"):
+        print(f"[Repro] Captured worktree diff: {git_info.get('worktree_diff_path')}")
 
 
 def _normalize_plasma_key(key: str) -> str:
@@ -1060,6 +1287,7 @@ def main():
         dataset=train_dataset,
         batch_size=batch_size,
         shuffle=True,
+        seed=seed,
         drop_last=True,
     )
     train_loader = DataLoader(
@@ -1137,6 +1365,25 @@ def main():
     run_name = f"{datetime.now().strftime('%m.%d')}_{os.getpid()}"
     run_dir = log_dir / run_name
     writer = SummaryWriter(log_dir=str(run_dir))
+
+    split_path = Path(args.val_split_json).expanduser()
+    if not split_path.is_absolute():
+        split_path = (Path.cwd() / split_path).resolve()
+    repo_root = script_dir.parent
+
+    _snapshot_repro_metadata(
+        run_dir=run_dir,
+        script_dir=script_dir,
+        repo_root=repo_root,
+        args=args,
+        config=config,
+        config_path=config_path,
+        csv_path=csv_path,
+        split_path=split_path,
+        seed=seed,
+        train_count=len(train_dataset),
+        val_count=len(val_dataset),
+    )
     
     # 保存配置
     writer.add_text("config", yaml.dump(config, default_flow_style=False))
