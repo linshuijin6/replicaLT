@@ -534,6 +534,8 @@ class TAUPlasmaDataset(Dataset):
             "tau_cls": tau_cls.float(),
             # diagnosis_id: () - 诊断类别 ID
             "diagnosis_id": torch.tensor(diagnosis_id, dtype=torch.long),
+            # plasma_raw: (5,) - 原始 plasma 值（缺失位置为 0.0）
+            "plasma_raw": torch.tensor(plasma_raw, dtype=torch.float32),
             # plasma_values: (5,) - min-max 归一化后的 plasma 值（按 source 分别归一化）
             "plasma_values": torch.tensor(plasma_norm, dtype=torch.float32),
             # plasma_mask: (5,) - 有效 mask，True 表示该 plasma 值有效
@@ -622,6 +624,7 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     - patch_emb: Tensor (B, N, Dv) - patch tokens
     - img_emb: Tensor (B, D_clip) - cls embedding
     - label_idx: LongTensor (B,) - 诊断类别 ID
+    - plasma_raw: FloatTensor (B, 5) - 原始 plasma 值
     - plasma_vals: FloatTensor (B, 5) - z-score plasma
     - plasma_mask: BoolTensor (B, 5) - 有效 mask
     """
@@ -631,6 +634,7 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     patch_emb = torch.stack([s["tau_tokens"] for s in batch], dim=0)
     img_emb = torch.stack([s["tau_cls"] for s in batch], dim=0)
     label_idx = torch.stack([s["diagnosis_id"] for s in batch], dim=0)
+    plasma_raw = torch.stack([s["plasma_raw"] for s in batch], dim=0)
     plasma_vals = torch.stack([s["plasma_values"] for s in batch], dim=0)
     plasma_mask = torch.stack([s["plasma_mask"] for s in batch], dim=0)
     
@@ -642,6 +646,8 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         "img_emb": img_emb,
         # label_idx: (B,) - 诊断类别 ID
         "label_idx": label_idx,
+        # plasma_raw: (B, 5) - 原始 plasma 值
+        "plasma_raw": plasma_raw,
         # plasma_vals: (B, 5) - z-score 归一化的 plasma
         "plasma_vals": plasma_vals,
         # plasma_mask: (B, 5) - 有效 mask

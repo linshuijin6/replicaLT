@@ -50,6 +50,7 @@ from dataset import TAUPlasmaDataset, SubjectBatchSampler, collate_fn, split_by_
 from models import CoCoOpTAUModel
 from losses import compute_total_loss
 from precompute_cache import get_cache_stats, generate_missing_caches
+from plasma_probe import PlasmaProbeLogger
 
 
 DEFAULT_PLASMA_KEYS = ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
@@ -927,6 +928,7 @@ def train_one_epoch(
     plasma_bin_min_bins_for_loss: int,
     writer: SummaryWriter = None,
     expected_plasma_dim: int | None = None,
+    plasma_probe_logger=None,
 ):
     """
     训练一个 epoch
@@ -960,8 +962,10 @@ def train_one_epoch(
         patch_emb = batch["patch_emb"].to(device)   # (B, N, 768) - patch tokens
         label_idx = batch["label_idx"].to(device)   # (B,)
         plasma_vals = batch["plasma_vals"].to(device)  # (B, K)
+        plasma_raw = batch.get("plasma_raw", batch["plasma_vals"]).to(device)
         plasma_mask = batch["plasma_mask"].to(device)  # (B, K)
         subjects = batch["subjects"]
+        global_step = epoch * len(dataloader) + batch_idx
 
         if expected_plasma_dim is not None:
             if plasma_vals.shape[-1] != expected_plasma_dim:
@@ -985,6 +989,16 @@ def train_one_epoch(
             plasma_mask=plasma_mask,
         )
         # outputs keys: img_emb, class_emb, class_emb_all, plasma_emb, plasma_weights, logit_scale
+
+        if plasma_probe_logger is not None:
+            plasma_probe_logger.log_step(
+                step=global_step,
+                raw=plasma_raw,
+                minmax=plasma_vals,
+                softmax=outputs["plasma_weights"],
+                mask=plasma_mask,
+                sample_ids=subjects,
+            )
 
         batch_plasma_bin_ids = [subject_plasma_bin_map.get(str(sid), -1) for sid in subjects]
         batch_plasma_bin_idx = torch.as_tensor(batch_plasma_bin_ids, device=device, dtype=torch.long)
@@ -1051,7 +1065,6 @@ def train_one_epoch(
         
         # TensorBoard step logging
         if writer is not None:
-            global_step = epoch * len(dataloader) + batch_idx
             writer.add_scalar("train/loss_total", loss.item(), global_step)
             writer.add_scalar("train/logit_scale", outputs["logit_scale"].item(), global_step)
     
@@ -1351,6 +1364,8 @@ def main():
     parser.add_argument("--plasma_bin_feature_name", type=str, default=None, help="plasma_bin 分桶使用的单一 key（默认 selected_keys[0]）")
     parser.add_argument("--plasma_bin_bank_momentum", type=float, default=None, help="plasma_bin memory bank EMA 动量")
     parser.add_argument("--plasma_bin_min_bins_for_loss", type=int, default=None, help="每类最少可用 bin 数")
+    parser.add_argument("--plasma_probe", action="store_true", help="启用 PlasmaProbeLogger 并在首个 epoch 后退出")
+    parser.add_argument("--plasma_probe_plots", action="store_true", help="导出 PlasmaProbe 图表")
     args = parser.parse_args()
     
     # =========================================================================
@@ -1677,11 +1692,16 @@ def main():
     ckpt_dir = run_dir / "ckpt"
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     epochs_without_improve = 0
+    plasma_probe_logger = None
+    plasma_probe_done = False
 
     for epoch in range(start_epoch, epochs):
         print(f"\n{'='*60}")
         print(f"Epoch {epoch + 1}/{epochs}")
         print(f"{'='*60}")
+
+        if args.plasma_probe and (not plasma_probe_done) and plasma_probe_logger is None:
+            plasma_probe_logger = PlasmaProbeLogger(output_dir=run_dir / "plasma_probe")
         
         # 训练
         train_losses = train_one_epoch(
@@ -1697,6 +1717,7 @@ def main():
                         plasma_bin_min_bins_for_loss=plasma_bin_min_bins_for_loss,
             writer=writer,
             expected_plasma_dim=len(selected_plasma_keys),
+            plasma_probe_logger=plasma_probe_logger,
         )
         print(f"Train - total: {train_losses['total']:.4f}, "
               f"img_class: {train_losses['img_class']:.4f}, "
@@ -1719,6 +1740,10 @@ def main():
             f"cross_margin_drop: {val_metrics['plasma_margin_drop_cross_mean']:.4f}±{val_metrics['plasma_margin_drop_cross_std']:.4f}"
         )
         print(f"Val   - plasma diagnosis: {val_metrics['plasma_shuffle_diagnosis']}")
+
+        if plasma_probe_logger is not None:
+            exported = plasma_probe_logger.export_all(with_plots=args.plasma_probe_plots)
+            print(f"[PlasmaProbe] Exported: {exported}")
         
         # TensorBoard epoch logging
         writer.add_scalar("train_epoch/loss", train_losses["total"], epoch)
@@ -1767,6 +1792,11 @@ def main():
                 f"[EarlyStop] Triggered at epoch {epoch + 1}. "
                 f"Best inject_macro_f1: {best_metric:.4f}"
             )
+            break
+
+        if args.plasma_probe:
+            plasma_probe_done = True
+            print(f"[PlasmaProbe] Enabled, break after first executed epoch ({epoch + 1}).")
             break
 
     writer.close()
