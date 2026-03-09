@@ -1,0 +1,27 @@
+{
+  "csv_path": "/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched.csv",
+  "n_rows": 1120,
+  "sources": [
+    "C2N",
+    "UPENN"
+  ],
+  "keys": [
+    "AB42_AB40_F",
+    "pT217_F",
+    "pT217_AB42_F",
+    "NfL_Q",
+    "GFAP_Q"
+  ],
+  "selected_keys_from_config": [
+    "pT217_F"
+  ],
+  "worst_norm_w1_key": "AB42_AB40_F",
+  "worst_norm_w1": 0.0944926997765175,
+  "source_classifier": {
+    "sklearn_available": 1.0,
+    "auc_values_only": 0.971336137172436,
+    "auc_values_and_mask": 1.0,
+    "n_samples": 1120.0
+  },
+  "decision": "建议显式区分source（source token/embedding或分支参数）"
+}

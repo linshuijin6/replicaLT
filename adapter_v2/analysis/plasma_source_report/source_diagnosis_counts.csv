@@ -1,0 +1,8 @@
+plasma_source,diagnosis,count
+C2N,AD,13
+C2N,CN,115
+C2N,MCI,56
+UPENN,AD,108
+UPENN,CN,530
+UPENN,MCI,297
+UPENN,UNKNOWN,1
