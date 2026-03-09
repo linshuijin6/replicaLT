@@ -7,8 +7,13 @@ data:
   csv_path: /mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched.csv
   # TAU 缓存目录（需预先用 precompute_cache.py 生成 .vision.pt）
   cache_dir: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_Adapter_cache
+  # MRI 缓存目录（用于 context_net 输入，文件名: {PTID}_{id_mri}.mri_vision.pt）
+  # 不配置时默认复用 cache_dir
+  mri_cache_dir: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_Adapter_cache
   # ADNI 数据根目录（用于生成缓存）
   adni_root: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF
+  # MRI NIfTI 子目录（用于 MRI 缓存生成）
+  mri_subdir: MRI
   # 可选：诊断标签（从 CSV 外部来源匹配，若 CSV 无 diagnosis 字段）
   diagnosis_csv: null
   # 训练/验证划分比例
@@ -21,7 +26,7 @@ plasma:
   # 可选：AB42_AB40_F, pT217_F, pT217_AB42_F, NfL_Q, GFAP_Q
   available_keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
   # 实际启用项（支持 1 个或多个）；大小写不敏感，可通过 key_aliases 兼容别名
-  selected_keys: ["pT217_F"]
+  selected_keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F"]
   # 大小写/别名兼容映射（左侧可写任意别名，右侧需指向 canonical key）
   key_aliases:
     ab42_ab40_f: AB42_AB40_F
@@ -70,10 +75,10 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 1
+  gpu: 3
   batch_size: 8
   epochs: 200
-  patience: 20  # 早停：验证指标连续多少个 epoch 未提升则停止训练
+  patience: 150  # 早停：验证指标连续多少个 epoch 未提升则停止训练
   lr: 2e-4
   weight_decay: 1e-5
   grad_clip: 1.0

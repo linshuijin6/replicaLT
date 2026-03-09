@@ -77,6 +77,7 @@ def _setup_clip_mri2pet_path():
 
 DEFAULT_ADNI_ROOT = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
 DEFAULT_TAU_SUBDIR = "PET_MNI/TAU"
+DEFAULT_MRI_SUBDIR = "MRI"
 
 
 # ============================================================================
@@ -308,10 +309,43 @@ def find_tau_nifti(
     return None
 
 
+def find_mri_nifti(
+    adni_root: str,
+    ptid: str,
+    mri_id: str,
+    mri_subdir: str = DEFAULT_MRI_SUBDIR,
+) -> Optional[Path]:
+    """
+    根据 PTID、MRI_ID 查找 MRI NIfTI 文件
+
+    文件命名格式: {PTID}__I{MRI_ID}.nii.gz
+    """
+    mri_dir = Path(adni_root) / mri_subdir
+
+    patterns = [
+        f"{ptid}__I{mri_id}.nii.gz"
+    ]
+    for pattern in patterns:
+        nifti_path = mri_dir / pattern
+        if nifti_path.exists():
+            return nifti_path
+
+    import glob
+    wildcard = str(mri_dir / f"{ptid}__*I{mri_id}*.nii.gz")
+    matches = glob.glob(wildcard)
+    if matches:
+        return Path(matches[0])
+    return None
+
+
 def build_sample_list(
     csv_path: str,
     adni_root: str,
+    modality: str = "tau",
+    id_column: str = "id_av1451",
+    cache_name_template: str = "{ptid}_{image_id}.vision.pt",
     tau_subdir: str = DEFAULT_TAU_SUBDIR,
+    mri_subdir: str = DEFAULT_MRI_SUBDIR,
 ) -> List[Dict[str, Any]]:
     """
     从 CSV 构建样本列表
@@ -324,8 +358,10 @@ def build_sample_list(
     dtype_spec = {col: str for col in id_columns}
     df = pd.read_csv(csv_path, dtype=dtype_spec)
     
-    # 只保留有 TAU (id_av1451) 的行 - 注意 dtype=str 时 NaN 变为字符串 "nan"
-    df = df[(df["id_av1451"].notna()) & (df["id_av1451"] != "nan")].reset_index(drop=True)
+    # 只保留有目标 id_column 的行 - 注意 dtype=str 时 NaN 变为字符串 "nan"
+    if id_column not in df.columns:
+        raise KeyError(f"CSV 缺少列: {id_column}")
+    df = df[(df[id_column].notna()) & (df[id_column] != "nan")].reset_index(drop=True)
     
     samples = []
     missing_count = 0
@@ -334,7 +370,7 @@ def build_sample_list(
         ptid = str(row["PTID"])
         
         # 由于已指定 dtype=str，直接作为字符串使用
-        tau_id = str(row["id_av1451"])
+        image_id = str(row[id_column])
         
         # MRI ID
         mri_id = row.get("id_mri")
@@ -344,19 +380,27 @@ def build_sample_list(
             mri_id = str(mri_id)
         
         # 查找 NIfTI 文件
-        nifti_path = find_tau_nifti(adni_root, ptid, mri_id, tau_id, tau_subdir)
+        if modality.lower() == "tau":
+            nifti_path = find_tau_nifti(adni_root, ptid, mri_id, image_id, tau_subdir)
+        elif modality.lower() == "mri":
+            if mri_id is None:
+                missing_count += 1
+                continue
+            nifti_path = find_mri_nifti(adni_root, ptid, mri_id, mri_subdir)
+        else:
+            raise ValueError(f"不支持的 modality: {modality}")
         
         if nifti_path is None:
             missing_count += 1
             continue
         
-        # 缓存命名: {subject_id}_{image_id}.vision.pt
-        cache_name = f"{ptid}_{tau_id}.vision.pt"
+        # 缓存命名
+        cache_name = cache_name_template.format(ptid=ptid, image_id=image_id)
         
         samples.append({
             "ptid": ptid,
             "mri_id": mri_id,
-            "tau_id": tau_id,
+            "image_id": image_id,
             "nifti_path": str(nifti_path),
             "cache_name": cache_name,
         })
@@ -524,7 +568,11 @@ def precompute_caches_parallel(
     csv_path: str,
     cache_dir: str,
     adni_root: str,
+    modality: str = "tau",
+    id_column: str = "id_av1451",
+    cache_name_template: str = "{ptid}_{image_id}.vision.pt",
     tau_subdir: str = DEFAULT_TAU_SUBDIR,
+    mri_subdir: str = DEFAULT_MRI_SUBDIR,
     device: str = "cuda",
     force: bool = False,
     gpu: Optional[int] = None,  # None 表示自动选择
@@ -563,7 +611,15 @@ def precompute_caches_parallel(
     cache_path.mkdir(parents=True, exist_ok=True)
     
     # 构建样本列表
-    samples = build_sample_list(csv_path, adni_root, tau_subdir)
+    samples = build_sample_list(
+        csv_path=csv_path,
+        adni_root=adni_root,
+        modality=modality,
+        id_column=id_column,
+        cache_name_template=cache_name_template,
+        tau_subdir=tau_subdir,
+        mri_subdir=mri_subdir,
+    )
     
     if len(samples) == 0:
         print("[Error] 没有找到任何有效样本！")
@@ -663,7 +719,7 @@ def precompute_caches_parallel(
                     }
             
             payload["ptid"] = sample["ptid"]
-            payload["tau_id"] = sample["tau_id"]
+            payload["image_id"] = sample["image_id"]
             payload["nifti_path"] = sample["nifti_path"]
             
             # 使用设备无关的保存方式
@@ -693,7 +749,11 @@ def precompute_caches(
     csv_path: str,
     cache_dir: str,
     adni_root: str,
+    modality: str = "tau",
+    id_column: str = "id_av1451",
+    cache_name_template: str = "{ptid}_{image_id}.vision.pt",
     tau_subdir: str = DEFAULT_TAU_SUBDIR,
+    mri_subdir: str = DEFAULT_MRI_SUBDIR,
     device: str = "cuda",
     force: bool = False,
     gpu: Optional[int] = None,
@@ -728,7 +788,15 @@ def precompute_caches(
     cache_path.mkdir(parents=True, exist_ok=True)
     
     # 构建样本列表
-    samples = build_sample_list(csv_path, adni_root, tau_subdir)
+    samples = build_sample_list(
+        csv_path=csv_path,
+        adni_root=adni_root,
+        modality=modality,
+        id_column=id_column,
+        cache_name_template=cache_name_template,
+        tau_subdir=tau_subdir,
+        mri_subdir=mri_subdir,
+    )
     
     if len(samples) == 0:
         print("[Error] 没有找到任何有效样本！")
@@ -755,7 +823,7 @@ def precompute_caches(
             # 编码
             payload = encoder.encode(sample["nifti_path"])
             payload["ptid"] = sample["ptid"]
-            payload["tau_id"] = sample["tau_id"]
+            payload["image_id"] = sample["image_id"]
             payload["nifti_path"] = sample["nifti_path"]
             
             # 保存（设备无关）
@@ -780,7 +848,11 @@ def generate_missing_caches(
     csv_path: str,
     cache_dir: str,
     adni_root: str,
+    modality: str = "tau",
+    id_column: str = "id_av1451",
+    cache_name_template: str = "{ptid}_{image_id}.vision.pt",
     tau_subdir: str = DEFAULT_TAU_SUBDIR,
+    mri_subdir: str = DEFAULT_MRI_SUBDIR,
     device: str = "cuda",
     gpu: int = None,
 ) -> Tuple[int, List[str]]:
@@ -801,7 +873,15 @@ def generate_missing_caches(
     cache_path.mkdir(parents=True, exist_ok=True)
     
     # 构建样本列表
-    samples = build_sample_list(csv_path, adni_root, tau_subdir)
+    samples = build_sample_list(
+        csv_path=csv_path,
+        adni_root=adni_root,
+        modality=modality,
+        id_column=id_column,
+        cache_name_template=cache_name_template,
+        tau_subdir=tau_subdir,
+        mri_subdir=mri_subdir,
+    )
     
     # 找出缺失缓存的样本
     missing_samples = []
@@ -810,26 +890,26 @@ def generate_missing_caches(
     id_columns = ["PTID", "id_mri", "id_fdg", "id_av45", "id_av1451", "plasma_source"]
     dtype_spec = {col: str for col in id_columns}
     df = pd.read_csv(csv_path, dtype=dtype_spec)
-    df = df[(df["id_av1451"].notna()) & (df["id_av1451"] != "nan")].reset_index(drop=True)
+    df = df[(df[id_column].notna()) & (df[id_column] != "nan")].reset_index(drop=True)
     
     for _, row in df.iterrows():
         ptid = str(row["PTID"])
-        tau_id = str(row["id_av1451"])
-        cache_name = f"{ptid}_{tau_id}.vision.pt"
+        image_id = str(row[id_column])
+        cache_name = cache_name_template.format(ptid=ptid, image_id=image_id)
         cache_file = cache_path / cache_name
         
         if not cache_file.exists():
             # 在 samples 中查找
             found = None
             for s in samples:
-                if s["ptid"] == ptid and s["tau_id"] == tau_id:
+                if s["ptid"] == ptid and s["image_id"] == image_id:
                     found = s
                     break
             
             if found:
                 missing_samples.append(found)
             else:
-                missing_nifti.append(f"{ptid}_{tau_id}")
+                missing_nifti.append(f"{ptid}_{image_id}")
     
     if len(missing_samples) == 0:
         print(f"[generate_missing_caches] 所有缓存已存在，无需生成")
@@ -849,7 +929,7 @@ def generate_missing_caches(
         try:
             payload = encoder.encode(sample["nifti_path"])
             payload["ptid"] = sample["ptid"]
-            payload["tau_id"] = sample["tau_id"]
+            payload["image_id"] = sample["image_id"]
             payload["nifti_path"] = sample["nifti_path"]
             # 保存（设备无关）
             save_cache_payload(payload, cache_file)
@@ -864,6 +944,8 @@ def generate_missing_caches(
 def get_cache_stats(
     csv_path: str,
     cache_dir: str,
+    id_column: str = "id_av1451",
+    cache_name_template: str = "{ptid}_{image_id}.vision.pt",
 ) -> Dict[str, int]:
     """
     获取缓存统计信息
@@ -875,7 +957,9 @@ def get_cache_stats(
     id_columns = ["PTID", "id_mri", "id_fdg", "id_av45", "id_av1451", "plasma_source"]
     dtype_spec = {col: str for col in id_columns}
     df = pd.read_csv(csv_path, dtype=dtype_spec)
-    df = df[(df["id_av1451"].notna()) & (df["id_av1451"] != "nan")].reset_index(drop=True)
+    if id_column not in df.columns:
+        raise KeyError(f"CSV 缺少列: {id_column}")
+    df = df[(df[id_column].notna()) & (df[id_column] != "nan")].reset_index(drop=True)
     
     cache_path = Path(cache_dir)
     
@@ -885,15 +969,15 @@ def get_cache_stats(
     
     for _, row in df.iterrows():
         ptid = str(row["PTID"])
-        tau_id = str(row["id_av1451"])
-        cache_name = f"{ptid}_{tau_id}.vision.pt"
+        image_id = str(row[id_column])
+        cache_name = cache_name_template.format(ptid=ptid, image_id=image_id)
         cache_file = cache_path / cache_name
         
         if cache_file.exists():
             cached += 1
         else:
             missing += 1
-            missing_list.append((ptid, tau_id))
+            missing_list.append((ptid, image_id))
     
     return {
         "total": len(df),
@@ -909,6 +993,10 @@ def main():
     parser.add_argument("--csv", type=str, default=None, help="样本 CSV 路径（覆盖配置）")
     parser.add_argument("--cache-dir", type=str, default=None, help="缓存输出目录（覆盖配置）")
     parser.add_argument("--adni-root", type=str, default=None, help="ADNI 数据根目录（覆盖配置）")
+    parser.add_argument("--modality", type=str, default="mri", choices=["tau", "mri"], help="缓存生成模态")
+    parser.add_argument("--id-column", type=str, default=None, help="CSV 中 image id 列名（默认按 modality 选择）")
+    parser.add_argument("--cache-name-template", type=str, default=None, help="缓存文件名模板，支持 {ptid} {image_id}")
+    parser.add_argument("--mri-subdir", type=str, default=None, help="MRI 子目录（默认读取 config.data.mri_subdir 或 MRI）")
     parser.add_argument("--gpu", type=int, default=None, help="GPU 卡号（默认自动选择空闲最大的）")
     parser.add_argument("--num-workers", type=int, default=4, help="数据预加载线程数")
     parser.add_argument("--slices-per-batch", type=int, default=64, help="每批送入 GPU 的切片数")
@@ -948,6 +1036,12 @@ def main():
     csv_path = args.csv or config.get("data", {}).get("csv_path")
     cache_dir = args.cache_dir or config.get("data", {}).get("cache_dir")
     adni_root = args.adni_root or config.get("data", {}).get("adni_root", DEFAULT_ADNI_ROOT)
+    modality = args.modality.lower()
+    default_id_column = "id_av1451" if modality == "tau" else "id_mri"
+    id_column = args.id_column or default_id_column
+    default_cache_name_template = "{ptid}_{image_id}.vision.pt" if modality == "tau" else "{ptid}_{image_id}.mri_vision.pt"
+    cache_name_template = args.cache_name_template or default_cache_name_template
+    mri_subdir = args.mri_subdir or config.get("data", {}).get("mri_subdir", DEFAULT_MRI_SUBDIR)
     gpu = args.gpu  # None 表示自动选择
     
     if csv_path is None:
@@ -958,9 +1052,13 @@ def main():
         return
     
     print(f"[配置]")
+    print(f"  Modality: {modality}")
+    print(f"  ID Column: {id_column}")
+    print(f"  Cache Template: {cache_name_template}")
     print(f"  CSV: {csv_path}")
     print(f"  Cache Dir: {cache_dir}")
     print(f"  ADNI Root: {adni_root}")
+    print(f"  MRI Subdir: {mri_subdir}")
     print(f"  GPU: {gpu if gpu is not None else '自动选择'}")
     print(f"  Auto GPU: {not args.no_auto_gpu}")
     print(f"  Min GPU Free: {args.min_gpu_free} MiB")
@@ -972,7 +1070,12 @@ def main():
     
     # 仅统计模式
     if args.stats_only:
-        stats = get_cache_stats(csv_path, cache_dir)
+        stats = get_cache_stats(
+            csv_path=csv_path,
+            cache_dir=cache_dir,
+            id_column=id_column,
+            cache_name_template=cache_name_template,
+        )
         print(f"[缓存统计]")
         print(f"  总样本: {stats['total']}")
         print(f"  已缓存: {stats['cached']}")
@@ -988,6 +1091,10 @@ def main():
             csv_path=csv_path,
             cache_dir=cache_dir,
             adni_root=adni_root,
+            modality=modality,
+            id_column=id_column,
+            cache_name_template=cache_name_template,
+            mri_subdir=mri_subdir,
             device="cuda",
             force=args.force,
             gpu=gpu,
@@ -998,6 +1105,10 @@ def main():
             csv_path=csv_path,
             cache_dir=cache_dir,
             adni_root=adni_root,
+            modality=modality,
+            id_column=id_column,
+            cache_name_template=cache_name_template,
+            mri_subdir=mri_subdir,
             device="cuda",
             force=args.force,
             gpu=gpu,

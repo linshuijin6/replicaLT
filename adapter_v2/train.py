@@ -200,6 +200,7 @@ def _snapshot_repro_metadata(
     config: dict,
     config_path: Path,
     csv_path: Path,
+    mri_cache_dir: Path,
     split_path: Path,
     seed: int,
     train_count: int,
@@ -258,6 +259,10 @@ def _snapshot_repro_metadata(
         "csv_exists": csv_path.exists(),
         "csv_sha256": _sha256_file(csv_path),
     }
+    mri_cache_info = {
+        "mri_cache_dir": str(mri_cache_dir),
+        "mri_cache_dir_exists": mri_cache_dir.exists(),
+    }
     split_info = _snapshot_split_file(split_path, meta_dir)
     git_info = _collect_git_artifacts(meta_dir=meta_dir, repo_root=repo_root)
 
@@ -279,6 +284,7 @@ def _snapshot_repro_metadata(
         "pip_freeze_error": pip_freeze_error,
         "file_hashes_sha256": file_hashes,
         "csv_info": csv_info,
+        "mri_cache_info": mri_cache_info,
         "split_info": split_info,
         "git": git_info,
         "replay_order": [
@@ -753,9 +759,10 @@ def train_one_epoch(
     
     pbar = tqdm(dataloader, desc=f"Epoch {epoch}", leave=True)
     for batch_idx, batch in enumerate(pbar):
-        # batch keys: subjects, patch_emb, img_emb, label_idx, plasma_vals, plasma_mask
+        # batch keys: subjects, patch_emb, mri_patch_emb, img_emb, label_idx, plasma_vals, plasma_mask
         
         patch_emb = batch["patch_emb"].to(device)   # (B, N, 768) - patch tokens
+        mri_patch_emb = batch["mri_patch_emb"].to(device)   # (B, N, 768) - MRI patch tokens
         label_idx = batch["label_idx"].to(device)   # (B,)
         plasma_vals = batch["plasma_vals"].to(device)  # (B, K)
         plasma_mask = batch["plasma_mask"].to(device)  # (B, K)
@@ -777,6 +784,7 @@ def train_one_epoch(
         # =====================================================================
         outputs = model(
             tau_tokens=patch_emb,
+            mri_tokens=mri_patch_emb,
             diagnosis_id=label_idx,
             plasma_values=plasma_vals,
             plasma_mask=plasma_mask,
@@ -868,6 +876,7 @@ def validate(
     
     for batch in tqdm(dataloader, desc="Validate", leave=False):
         patch_emb = batch["patch_emb"].to(device)
+        mri_patch_emb = batch["mri_patch_emb"].to(device)
         label_idx = batch["label_idx"].to(device)
         plasma_vals = batch["plasma_vals"].to(device)
         plasma_mask = batch["plasma_mask"].to(device)
@@ -884,6 +893,7 @@ def validate(
         
         outputs = model(
             tau_tokens=patch_emb,
+            mri_tokens=mri_patch_emb,
             diagnosis_id=label_idx,
             plasma_values=plasma_vals,
             plasma_mask=plasma_mask,
@@ -1153,7 +1163,9 @@ def main():
     # =========================================================================
     csv_path = script_dir / config["data"]["csv_path"]
     cache_dir = Path(config["data"]["cache_dir"])
+    mri_cache_dir = Path(config["data"].get("mri_cache_dir", str(cache_dir)))
     adni_root = config.get("data", {}).get("adni_root", "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration")
+    mri_subdir = config.get("data", {}).get("mri_subdir", "MRI")
     diagnosis_csv = config.get("data", {}).get("diagnosis_csv", None)
     diagnosis_code_map = config.get("classes", {}).get("diagnosis_code_map", None)
     class_names = config["classes"]["names"]  # ["CN", "MCI", "AD"]
@@ -1171,14 +1183,23 @@ def main():
     print("="*60)
     
     cache_dir.mkdir(parents=True, exist_ok=True)
+    mri_cache_dir.mkdir(parents=True, exist_ok=True)
     
     cache_stats = get_cache_stats(
         csv_path=str(csv_path),
         cache_dir=str(cache_dir),
     )
+    mri_cache_stats = get_cache_stats(
+        csv_path=str(csv_path),
+        cache_dir=str(mri_cache_dir),
+        id_column="id_mri",
+        cache_name_template="{ptid}_{image_id}.mri_vision.pt",
+    )
     print(f"总样本数: {cache_stats['total']}")
     print(f"已缓存: {cache_stats['cached']}")
     print(f"缺失: {cache_stats['missing']}")
+    print(f"MRI 已缓存: {mri_cache_stats['cached']}")
+    print(f"MRI 缺失: {mri_cache_stats['missing']}")
     
     # 记录缺失缓存的样本（用于后续过滤）
     missing_cache_set = set()
@@ -1210,14 +1231,32 @@ def main():
             # 输出缺失缓存列表
             missing_list = cache_stats.get('missing_list', [])
             print(f"\n缺失缓存列表 (共 {len(missing_list)} 个):")
-            for ptid, tau_id in missing_list[:20]:  # 最多显示前 20 个
-                print(f"  - {ptid}_{tau_id}.vision.pt")
+            for ptid, image_id in missing_list[:20]:  # 最多显示前 20 个
+                print(f"  - {ptid}_{image_id}.vision.pt")
             if len(missing_list) > 20:
                 print(f"  ... 还有 {len(missing_list) - 20} 个未显示")
             # 记录到 set 用于过滤
-            missing_cache_set = {(ptid, tau_id) for ptid, tau_id in missing_list}
+            missing_cache_set = {(ptid, image_id) for ptid, image_id in missing_list}
     else:
         print("✅ 所有缓存均已存在")
+
+    # MRI 缓存缺失补充
+    if mri_cache_stats['missing'] > 0:
+        print(f"\n检测到 {mri_cache_stats['missing']} 个缺失 MRI 缓存，开始补充生成...")
+        generated_mri, missing_mri_nifti = generate_missing_caches(
+            csv_path=str(csv_path),
+            cache_dir=str(mri_cache_dir),
+            adni_root=adni_root,
+            id_column="id_mri",
+            cache_name_template="{ptid}_{image_id}.mri_vision.pt",
+            modality="mri",
+            mri_subdir=mri_subdir,
+            device="cuda" if torch.cuda.is_available() else "cpu",
+            gpu=gpu_cfg,
+        )
+        print(f"MRI 补充生成完成: {generated_mri} 个")
+        if missing_mri_nifti:
+            print(f"警告: {len(missing_mri_nifti)} 个样本缺少 MRI NIfTI 文件，将从训练中排除")
     
     print()
     
@@ -1225,6 +1264,7 @@ def main():
     full_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
         cache_dir=str(cache_dir),
+        mri_cache_dir=str(mri_cache_dir),
         plasma_keys=selected_plasma_keys,
         class_names=class_names,
         diagnosis_csv=diagnosis_csv,
@@ -1257,6 +1297,7 @@ def main():
     train_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
         cache_dir=str(cache_dir),
+        mri_cache_dir=str(mri_cache_dir),
         plasma_keys=selected_plasma_keys,
         class_names=class_names,
         plasma_stats=full_dataset.plasma_stats,
@@ -1268,6 +1309,7 @@ def main():
     val_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
         cache_dir=str(cache_dir),
+        mri_cache_dir=str(mri_cache_dir),
         plasma_keys=selected_plasma_keys,
         class_names=class_names,
         plasma_stats=full_dataset.plasma_stats,
@@ -1379,6 +1421,7 @@ def main():
         config=config,
         config_path=config_path,
         csv_path=csv_path,
+        mri_cache_dir=mri_cache_dir,
         split_path=split_path,
         seed=seed,
         train_count=len(train_dataset),

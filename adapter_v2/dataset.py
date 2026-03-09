@@ -210,6 +210,7 @@ class TAUPlasmaDataset(Dataset):
         self,
         csv_path: str | Path,
         cache_dir: str | Path,
+        mri_cache_dir: str | Path | None = None,
         plasma_keys: List[str] = None,
         class_names: List[str] = None,
         plasma_stats: Dict[str, Dict[str, float]] = None,
@@ -231,6 +232,7 @@ class TAUPlasmaDataset(Dataset):
         """
         self.csv_path = Path(csv_path)
         self.cache_dir = Path(cache_dir)
+        self.mri_cache_dir = Path(mri_cache_dir) if mri_cache_dir is not None else self.cache_dir
         self.plasma_keys = plasma_keys or DEFAULT_PLASMA_KEYS
         self.class_names = class_names or ["CN", "MCI", "AD"]
         self.class_to_idx = {name: idx for idx, name in enumerate(self.class_names)}
@@ -293,6 +295,11 @@ class TAUPlasmaDataset(Dataset):
         for idx, row in self.df.iterrows():
             ptid = str(row["PTID"])
             tau_id = str(row["id_av1451"])
+            mri_id = row.get("id_mri")
+            if pd.isna(mri_id) or mri_id == "nan":
+                skipped += 1
+                continue
+            mri_id = str(mri_id)
             
             # 跳过缺失缓存的样本
             if (ptid, tau_id) in self.skip_cache_set:
@@ -337,15 +344,24 @@ class TAUPlasmaDataset(Dataset):
             # image_id 来自 TAU ID (id_av1451)
             cache_name = f"{ptid}_{tau_id}.vision.pt"
             cache_path = self.cache_dir / cache_name
+            mri_cache_name = f"{ptid}_{mri_id}.mri_vision.pt"
+            mri_cache_path = self.mri_cache_dir / mri_cache_name
+
+            # 缺失任一缓存时直接跳过，避免训练期 __getitem__ 抛错
+            if not cache_path.exists() or not mri_cache_path.exists():
+                skipped += 1
+                continue
             
             samples.append({
                 "subject_id": ptid,
+                "mri_id": mri_id,
                 "tau_id": tau_id,
                 "diagnosis": diagnosis,  # 可能为 None
                 "plasma_values": plasma_vals,
                 "plasma_mask": plasma_mask,
                 "plasma_source": plasma_source,  # 用于选择归一化统计量
                 "cache_path": str(cache_path),
+                "mri_cache_path": str(mri_cache_path),
             })
         
         return samples
@@ -413,6 +429,40 @@ class TAUPlasmaDataset(Dataset):
             raise
         except Exception as e:
             raise RuntimeError(f"加载缓存失败 {cache_path}: {e}")
+
+        # ===============================
+        # 加载 MRI 缓存 embedding（用于 context_net 条件输入）
+        # ===============================
+        mri_cache_path = Path(sample["mri_cache_path"])
+        if not mri_cache_path.exists():
+            raise FileNotFoundError(
+                f"MRI 缓存文件不存在: {mri_cache_path}\n"
+                f"请先运行 precompute_cache.py 生成 MRI 缓存，或检查 mri_cache_dir 配置。"
+            )
+
+        try:
+            mri_payload = torch.load(str(mri_cache_path), map_location="cpu")
+            mri_cls = mri_payload.get("cls_token")
+            mri_tokens = mri_payload.get("region_token")
+
+            if mri_cls is None or mri_tokens is None:
+                raise ValueError(f"MRI 缓存文件格式错误: {mri_cache_path}")
+
+            if not isinstance(mri_cls, torch.Tensor):
+                mri_cls = torch.as_tensor(mri_cls, dtype=torch.float32)
+            if not isinstance(mri_tokens, torch.Tensor):
+                mri_tokens = torch.as_tensor(mri_tokens, dtype=torch.float32)
+
+            mri_cls = mri_cls.view(-1)
+            if mri_tokens.dim() == 1:
+                mri_tokens = mri_tokens.unsqueeze(0)
+            elif mri_tokens.dim() > 2:
+                mri_tokens = mri_tokens.view(-1, mri_tokens.shape[-1])
+
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"加载 MRI 缓存失败 {mri_cache_path}: {e}")
         
         # ===============================
         # 诊断标签
@@ -459,6 +509,10 @@ class TAUPlasmaDataset(Dataset):
             "tau_tokens": tau_tokens.float(),
             # tau_cls: (D_clip,) - cls token，D_clip=512
             "tau_cls": tau_cls.float(),
+            # mri_tokens: (N, Dv) - patch tokens，用于 context_net 条件输入
+            "mri_tokens": mri_tokens.float(),
+            # mri_cls: (D_clip,) - MRI cls token（预留调试）
+            "mri_cls": mri_cls.float(),
             # diagnosis_id: () - 诊断类别 ID
             "diagnosis_id": torch.tensor(diagnosis_id, dtype=torch.long),
             # plasma_values: (5,) - min-max 归一化后的 plasma 值（按 source 分别归一化）
@@ -556,6 +610,7 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     
     # Stack tensors
     patch_emb = torch.stack([s["tau_tokens"] for s in batch], dim=0)
+    mri_patch_emb = torch.stack([s["mri_tokens"] for s in batch], dim=0)
     img_emb = torch.stack([s["tau_cls"] for s in batch], dim=0)
     label_idx = torch.stack([s["diagnosis_id"] for s in batch], dim=0)
     plasma_vals = torch.stack([s["plasma_values"] for s in batch], dim=0)
@@ -565,6 +620,8 @@ def collate_fn(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         "subjects": subjects,
         # patch_emb: (B, N, Dv) - B=batch_size, N=num_patches, Dv=token_dim
         "patch_emb": patch_emb,
+        # mri_patch_emb: (B, N, Dv) - MRI patch tokens，供 context_net 使用
+        "mri_patch_emb": mri_patch_emb,
         # img_emb: (B, D_clip) - cls embedding，作为 image representation
         "img_emb": img_emb,
         # label_idx: (B,) - 诊断类别 ID
@@ -620,6 +677,7 @@ def split_by_subject(
 def build_dataloaders(
     csv_path: str | Path,
     cache_dir: str | Path,
+    mri_cache_dir: str | Path | None,
     batch_size: int,
     val_ratio: float = 0.15,
     seed: int = 42,
@@ -638,6 +696,7 @@ def build_dataloaders(
     full_dataset = TAUPlasmaDataset(
         csv_path=csv_path,
         cache_dir=cache_dir,
+        mri_cache_dir=mri_cache_dir,
         plasma_keys=plasma_keys,
         class_names=class_names,
         skip_cache_set=skip_cache_set,
@@ -651,6 +710,7 @@ def build_dataloaders(
     train_dataset = TAUPlasmaDataset(
         csv_path=csv_path,
         cache_dir=cache_dir,
+        mri_cache_dir=mri_cache_dir,
         plasma_keys=plasma_keys,
         class_names=class_names,
         plasma_stats=plasma_stats,
@@ -660,6 +720,7 @@ def build_dataloaders(
     val_dataset = TAUPlasmaDataset(
         csv_path=csv_path,
         cache_dir=cache_dir,
+        mri_cache_dir=mri_cache_dir,
         plasma_keys=plasma_keys,
         class_names=class_names,
         plasma_stats=plasma_stats,

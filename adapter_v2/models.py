@@ -145,25 +145,23 @@ def compute_plasma_weights(
     temperature: float = 1.0,
 ) -> torch.Tensor:
     """
-    计算 plasma 加权权重：softmax(plasma_z / T) with mask
+    计算 plasma 加权权重：直接使用 plasma 数值（masked）
     
     Args:
         plasma_values: (B, K) - z-score 归一化的 plasma 值
         plasma_mask: (B, K) - 有效 mask
-        temperature: softmax 温度
+        temperature: 保留参数（向后兼容，当前不使用）
         
     Returns:
-        weights: (B, K) - 归一化权重，缺失位置为 0
+        weights: (B, K) - 直接数值权重，缺失位置为 0
     """
-    # 对无效位置设置 -inf
-    logits = plasma_values / max(temperature, 1e-6)
+    _ = temperature
+
     # mask: True 表示有效，False 表示缺失
-    logits = logits.masked_fill(~plasma_mask, float("-inf"))
+    # 直接使用 plasma 数值作为权重
+    weights = plasma_values.masked_fill(~plasma_mask, 0.0)
     
-    # Softmax
-    weights = F.softmax(logits, dim=-1)
-    
-    # 处理全缺失情况（softmax 后全为 nan）
+    # 处理全缺失情况
     # 若某样本全缺失，使用均匀权重
     all_missing = ~plasma_mask.any(dim=-1, keepdim=True)  # (B, 1)
     n_plasma = max(int(weights.shape[-1]), 1)
@@ -186,9 +184,10 @@ class CoCoOpTAUModel(nn.Module):
     
     前向流程：
     1. Image Branch:
-       - tau_tokens: (B, N, Dv) -> TokenAttentionPool -> g: (B, D_pool)
-       - g -> ContextNet -> T_ctx: (B, ctx_len, ctx_dim)
-       - g -> ProjectionHead -> img_emb: (B, 512)
+         - tau_tokens: (B, N, Dv) -> TokenAttentionPool -> g_tau: (B, D_pool)
+         - mri_tokens: (B, N, Dv) -> MRI TokenAttentionPool -> g_mri: (B, D_pool)
+         - g_mri -> ContextNet -> T_ctx: (B, ctx_len, ctx_dim)
+         - g_tau -> ProjectionHead -> img_emb: (B, 512)
        
     2. Class Branch:
        - class_prompts + T_ctx -> TextEncoder -> class_features: (B, 3, D_text)
@@ -308,9 +307,17 @@ class CoCoOpTAUModel(nn.Module):
         # 如果缓存的 region_token 维度不同，需要调整
         self.token_dim = 768  # 可从实际缓存推断
         
-        # Token Attention Pool: (B, N, token_dim) -> (B, D_pool)
+        # Token Attention Pool (TAU): (B, N, token_dim) -> (B, D_pool)
         self.D_pool = proj_dim  # 对齐到 512
         self.token_pool = TokenAttentionPool(
+            token_dim=self.token_dim,
+            output_dim=self.D_pool,
+            hidden_dim=self.D_pool,
+            dropout=0.1,
+        )
+
+        # Token Attention Pool (MRI): 独立池化器，用于 context_net 条件输入
+        self.mri_token_pool = TokenAttentionPool(
             token_dim=self.token_dim,
             output_dim=self.D_pool,
             hidden_dim=self.D_pool,
@@ -427,12 +434,15 @@ class CoCoOpTAUModel(nn.Module):
         diagnosis_id: torch.Tensor,
         plasma_values: torch.Tensor,
         plasma_mask: torch.Tensor,
+        mri_tokens: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         """
         前向传播
         
         Args:
             tau_tokens: (B, N, Dv) - patch tokens
+            mri_tokens: (B, N, Dv) - MRI patch tokens（用于 context_net）
+                若为 None，则回退使用 tau_tokens（兼容旧调用）
             diagnosis_id: (B,) - 诊断类别 ID [0, 1, 2]
             plasma_values: (B, 5) - z-score 归一化的 plasma 值
             plasma_mask: (B, 5) - 有效 mask
@@ -454,20 +464,27 @@ class CoCoOpTAUModel(nn.Module):
         # 1. Image Branch
         # =====================================================================
         # tau_tokens: (B, N, Dv) 例如 (B, 196, 768) 或 (B, num_rois, 768)
+        # mri_tokens: (B, N, Dv)
+        if mri_tokens is None:
+            mri_tokens = tau_tokens
         
-        # Token pooling
-        # g: (B, D_pool) 例如 (B, 512)
-        g = self.token_pool(tau_tokens.to(dtype))
+        # TAU token pooling -> 图像主分支表示
+        # g_tau: (B, D_pool) 例如 (B, 512)
+        g_tau = self.token_pool(tau_tokens.to(dtype))
+
+        # MRI token pooling -> context 条件输入
+        # g_mri: (B, D_pool)
+        g_mri = self.mri_token_pool(mri_tokens.to(dtype))
         
         # ContextNet: 生成条件 context
         # T_ctx_flat: (B, ctx_len * ctx_dim)
-        T_ctx_flat = self.context_net(g)
+        T_ctx_flat = self.context_net(g_mri)
         # T_ctx: (B, ctx_len, ctx_dim) 例如 (B, 4, 768)
         T_ctx = T_ctx_flat.view(B, self.ctx_len, self.ctx_dim)
         
         # Image embedding
         # img_emb: (B, 512)
-        img_emb = self.proj_img(g)
+        img_emb = self.proj_img(g_tau)
         img_emb = F.normalize(img_emb, dim=-1)
         
         # =====================================================================
