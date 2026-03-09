@@ -401,6 +401,7 @@ def save_checkpoint(
     epoch: int,
     best_metric: float,
     save_path: str,
+    plasma_bin_memory_bank: dict | None = None,
 ):
     """保存 checkpoint"""
     state = {
@@ -409,6 +410,8 @@ def save_checkpoint(
         "optimizer_state_dict": optimizer.state_dict(),
         "best_metric": best_metric,
     }
+    if plasma_bin_memory_bank is not None:
+        state["plasma_bin_memory_bank"] = _plasma_bin_memory_bank_to_state(plasma_bin_memory_bank)
     torch.save(state, save_path)
     print(f"Checkpoint saved: {save_path}")
 
@@ -421,7 +424,7 @@ def load_checkpoint(
     """加载 checkpoint"""
     if not os.path.exists(load_path):
         print(f"No checkpoint found at {load_path}")
-        return 0, 0.0
+        return 0, 0.0, None
     
     state = torch.load(load_path, map_location="cpu")
     model.load_state_dict(state["model_state_dict"])
@@ -429,7 +432,196 @@ def load_checkpoint(
     epoch = state.get("epoch", 0)
     best_metric = state.get("best_metric", 0.0)
     print(f"Loaded checkpoint from epoch {epoch}, best_metric={best_metric:.4f}")
-    return epoch, best_metric
+    return epoch, best_metric, state.get("plasma_bin_memory_bank", None)
+
+
+def _sample_to_class_idx(sample: dict, class_to_idx: dict[str, int]) -> int:
+    diagnosis = sample.get("diagnosis", None)
+    if diagnosis is None:
+        return -1
+    return int(class_to_idx.get(diagnosis, -1))
+
+
+def compute_classwise_plasma_bin_thresholds(
+    train_dataset: TAUPlasmaDataset,
+    class_names: list[str],
+    plasma_bin_key: str,
+) -> dict[int, dict[str, float]]:
+    """按 class 计算 plasma_bin 的 33%/66% 分位阈值。"""
+    if plasma_bin_key not in train_dataset.plasma_keys:
+        raise ValueError(
+            f"plasma_bin_key={plasma_bin_key} 不在 train_dataset.plasma_keys={train_dataset.plasma_keys}"
+        )
+
+    key_idx = train_dataset.plasma_keys.index(plasma_bin_key)
+    class_to_idx = {name: i for i, name in enumerate(class_names)}
+
+    values_by_class: dict[int, list[float]] = {i: [] for i in range(len(class_names))}
+    for sample in train_dataset.samples:
+        cls = _sample_to_class_idx(sample, class_to_idx)
+        if cls < 0:
+            continue
+
+        mask = bool(sample.get("plasma_mask", [False])[key_idx])
+        if not mask:
+            continue
+
+        raw_v = float(sample.get("plasma_values", [0.0])[key_idx])
+        values_by_class[cls].append(raw_v)
+
+    thresholds = {}
+    for cls_idx, vals in values_by_class.items():
+        if len(vals) < 3:
+            thresholds[cls_idx] = {
+                "q33": float("nan"),
+                "q66": float("nan"),
+                "n": float(len(vals)),
+            }
+            continue
+
+        arr = np.asarray(vals, dtype=np.float64)
+        q33, q66 = np.quantile(arr, [1.0 / 3.0, 2.0 / 3.0])
+        thresholds[cls_idx] = {
+            "q33": float(q33),
+            "q66": float(q66),
+            "n": float(len(vals)),
+        }
+
+    return thresholds
+
+
+def build_subject_plasma_bin_map(
+    train_dataset: TAUPlasmaDataset,
+    class_names: list[str],
+    plasma_bin_key: str,
+    thresholds: dict[int, dict[str, float]],
+) -> dict[str, int]:
+    """
+    根据训练集原始 plasma 值映射 subject -> plasma_bin_id in {0,1,2}。
+
+    若同一 subject 多条记录落到不同 bin，使用众数 bin。
+    """
+    if plasma_bin_key not in train_dataset.plasma_keys:
+        raise ValueError(
+            f"plasma_bin_key={plasma_bin_key} 不在 train_dataset.plasma_keys={train_dataset.plasma_keys}"
+        )
+
+    key_idx = train_dataset.plasma_keys.index(plasma_bin_key)
+    class_to_idx = {name: i for i, name in enumerate(class_names)}
+
+    subject_bins: dict[str, list[int]] = {}
+    for sample in train_dataset.samples:
+        sid = str(sample.get("subject_id"))
+        cls = _sample_to_class_idx(sample, class_to_idx)
+        if cls < 0:
+            continue
+
+        mask = bool(sample.get("plasma_mask", [False])[key_idx])
+        if not mask:
+            continue
+
+        thr = thresholds.get(cls, {"q33": float("nan"), "q66": float("nan")})
+        q33 = float(thr.get("q33", float("nan")))
+        q66 = float(thr.get("q66", float("nan")))
+        if not (np.isfinite(q33) and np.isfinite(q66)):
+            continue
+
+        v = float(sample.get("plasma_values", [0.0])[key_idx])
+        if v <= q33:
+            plasma_bin_id = 0
+        elif v <= q66:
+            plasma_bin_id = 1
+        else:
+            plasma_bin_id = 2
+
+        subject_bins.setdefault(sid, []).append(plasma_bin_id)
+
+    subject_plasma_bin_map: dict[str, int] = {}
+    for sid, bins in subject_bins.items():
+        if len(bins) == 0:
+            continue
+        binc = np.bincount(np.asarray(bins, dtype=np.int64), minlength=3)
+        subject_plasma_bin_map[sid] = int(np.argmax(binc))
+
+    return subject_plasma_bin_map
+
+
+def init_plasma_bin_memory_bank(
+    num_classes: int,
+    num_bins: int,
+    emb_dim: int,
+    device: torch.device,
+) -> dict[str, torch.Tensor | int]:
+    return {
+        "prototypes": torch.zeros(num_classes, num_bins, emb_dim, device=device, dtype=torch.float32),
+        "valid": torch.zeros(num_classes, num_bins, device=device, dtype=torch.bool),
+        "count": torch.zeros(num_classes, num_bins, device=device, dtype=torch.long),
+        "num_bins": int(num_bins),
+    }
+
+
+def _plasma_bin_memory_bank_to_state(memory_bank: dict | None) -> dict | None:
+    if memory_bank is None:
+        return None
+    return {
+        "prototypes": memory_bank["prototypes"].detach().cpu(),
+        "valid": memory_bank["valid"].detach().cpu(),
+        "count": memory_bank["count"].detach().cpu(),
+        "num_bins": int(memory_bank.get("num_bins", 3)),
+    }
+
+
+def _plasma_bin_memory_bank_from_state(state: dict | None, device: torch.device) -> dict | None:
+    if not state:
+        return None
+    if "prototypes" not in state or "valid" not in state or "count" not in state:
+        return None
+    return {
+        "prototypes": state["prototypes"].to(device=device, dtype=torch.float32),
+        "valid": state["valid"].to(device=device, dtype=torch.bool),
+        "count": state["count"].to(device=device, dtype=torch.long),
+        "num_bins": int(state.get("num_bins", 3)),
+    }
+
+
+@torch.no_grad()
+def update_plasma_bin_memory_bank_ema(
+    plasma_emb: torch.Tensor,
+    label_idx: torch.Tensor,
+    batch_plasma_bin_idx: torch.Tensor,
+    memory_bank: dict,
+    momentum: float,
+) -> None:
+    prototypes = memory_bank["prototypes"]
+    valid = memory_bank["valid"]
+    count = memory_bank["count"]
+    num_bins = int(memory_bank.get("num_bins", 3))
+
+    valid_global = (label_idx >= 0) & (batch_plasma_bin_idx >= 0) & (batch_plasma_bin_idx < num_bins)
+    if not valid_global.any():
+        return
+
+    classes = torch.unique(label_idx[valid_global])
+    for cls in classes.tolist():
+        cls = int(cls)
+        cls_mask = valid_global & (label_idx == cls)
+        for b in range(num_bins):
+            b_mask = cls_mask & (batch_plasma_bin_idx == b)
+            b_idx = torch.where(b_mask)[0]
+            if b_idx.numel() == 0:
+                continue
+
+            proto = plasma_emb[b_idx].detach().mean(dim=0, keepdim=True).to(torch.float32)
+            proto = F.normalize(proto, dim=-1).squeeze(0)
+
+            if not bool(valid[cls, b]):
+                prototypes[cls, b] = proto
+                valid[cls, b] = True
+            else:
+                mixed = momentum * prototypes[cls, b] + (1.0 - momentum) * proto
+                prototypes[cls, b] = F.normalize(mixed.unsqueeze(0), dim=-1).squeeze(0)
+
+            count[cls, b] += int(b_idx.numel())
 
 
 def _compute_bal_acc_macro_f1(
@@ -729,6 +921,10 @@ def train_one_epoch(
     config: dict,
     device: torch.device,
     epoch: int,
+    subject_plasma_bin_map: dict[str, int],
+    plasma_bin_memory_bank: dict,
+    plasma_bin_bank_momentum: float,
+    plasma_bin_min_bins_for_loss: int,
     writer: SummaryWriter = None,
     expected_plasma_dim: int | None = None,
 ):
@@ -745,9 +941,15 @@ def train_one_epoch(
     total_losses = {
         "total": 0.0,
         "img_class": 0.0,
-        "img_plasma": 0.0,
+        "img_plasma_bin": 0.0,
         "class_plasma": 0.0,
         "reg": 0.0,
+        "plasma_bin_img_valid_classes": 0.0,
+        "plasma_bin_img_skipped_classes": 0.0,
+        "plasma_bin_img_effective_samples": 0.0,
+        "plasma_bin_class_valid_classes": 0.0,
+        "plasma_bin_class_skipped_classes": 0.0,
+        "plasma_bin_class_effective_samples": 0.0,
     }
     n_batches = 0
     
@@ -759,6 +961,7 @@ def train_one_epoch(
         label_idx = batch["label_idx"].to(device)   # (B,)
         plasma_vals = batch["plasma_vals"].to(device)  # (B, K)
         plasma_mask = batch["plasma_mask"].to(device)  # (B, K)
+        subjects = batch["subjects"]
 
         if expected_plasma_dim is not None:
             if plasma_vals.shape[-1] != expected_plasma_dim:
@@ -782,6 +985,17 @@ def train_one_epoch(
             plasma_mask=plasma_mask,
         )
         # outputs keys: img_emb, class_emb, class_emb_all, plasma_emb, plasma_weights, logit_scale
+
+        batch_plasma_bin_ids = [subject_plasma_bin_map.get(str(sid), -1) for sid in subjects]
+        batch_plasma_bin_idx = torch.as_tensor(batch_plasma_bin_ids, device=device, dtype=torch.long)
+
+        update_plasma_bin_memory_bank_ema(
+            plasma_emb=outputs["plasma_emb"],
+            label_idx=label_idx,
+            batch_plasma_bin_idx=batch_plasma_bin_idx,
+            memory_bank=plasma_bin_memory_bank,
+            momentum=float(plasma_bin_bank_momentum),
+        )
         
         # =====================================================================
         # Loss
@@ -800,6 +1014,9 @@ def train_one_epoch(
             lambda_reg=train_cfg["lambda_reg"],
             reg_type=train_cfg.get("reg_type", "high_sim_penalty"),
             reg_cos_max=train_cfg.get("reg_cos_max", 0.8),
+            batch_bin_idx=batch_plasma_bin_idx,
+            plasma_bin_memory_bank=plasma_bin_memory_bank,
+            plasma_bin_min_bins_for_loss=int(plasma_bin_min_bins_for_loss),
         )
         
         loss = loss_dict["total"]
@@ -812,15 +1029,24 @@ def train_one_epoch(
         optimizer.step()
         
         # Accumulate losses
-        for k in total_losses:
-            total_losses[k] += loss_dict[k].item()
+        total_losses["total"] += float(loss_dict["total"].item())
+        total_losses["img_class"] += float(loss_dict["img_class"].item())
+        total_losses["img_plasma_bin"] += float(loss_dict["img_plasma"].item())
+        total_losses["class_plasma"] += float(loss_dict["class_plasma"].item())
+        total_losses["reg"] += float(loss_dict["reg"].item())
+        total_losses["plasma_bin_img_valid_classes"] += float(loss_dict["plasma_bin_img_valid_classes"].item())
+        total_losses["plasma_bin_img_skipped_classes"] += float(loss_dict["plasma_bin_img_skipped_classes"].item())
+        total_losses["plasma_bin_img_effective_samples"] += float(loss_dict["plasma_bin_img_effective_samples"].item())
+        total_losses["plasma_bin_class_valid_classes"] += float(loss_dict["plasma_bin_class_valid_classes"].item())
+        total_losses["plasma_bin_class_skipped_classes"] += float(loss_dict["plasma_bin_class_skipped_classes"].item())
+        total_losses["plasma_bin_class_effective_samples"] += float(loss_dict["plasma_bin_class_effective_samples"].item())
         n_batches += 1
         
         # 更新进度条
         pbar.set_postfix({
             "loss": loss.item(),
             "L_ic": loss_dict["img_class"].item(),
-            "L_ip": loss_dict["img_plasma"].item(),
+            "L_ip_bin": loss_dict["img_plasma"].item(),
         })
         
         # TensorBoard step logging
@@ -1122,6 +1348,9 @@ def main():
     parser.add_argument("--val_split_json", type=str, default="fixed_split.json",
                         help="固定 train/val 划分 JSON（包含 train_subjects/val_subjects）；"
                              "不存在时自动生成并保存，与 run_probe_and_retrieval.py 共享格式")
+    parser.add_argument("--plasma_bin_feature_name", type=str, default=None, help="plasma_bin 分桶使用的单一 key（默认 selected_keys[0]）")
+    parser.add_argument("--plasma_bin_bank_momentum", type=float, default=None, help="plasma_bin memory bank EMA 动量")
+    parser.add_argument("--plasma_bin_min_bins_for_loss", type=int, default=None, help="每类最少可用 bin 数")
     args = parser.parse_args()
     
     # =========================================================================
@@ -1155,8 +1384,11 @@ def main():
     cache_dir = Path(config["data"]["cache_dir"])
     adni_root = config.get("data", {}).get("adni_root", "/mnt/nfsdata/nfsdata/ADNI/ADNI0103/Coregistration")
     diagnosis_csv = config.get("data", {}).get("diagnosis_csv", None)
+    source_filter = config.get("data", {}).get("source_filter", ["UPENN"])
+    source_aliases = config.get("data", {}).get("source_aliases", None)
     diagnosis_code_map = config.get("classes", {}).get("diagnosis_code_map", None)
     class_names = config["classes"]["names"]  # ["CN", "MCI", "AD"]
+    print(f"[Data] source_filter={source_filter}")
 
     # 解析 plasma 配置：支持 selected_keys + prompts_by_key，兼容大小写
     selected_plasma_keys, plasma_prompts = resolve_plasma_config(config)
@@ -1230,6 +1462,8 @@ def main():
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
         skip_cache_set=missing_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     print(f"Total samples: {len(full_dataset)}")
     if missing_cache_set:
@@ -1264,6 +1498,8 @@ def main():
         diagnosis_code_map=diagnosis_code_map,
         subset_indices=train_indices,
         skip_cache_set=missing_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     val_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
@@ -1275,8 +1511,33 @@ def main():
         diagnosis_code_map=diagnosis_code_map,
         subset_indices=val_indices,
         skip_cache_set=missing_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     print(f"Train dataset: {len(train_dataset)}, Val dataset: {len(val_dataset)}")
+
+    plasma_bin_feature_name = args.plasma_bin_feature_name or config.get("training", {}).get("plasma_bin_feature_name", None)
+    if plasma_bin_feature_name is None:
+        plasma_bin_feature_name = selected_plasma_keys[0]
+    if plasma_bin_feature_name not in selected_plasma_keys:
+        raise ValueError(
+            f"plasma_bin_feature_name={plasma_bin_feature_name} 不在 selected_keys={selected_plasma_keys}"
+        )
+
+    plasma_bin_thresholds = compute_classwise_plasma_bin_thresholds(
+        train_dataset=train_dataset,
+        class_names=class_names,
+        plasma_bin_key=plasma_bin_feature_name,
+    )
+    subject_plasma_bin_map = build_subject_plasma_bin_map(
+        train_dataset=train_dataset,
+        class_names=class_names,
+        plasma_bin_key=plasma_bin_feature_name,
+        thresholds=plasma_bin_thresholds,
+    )
+    print(
+        f"[PlasmaBin] key={plasma_bin_feature_name}, mapped_subjects={len(subject_plasma_bin_map)}"
+    )
     
     # DataLoader
     batch_size = config["training"]["batch_size"]
@@ -1346,6 +1607,24 @@ def main():
         lr=float(config["training"]["lr"]),
         weight_decay=float(config["training"].get("weight_decay", 0.01)),
     )
+
+    plasma_bin_bank_momentum = (
+        args.plasma_bin_bank_momentum
+        if args.plasma_bin_bank_momentum is not None
+        else float(config["training"].get("plasma_bin_bank_momentum", 0.99))
+    )
+    plasma_bin_min_bins_for_loss = (
+        args.plasma_bin_min_bins_for_loss
+        if args.plasma_bin_min_bins_for_loss is not None
+        else int(config["training"].get("plasma_bin_min_bins_for_loss", 2))
+    )
+
+    plasma_bin_memory_bank = init_plasma_bin_memory_bank(
+        num_classes=len(class_names),
+        num_bins=3,
+        emb_dim=int(model_cfg.get("proj_dim", 512)),
+        device=device,
+    )
     
     # =========================================================================
     # 断点恢复
@@ -1354,7 +1633,11 @@ def main():
     best_metric = 0.0
     
     if args.resume:
-        start_epoch, best_metric = load_checkpoint(model, optimizer, args.resume)
+        start_epoch, best_metric, plasma_bin_memory_bank_state = load_checkpoint(model, optimizer, args.resume)
+        loaded_bank = _plasma_bin_memory_bank_from_state(plasma_bin_memory_bank_state, device=device)
+        if loaded_bank is not None:
+            plasma_bin_memory_bank = loaded_bank
+            print("[Resume] plasma_bin memory bank restored.")
         start_epoch += 1  # 从下一个 epoch 开始
     
     # =========================================================================
@@ -1408,12 +1691,16 @@ def main():
             config=config,
             device=device,
             epoch=epoch,
+                        subject_plasma_bin_map=subject_plasma_bin_map,
+                        plasma_bin_memory_bank=plasma_bin_memory_bank,
+                        plasma_bin_bank_momentum=plasma_bin_bank_momentum,
+                        plasma_bin_min_bins_for_loss=plasma_bin_min_bins_for_loss,
             writer=writer,
             expected_plasma_dim=len(selected_plasma_keys),
         )
         print(f"Train - total: {train_losses['total']:.4f}, "
               f"img_class: {train_losses['img_class']:.4f}, "
-              f"img_plasma: {train_losses['img_plasma']:.4f}")
+                            f"img_plasma_bin: {train_losses['img_plasma_bin']:.4f}")
         
         # 验证
         val_metrics = validate(
@@ -1436,7 +1723,9 @@ def main():
         # TensorBoard epoch logging
         writer.add_scalar("train_epoch/loss", train_losses["total"], epoch)
         writer.add_scalar("train_epoch/loss_img_class", train_losses["img_class"], epoch)
-        writer.add_scalar("train_epoch/loss_img_plasma", train_losses["img_plasma"], epoch)
+        writer.add_scalar("train_epoch/loss_img_plasma_bin", train_losses["img_plasma_bin"], epoch)
+        writer.add_scalar("train_epoch/plasma_bin_img_valid_classes", train_losses["plasma_bin_img_valid_classes"], epoch)
+        writer.add_scalar("train_epoch/plasma_bin_img_effective_samples", train_losses["plasma_bin_img_effective_samples"], epoch)
         writer.add_scalar("val/probe_bal_acc", val_metrics["probe_bal_acc"], epoch)
         writer.add_scalar("val/probe_macro_f1", val_metrics["probe_macro_f1"], epoch)
         writer.add_scalar("val/inject_bal_acc", val_metrics["inject_bal_acc"], epoch)
@@ -1455,7 +1744,8 @@ def main():
         if (epoch + 1) % save_every == 0:
             save_checkpoint(
                 model, optimizer, epoch, current_metric,
-                str(ckpt_dir / f"epoch_{epoch+1:03d}.pt")
+                str(ckpt_dir / f"epoch_{epoch+1:03d}.pt"),
+                plasma_bin_memory_bank=plasma_bin_memory_bank,
             )
         
         # 保存 best model + 早停计数
@@ -1464,7 +1754,8 @@ def main():
             epochs_without_improve = 0
             save_checkpoint(
                 model, optimizer, epoch, best_metric,
-                str(ckpt_dir / "best.pt")
+                str(ckpt_dir / "best.pt"),
+                plasma_bin_memory_bank=plasma_bin_memory_bank,
             )
             print(f"[Best] New best inject_macro_f1: {best_metric:.4f}")
         else:
