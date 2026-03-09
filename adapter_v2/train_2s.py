@@ -146,7 +146,10 @@ def load_checkpoint_2s(
     state = torch.load(load_path, map_location="cpu")
     model.load_state_dict(state["model_state_dict"])
     if "optimizer_state_dict" in state:
-        optimizer.load_state_dict(state["optimizer_state_dict"])
+        try:
+            optimizer.load_state_dict(state["optimizer_state_dict"])
+        except (ValueError, RuntimeError) as e:
+            print(f"[WARN] 跳过 optimizer state 加载（参数组不兼容）: {e}")
 
     stage = state.get("stage", "stage1")
     stage_epoch = int(state.get("stage_epoch", 0))
@@ -171,6 +174,8 @@ def _build_common_dataset(
     missing_cache_set: set,
     diagnosis_csv: str | None,
     diagnosis_code_map: dict | None,
+    source_filter: list[str] | str | None,
+    source_aliases: dict | None,
 ) -> TAUPlasmaDataset:
     return TAUPlasmaDataset(
         csv_path=str(csv_path),
@@ -180,6 +185,8 @@ def _build_common_dataset(
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
         skip_cache_set=missing_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
 
 
@@ -195,6 +202,8 @@ def _build_split_datasets(
     missing_cache_set: set,
     diagnosis_csv: str | None,
     diagnosis_code_map: dict | None,
+    source_filter: list[str] | str | None,
+    source_aliases: dict | None,
 ) -> tuple[TAUPlasmaDataset, TAUPlasmaDataset]:
     train_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
@@ -206,6 +215,8 @@ def _build_split_datasets(
         diagnosis_code_map=diagnosis_code_map,
         subset_indices=train_indices,
         skip_cache_set=missing_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     val_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
@@ -217,6 +228,8 @@ def _build_split_datasets(
         diagnosis_code_map=diagnosis_code_map,
         subset_indices=val_indices,
         skip_cache_set=missing_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     return train_dataset, val_dataset
 
@@ -1110,8 +1123,11 @@ def main():
     csv_path = script_dir / config["data"]["csv_path"]
     cache_dir = Path(config["data"]["cache_dir"])
     diagnosis_csv = config.get("data", {}).get("diagnosis_csv", None)
+    source_filter = config.get("data", {}).get("source_filter", ["UPENN"])
+    source_aliases = config.get("data", {}).get("source_aliases", None)
     diagnosis_code_map = config.get("classes", {}).get("diagnosis_code_map", None)
     class_names = config["classes"]["names"]
+    print(f"[Data] source_filter={source_filter}")
 
     # Stage-1 沿用 config selected_keys
     selected_plasma_keys_stage1, plasma_prompts_stage1 = resolve_plasma_config(config)
@@ -1135,6 +1151,8 @@ def main():
         missing_cache_set=missing_cache_set,
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     print(f"Total samples: {len(full_dataset_stage1)}")
     if missing_cache_set:
@@ -1168,6 +1186,8 @@ def main():
         missing_cache_set=missing_cache_set,
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
 
     batch_size = int(config["training"]["batch_size"])
@@ -1364,6 +1384,8 @@ def main():
         missing_cache_set=missing_cache_set,
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
 
     train_dataset_s2, val_dataset_s2 = _build_split_datasets(
@@ -1378,6 +1400,8 @@ def main():
         missing_cache_set=missing_cache_set,
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     train_loader_s2, val_loader_s2 = _build_dataloaders(
         train_dataset=train_dataset_s2,

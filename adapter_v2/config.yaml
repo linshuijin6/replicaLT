@@ -11,6 +11,11 @@ data:
   adni_root: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF
   # 可选：诊断标签（从 CSV 外部来源匹配，若 CSV 无 diagnosis 字段）
   diagnosis_csv: null
+  # 来源过滤：默认仅使用 UPENN；可设为 ["UPENN", "C2N"] 使用全部来源
+  source_filter: ["UPENN",'C2N']
+  # 来源别名兼容（读取时统一到 canonical source）
+  source_aliases:
+    CN2: C2N
   # 训练/验证划分比例
   val_ratio: 0.1
   seed: 42
@@ -70,8 +75,8 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 1
-  batch_size: 8
+  gpu: 2
+  batch_size: 16
   epochs: 200
   patience: 20  # 早停：验证指标连续多少个 epoch 未提升则停止训练
   lr: 2e-4

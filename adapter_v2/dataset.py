@@ -53,6 +53,12 @@ DEFAULT_DIAGNOSIS_CODE_MAP: Dict[int, str] = {
     3: "AD",
 }
 
+DEFAULT_SOURCE_ALIASES: Dict[str, str] = {
+    "UPENN": "UPENN",
+    "C2N": "C2N",
+    "CN2": "C2N",
+}
+
 # 默认 plasma 字段
 DEFAULT_PLASMA_KEYS = ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
 
@@ -189,6 +195,26 @@ def compute_plasma_stats(
         return stats
 
 
+def normalize_plasma_source(
+    raw: Any,
+    source_aliases: Dict[str, str] | None = None,
+    default_source: str = "UPENN",
+) -> str:
+    """将来源字段统一为标准值（如 UPENN/C2N）。"""
+    aliases = dict(DEFAULT_SOURCE_ALIASES)
+    if source_aliases is not None:
+        for k, v in source_aliases.items():
+            aliases[str(k).strip().upper()] = str(v).strip().upper()
+
+    if raw is None or pd.isna(raw):
+        return default_source
+
+    key = str(raw).strip().upper()
+    if key in {"", "NAN", "NONE", "NULL"}:
+        return default_source
+    return aliases.get(key, key)
+
+
 # ============================================================================
 # Dataset 实现
 # ============================================================================
@@ -217,6 +243,8 @@ class TAUPlasmaDataset(Dataset):
         diagnosis_code_map: Dict[Any, str] | None = None,
         subset_indices: List[int] = None,
         skip_cache_set: set = None,
+        source_filter: List[str] | str | None = None,
+        source_aliases: Dict[str, str] | None = None,
     ):
         """
         Args:
@@ -237,6 +265,11 @@ class TAUPlasmaDataset(Dataset):
         # diagnosis 数值映射（优先使用外部传入，其次默认 1/2/3）
         self.diagnosis_code_map = diagnosis_code_map or DEFAULT_DIAGNOSIS_CODE_MAP
         self.skip_cache_set = skip_cache_set or set()
+        self.source_col = "plasma_source"
+        self.source_aliases = dict(DEFAULT_SOURCE_ALIASES)
+        if source_aliases is not None:
+            for k, v in source_aliases.items():
+                self.source_aliases[str(k).strip().upper()] = str(v).strip().upper()
         
         # 加载 CSV - 显式指定 image_id 相关列为字符串，避免被解析为 float
         # 只有 plasma 相关字段是数值，其余字段都应当是字符串
@@ -254,9 +287,47 @@ class TAUPlasmaDataset(Dataset):
         self.df = self.df[
             (self.df["id_av1451"].notna()) & (self.df["id_av1451"] != "nan")
         ].reset_index(drop=True)
+
+        # 标准化来源字段，便于后续 source 过滤与统计
+        if self.source_col not in self.df.columns:
+            self.df[self.source_col] = "UPENN"
+        self.df[self.source_col] = self.df[self.source_col].map(
+            lambda x: normalize_plasma_source(
+                x,
+                source_aliases=self.source_aliases,
+                default_source="UPENN",
+            )
+        )
+
+        # 根据来源过滤样本（默认不过滤；由外部 config 控制）
+        self.source_filter: set[str] | None = None
+        if source_filter is not None:
+            if isinstance(source_filter, str):
+                source_filter = [source_filter]
+            normalized_filter = {
+                normalize_plasma_source(
+                    src,
+                    source_aliases=self.source_aliases,
+                    default_source="UPENN",
+                )
+                for src in source_filter
+            }
+            self.source_filter = {src for src in normalized_filter if len(src) > 0}
+            if len(self.source_filter) == 0:
+                raise ValueError("source_filter 解析后为空，请检查配置")
+
+            before_rows = len(self.df)
+            self.df = self.df[self.df[self.source_col].isin(self.source_filter)].reset_index(drop=True)
+            print(
+                f"[Dataset] Source filter: {sorted(self.source_filter)} | "
+                f"rows: {before_rows} -> {len(self.df)}"
+            )
+            if len(self.df) == 0:
+                raise ValueError(
+                    f"source_filter={sorted(self.source_filter)} 过滤后无可用样本，请检查数据与配置"
+                )
         
         # 计算或使用提供的 plasma 统计（按 source 分别计算）
-        self.source_col = "plasma_source"
         self.na_value = -4.0  # 表示缺失值的特殊值
         if plasma_stats is None:
             self.plasma_stats = compute_plasma_stats(
@@ -304,9 +375,11 @@ class TAUPlasmaDataset(Dataset):
             diagnosis = normalize_diagnosis(diag_raw, diagnosis_code_map=self.diagnosis_code_map)
             
             # plasma source
-            plasma_source = row.get(self.source_col, "UPENN")  # 默认 UPENN
-            if pd.isna(plasma_source):
-                plasma_source = "UPENN"
+            plasma_source = normalize_plasma_source(
+                row.get(self.source_col, "UPENN"),
+                source_aliases=self.source_aliases,
+                default_source="UPENN",
+            )
             
             # plasma 值和 mask
             plasma_vals = []
@@ -627,6 +700,8 @@ def build_dataloaders(
     class_names: List[str] = None,
     num_workers: int = 0,
     skip_cache_set: set = None,
+    source_filter: List[str] | str | None = None,
+    source_aliases: Dict[str, str] | None = None,
 ) -> Tuple[DataLoader, DataLoader, Dict[str, Dict[str, float]]]:
     """
     构建训练和验证 DataLoader
@@ -641,6 +716,8 @@ def build_dataloaders(
         plasma_keys=plasma_keys,
         class_names=class_names,
         skip_cache_set=skip_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     plasma_stats = full_dataset.plasma_stats
     
@@ -656,6 +733,8 @@ def build_dataloaders(
         plasma_stats=plasma_stats,
         subset_indices=train_indices,
         skip_cache_set=skip_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     val_dataset = TAUPlasmaDataset(
         csv_path=csv_path,
@@ -665,6 +744,8 @@ def build_dataloaders(
         plasma_stats=plasma_stats,
         subset_indices=val_indices,
         skip_cache_set=skip_cache_set,
+        source_filter=source_filter,
+        source_aliases=source_aliases,
     )
     
     # 构建 DataLoader
