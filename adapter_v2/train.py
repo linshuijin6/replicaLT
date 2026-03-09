@@ -310,7 +310,7 @@ def _normalize_plasma_key(key: str) -> str:
     return str(key).strip().lower()
 
 
-def resolve_plasma_config(config: dict) -> tuple[list, list]:
+def resolve_plasma_config(config: dict) -> tuple[list, list, str, str, float]:
     """
     解析并校验 plasma 相关配置。
 
@@ -320,8 +320,10 @@ def resolve_plasma_config(config: dict) -> tuple[list, list]:
 
     Returns
     -------
-    selected_keys, plasma_prompts : (list[str], list[str])
-        规范化后的 key 列表与按 key 对齐的 prompt 列表
+    selected_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature : 
+        (list[str], list[str], str, str, float)
+        规范化后的 key 列表、按 key 对齐的 prompt 列表、样本间归一化方式、
+        样本内归一化方式、样本内归一化温度
     """
     plasma_cfg = config.get("plasma", {})
 
@@ -398,7 +400,22 @@ def resolve_plasma_config(config: dict) -> tuple[list, list]:
     if len(resolved_keys) != len(plasma_prompts):
         raise ValueError("plasma keys 与 prompts 数量不一致")
 
-    return resolved_keys, plasma_prompts
+    # 解析归一化配置
+    inter_norm = plasma_cfg.get("inter_norm", "minmax")
+    if inter_norm not in ["minmax", "zscore"]:
+        raise ValueError(
+            f"plasma.inter_norm 必须为 'minmax' 或 'zscore'，当前值: {inter_norm}"
+        )
+    
+    intra_norm = plasma_cfg.get("intra_norm", "none")
+    if intra_norm not in ["none", "softmax", "sigmoid"]:
+        raise ValueError(
+            f"plasma.intra_norm 必须为 'none'、'softmax' 或 'sigmoid'，当前值: {intra_norm}"
+        )
+    
+    intra_norm_temperature = float(plasma_cfg.get("intra_norm_temperature", 1.0))
+
+    return resolved_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature
 
 
 def save_checkpoint(
@@ -1170,10 +1187,11 @@ def main():
     diagnosis_code_map = config.get("classes", {}).get("diagnosis_code_map", None)
     class_names = config["classes"]["names"]  # ["CN", "MCI", "AD"]
 
-    # 解析 plasma 配置：支持 selected_keys + prompts_by_key，兼容大小写
-    selected_plasma_keys, plasma_prompts = resolve_plasma_config(config)
+    # 解析 plasma 配置：支持 selected_keys + prompts_by_key，兼容大小写，以及归一化参数
+    selected_plasma_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature = resolve_plasma_config(config)
     config.setdefault("plasma", {})["keys"] = selected_plasma_keys
     print(f"[Plasma] Selected keys ({len(selected_plasma_keys)}): {selected_plasma_keys}")
+    print(f"[Plasma] Normalization: inter_norm={inter_norm}, intra_norm={intra_norm}, intra_temperature={intra_norm_temperature}")
     
     # =========================================================================
     # 缓存验证与补充生成
@@ -1270,6 +1288,7 @@ def main():
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
         skip_cache_set=missing_cache_set,
+        inter_norm=inter_norm,
     )
     print(f"Total samples: {len(full_dataset)}")
     if missing_cache_set:
@@ -1305,6 +1324,7 @@ def main():
         diagnosis_code_map=diagnosis_code_map,
         subset_indices=train_indices,
         skip_cache_set=missing_cache_set,
+        inter_norm=inter_norm,
     )
     val_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
@@ -1317,6 +1337,7 @@ def main():
         diagnosis_code_map=diagnosis_code_map,
         subset_indices=val_indices,
         skip_cache_set=missing_cache_set,
+        inter_norm=inter_norm,
     )
     print(f"Train dataset: {len(train_dataset)}, Val dataset: {len(val_dataset)}")
     
@@ -1372,6 +1393,8 @@ def main():
         ctx_hidden_dim=model_cfg.get("ctx_hidden_dim", 1024),
         share_ctx_base=model_cfg.get("share_ctx_base", False),
         plasma_temperature=config["plasma"].get("temperature", 1.0),
+        intra_norm=intra_norm,
+        intra_temperature=intra_norm_temperature,
     )
     model = model.to(device)
     

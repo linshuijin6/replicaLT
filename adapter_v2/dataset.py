@@ -126,9 +126,10 @@ def compute_plasma_stats(
     by_source: bool = True,
     source_col: str = "plasma_source",
     na_value: float = -4.0,
+    norm_type: str = "minmax",
 ) -> Dict[str, Dict[str, float]]:
     """
-    计算 plasma 各字段的归一化统计量（min-max），按 source 分别计算
+    计算 plasma 各字段的归一化统计量，按 source 分别计算
     
     Args:
         df: 包含 plasma 字段的 DataFrame
@@ -136,12 +137,13 @@ def compute_plasma_stats(
         by_source: 是否按 source 分别计算统计量
         source_col: source 列名
         na_value: 表示缺失值的特殊值（如 -4.0），将被排除
+        norm_type: 归一化类型，"minmax" 或 "zscore"
         
     Returns:
         若 by_source=True:
-            Dict[source, Dict[field_name, {"min": float, "max": float}]]
+            Dict[source, Dict[field_name, {"min": float, "max": float, "mean": float, "std": float}]]
         若 by_source=False:
-            Dict[field_name, {"min": float, "max": float}]
+            Dict[field_name, {"min": float, "max": float, "mean": float, "std": float}]
     """
     if by_source and source_col in df.columns:
         sources = df[source_col].dropna().unique()
@@ -151,41 +153,51 @@ def compute_plasma_stats(
             stats[source] = {}
             for key in plasma_keys:
                 if key not in df.columns:
-                    stats[source][key] = {"min": 0.0, "max": 1.0}
+                    stats[source][key] = {"min": 0.0, "max": 1.0, "mean": 0.0, "std": 1.0}
                     continue
                 values = pd.to_numeric(source_df[key], errors="coerce")
                 # 排除 NA 值（-4 或负值）
                 valid = values[(values.notna()) & (values >= 0) & (values != na_value)]
                 if len(valid) == 0:
-                    stats[source][key] = {"min": 0.0, "max": 1.0}
+                    stats[source][key] = {"min": 0.0, "max": 1.0, "mean": 0.0, "std": 1.0}
                 else:
                     min_val = float(valid.min())
                     max_val = float(valid.max())
+                    mean_val = float(valid.mean())
+                    std_val = float(valid.std())
                     # C2N 的 pT217_AB42_F 是百分比单位，需要除以 100 转换为小数
                     if key == "pT217_AB42_F" and source == "C2N":
                         min_val = min_val / 100.0
                         max_val = max_val / 100.0
+                        mean_val = mean_val / 100.0
+                        std_val = std_val / 100.0
                     if abs(max_val - min_val) < 1e-8:
                         max_val = min_val + 1.0
-                    stats[source][key] = {"min": min_val, "max": max_val}
+                    if abs(std_val) < 1e-8:
+                        std_val = 1.0
+                    stats[source][key] = {"min": min_val, "max": max_val, "mean": mean_val, "std": std_val}
         return stats
     else:
         # 全局统计（不按 source 分组）
         stats = {}
         for key in plasma_keys:
             if key not in df.columns:
-                stats[key] = {"min": 0.0, "max": 1.0}
+                stats[key] = {"min": 0.0, "max": 1.0, "mean": 0.0, "std": 1.0}
                 continue
             values = pd.to_numeric(df[key], errors="coerce")
             valid = values[(values.notna()) & (values >= 0) & (values != na_value)]
             if len(valid) == 0:
-                stats[key] = {"min": 0.0, "max": 1.0}
+                stats[key] = {"min": 0.0, "max": 1.0, "mean": 0.0, "std": 1.0}
             else:
                 min_val = float(valid.min())
                 max_val = float(valid.max())
+                mean_val = float(valid.mean())
+                std_val = float(valid.std())
                 if abs(max_val - min_val) < 1e-8:
                     max_val = min_val + 1.0
-                stats[key] = {"min": min_val, "max": max_val}
+                if abs(std_val) < 1e-8:
+                    std_val = 1.0
+                stats[key] = {"min": min_val, "max": max_val, "mean": mean_val, "std": std_val}
         return stats
 
 
@@ -218,6 +230,7 @@ class TAUPlasmaDataset(Dataset):
         diagnosis_code_map: Dict[Any, str] | None = None,
         subset_indices: List[int] = None,
         skip_cache_set: set = None,
+        inter_norm: str = "minmax",
     ):
         """
         Args:
@@ -229,6 +242,7 @@ class TAUPlasmaDataset(Dataset):
             diagnosis_csv: 可选的诊断标签 CSV（若主 CSV 无 diagnosis 字段）
             subset_indices: 子集索引（用于 train/val 划分）
             skip_cache_set: Set of (ptid, tau_id) tuples to skip (missing caches)
+            inter_norm: 归一化方式，"minmax" 或 "zscore"
         """
         self.csv_path = Path(csv_path)
         self.cache_dir = Path(cache_dir)
@@ -239,6 +253,8 @@ class TAUPlasmaDataset(Dataset):
         # diagnosis 数值映射（优先使用外部传入，其次默认 1/2/3）
         self.diagnosis_code_map = diagnosis_code_map or DEFAULT_DIAGNOSIS_CODE_MAP
         self.skip_cache_set = skip_cache_set or set()
+        # 归一化方式
+        self.inter_norm = inter_norm
         
         # 加载 CSV - 显式指定 image_id 相关列为字符串，避免被解析为 float
         # 只有 plasma 相关字段是数值，其余字段都应当是字符串
@@ -266,13 +282,17 @@ class TAUPlasmaDataset(Dataset):
                 by_source=True, 
                 source_col=self.source_col,
                 na_value=self.na_value,
+                norm_type=self.inter_norm,
             )
             # 打印统计量供调试
-            print(f"[Dataset] Plasma stats by source:")
+            print(f"[Dataset] Plasma stats by source (norm_type={self.inter_norm}):")
             for source, source_stats in self.plasma_stats.items():
                 print(f"  {source}:")
                 for key, s in source_stats.items():
-                    print(f"    {key}: min={s['min']:.4f}, max={s['max']:.4f}")
+                    if self.inter_norm == "zscore":
+                        print(f"    {key}: mean={s['mean']:.4f}, std={s['std']:.4f}")
+                    else:
+                        print(f"    {key}: min={s['min']:.4f}, max={s['max']:.4f}")
         else:
             self.plasma_stats = plasma_stats
         
@@ -475,7 +495,7 @@ class TAUPlasmaDataset(Dataset):
             diagnosis_id = -1  # 标记为无效
         
         # ===============================
-        # Plasma 值：min-max 归一化（按 source 分别处理）
+        # Plasma 值：归一化（按 source 分别处理）
         # ===============================
         plasma_raw = sample["plasma_values"]  # List[float]
         plasma_mask = sample["plasma_mask"]   # List[bool]
@@ -490,14 +510,20 @@ class TAUPlasmaDataset(Dataset):
         
         plasma_norm = []
         for i, key in enumerate(self.plasma_keys):
-            stats = source_stats.get(key, {"min": 0.0, "max": 1.0})
-            min_val = stats.get("min", 0.0)
-            max_val = stats.get("max", 1.0)
+            stats = source_stats.get(key, {"min": 0.0, "max": 1.0, "mean": 0.0, "std": 1.0})
             if plasma_mask[i]:
-                # min-max 归一化到 [0, 1]
-                norm = (plasma_raw[i] - min_val) / (max_val - min_val)
-                # 裁剪到 [0, 1] 范围，防止异常值
-                norm = max(0.0, min(1.0, norm))
+                if self.inter_norm == "zscore":
+                    # z-score 归一化
+                    mean_val = stats.get("mean", 0.0)
+                    std_val = stats.get("std", 1.0)
+                    norm = (plasma_raw[i] - mean_val) / std_val
+                else:
+                    # min-max 归一化到 [0, 1]（默认）
+                    min_val = stats.get("min", 0.0)
+                    max_val = stats.get("max", 1.0)
+                    norm = (plasma_raw[i] - min_val) / (max_val - min_val)
+                    # 裁剪到 [0, 1] 范围，防止异常值
+                    norm = max(0.0, min(1.0, norm))
             else:
                 norm = 0.0  # 缺失值填 0（mask 会屏蔽）
             plasma_norm.append(norm)

@@ -26,7 +26,7 @@ plasma:
   # 可选：AB42_AB40_F, pT217_F, pT217_AB42_F, NfL_Q, GFAP_Q
   available_keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
   # 实际启用项（支持 1 个或多个）；大小写不敏感，可通过 key_aliases 兼容别名
-  selected_keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F"]
+  selected_keys: ["AB42_AB40_F"]
   # 大小写/别名兼容映射（左侧可写任意别名，右侧需指向 canonical key）
   key_aliases:
     ab42_ab40_f: AB42_AB40_F
@@ -34,9 +34,21 @@ plasma:
     pt217_ab42_f: pT217_AB42_F
     nfl_q: NfL_Q
     gfap_q: GFAP_Q
-  # 权重温度（softmax(plasma_z / T)）
+  # ── 归一化超参数 ──
+  # 样本间归一化方式（针对同一 plasma 指标的跨样本归一化）
+  # - "minmax": min-max 归一化到 [0, 1]（默认）
+  # - "zscore": z-score 标准化，(val - mean) / std
+  inter_norm: "minmax"
+  # 样本内归一化方式（针对单个样本的多个 plasma 指标进行归一化）
+  # - "none": 不做样本内归一化，直接使用 inter_norm 结果作为权重（默认）
+  # - "softmax": 对有效指标执行 softmax(weights / intra_norm_temperature)
+  # - "sigmoid": 对有效指标执行 sigmoid(weights)
+  intra_norm: "softmax"
+  # 样本内归一化温度参数（仅在 intra_norm="softmax" 时生效）
+  intra_norm_temperature: 1.0
+  # 权重温度（向后兼容，推荐使用 intra_norm_temperature）
   temperature: 1.0
-  # 归一化统计（若为 null 则训练时自动计算 z-score 均值/标准差）
+  # 归一化统计（若为 null 则训练时自动计算统计量）
   norm_stats: null
   # 按 key 定义语义提示（训练时会按 selected_keys 顺序自动组装）
   prompts_by_key:
@@ -75,8 +87,8 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 3
-  batch_size: 8
+  gpu: 5
+  batch_size: 16
   epochs: 200
   patience: 150  # 早停：验证指标连续多少个 epoch 未提升则停止训练
   lr: 2e-4

@@ -143,30 +143,51 @@ def compute_plasma_weights(
     plasma_values: torch.Tensor,
     plasma_mask: torch.Tensor,
     temperature: float = 1.0,
+    intra_norm: str = "none",
+    intra_temperature: float = 1.0,
 ) -> torch.Tensor:
     """
-    计算 plasma 加权权重：直接使用 plasma 数值（masked）
+    计算 plasma 加权权重：支持样本内归一化
     
     Args:
-        plasma_values: (B, K) - z-score 归一化的 plasma 值
+        plasma_values: (B, K) - 归一化后的 plasma 值（min-max 或 z-score）
         plasma_mask: (B, K) - 有效 mask
         temperature: 保留参数（向后兼容，当前不使用）
+        intra_norm: 样本内归一化方式，"none" / "softmax" / "sigmoid"
+        intra_temperature: softmax 温度参数（仅在 intra_norm="softmax" 时生效）
         
     Returns:
-        weights: (B, K) - 直接数值权重，缺失位置为 0
+        weights: (B, K) - 加权权重，缺失位置为 0
     """
     _ = temperature
+    B, K = plasma_values.shape
 
-    # mask: True 表示有效，False 表示缺失
     # 直接使用 plasma 数值作为权重
     weights = plasma_values.masked_fill(~plasma_mask, 0.0)
     
     # 处理全缺失情况
-    # 若某样本全缺失，使用均匀权重
     all_missing = ~plasma_mask.any(dim=-1, keepdim=True)  # (B, 1)
-    n_plasma = max(int(weights.shape[-1]), 1)
+    n_plasma = max(int(K), 1)
     uniform = torch.ones_like(weights) / float(n_plasma)
-    weights = torch.where(all_missing.expand_as(weights), uniform, weights)
+    
+    # 样本内归一化
+    if intra_norm == "softmax":
+        # 对有效位置执行 softmax（温度缩放）
+        # 将缺失位置设为 -inf，确保 softmax 后权重为 0
+        logits = weights / intra_temperature
+        logits = logits.masked_fill(~plasma_mask, float('-inf'))
+        weights = torch.softmax(logits, dim=-1)
+        # softmax 遇到全 -inf 会产生 nan，需要替换为均匀权重
+        weights = torch.where(all_missing.expand_as(weights), uniform, weights)
+    elif intra_norm == "sigmoid":
+        # 对有效位置执行 sigmoid
+        weights = torch.sigmoid(weights)
+        weights = weights.masked_fill(~plasma_mask, 0.0)
+        # 全缺失时使用均匀权重
+        weights = torch.where(all_missing.expand_as(weights), uniform, weights)
+    else:
+        # "none": 保持原有行为，仅处理全缺失情况
+        weights = torch.where(all_missing.expand_as(weights), uniform, weights)
     
     # 确保无 nan
     weights = torch.nan_to_num(weights, nan=(1.0 / float(n_plasma)))
@@ -213,6 +234,8 @@ class CoCoOpTAUModel(nn.Module):
         ctx_hidden_dim: int = 1024,
         share_ctx_base: bool = False,
         plasma_temperature: float = 1.0,
+        intra_norm: str = "none",
+        intra_temperature: float = 1.0,
     ):
         """
         Args:
@@ -224,12 +247,16 @@ class CoCoOpTAUModel(nn.Module):
             proj_dim: projection 输出维度
             ctx_hidden_dim: ContextNet 隐藏层维度
             share_ctx_base: 是否共享 class/plasma 的 base context
-            plasma_temperature: plasma 权重温度
+            plasma_temperature: plasma 权重温度（向后兼容）
+            intra_norm: 样本内归一化方式，"none" / "softmax" / "sigmoid"
+            intra_temperature: softmax 温度参数
         """
         super().__init__()
         
         self.class_names = class_names or ["CN", "MCI", "AD"]
         self.plasma_temperature = plasma_temperature
+        self.intra_norm = intra_norm
+        self.intra_temperature = intra_temperature
         self.ctx_len = ctx_len
         
         # =====================================================================
@@ -543,7 +570,9 @@ class CoCoOpTAUModel(nn.Module):
         # 计算 plasma 权重
         # plasma_weights: (B, 5)
         plasma_weights = compute_plasma_weights(
-            plasma_values, plasma_mask, self.plasma_temperature
+            plasma_values, plasma_mask, self.plasma_temperature,
+            intra_norm=self.intra_norm,
+            intra_temperature=self.intra_temperature,
         )
         
         # 加权汇聚
