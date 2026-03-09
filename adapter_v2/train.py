@@ -203,6 +203,7 @@ def _snapshot_repro_metadata(
     mri_cache_dir: Path,
     split_path: Path,
     seed: int,
+    plasma_source_filter: list[str] | None,
     train_count: int,
     val_count: int,
 ):
@@ -231,6 +232,7 @@ def _snapshot_repro_metadata(
         "cuda_version": torch.version.cuda,
         "cudnn_version": torch.backends.cudnn.version(),
         "seed": seed,
+        "plasma_source_filter": plasma_source_filter,
         "train_samples": int(train_count),
         "val_samples": int(val_count),
     }
@@ -310,7 +312,7 @@ def _normalize_plasma_key(key: str) -> str:
     return str(key).strip().lower()
 
 
-def resolve_plasma_config(config: dict) -> tuple[list, list, str, str, float]:
+def resolve_plasma_config(config: dict) -> tuple[list, list, str, str, float, list[str] | None]:
     """
     解析并校验 plasma 相关配置。
 
@@ -320,10 +322,10 @@ def resolve_plasma_config(config: dict) -> tuple[list, list, str, str, float]:
 
     Returns
     -------
-    selected_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature : 
-        (list[str], list[str], str, str, float)
+    selected_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature, plasma_source_filter : 
+        (list[str], list[str], str, str, float, list[str] | None)
         规范化后的 key 列表、按 key 对齐的 prompt 列表、样本间归一化方式、
-        样本内归一化方式、样本内归一化温度
+        样本内归一化方式、样本内归一化温度、plasma source 过滤列表
     """
     plasma_cfg = config.get("plasma", {})
 
@@ -415,7 +417,41 @@ def resolve_plasma_config(config: dict) -> tuple[list, list, str, str, float]:
     
     intra_norm_temperature = float(plasma_cfg.get("intra_norm_temperature", 1.0))
 
-    return resolved_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature
+    # 解析 plasma source 过滤配置
+    allowed_sources = {"UPENN", "C2N"}
+    source_cfg = plasma_cfg.get("source", None)
+    plasma_source_filter: list[str] | None
+    if source_cfg is None:
+        plasma_source_filter = None
+    elif isinstance(source_cfg, str):
+        normalized_source = source_cfg.strip().upper()
+        if normalized_source in ["", "ALL"]:
+            plasma_source_filter = None
+        else:
+            if normalized_source not in allowed_sources:
+                raise ValueError(
+                    f"plasma.source 非法取值: {source_cfg}. 可选: all, UPENN, C2N 或其列表"
+                )
+            plasma_source_filter = [normalized_source]
+    elif isinstance(source_cfg, list):
+        parsed_sources = []
+        seen_sources = set()
+        for source in source_cfg:
+            normalized_source = str(source).strip().upper()
+            if normalized_source in ["", "ALL"]:
+                continue
+            if normalized_source not in allowed_sources:
+                raise ValueError(
+                    f"plasma.source 包含非法取值: {source}. 可选: UPENN, C2N"
+                )
+            if normalized_source not in seen_sources:
+                parsed_sources.append(normalized_source)
+                seen_sources.add(normalized_source)
+        plasma_source_filter = parsed_sources if parsed_sources else None
+    else:
+        raise ValueError("plasma.source 必须为 null/字符串/字符串列表")
+
+    return resolved_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature, plasma_source_filter
 
 
 def save_checkpoint(
@@ -1188,10 +1224,14 @@ def main():
     class_names = config["classes"]["names"]  # ["CN", "MCI", "AD"]
 
     # 解析 plasma 配置：支持 selected_keys + prompts_by_key，兼容大小写，以及归一化参数
-    selected_plasma_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature = resolve_plasma_config(config)
+    selected_plasma_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature, plasma_source_filter = resolve_plasma_config(config)
     config.setdefault("plasma", {})["keys"] = selected_plasma_keys
     print(f"[Plasma] Selected keys ({len(selected_plasma_keys)}): {selected_plasma_keys}")
     print(f"[Plasma] Normalization: inter_norm={inter_norm}, intra_norm={intra_norm}, intra_temperature={intra_norm_temperature}")
+    if plasma_source_filter is None:
+        print("[Plasma] Source filter: ALL (UPENN + C2N)")
+    else:
+        print(f"[Plasma] Source filter: {plasma_source_filter}")
     
     # =========================================================================
     # 缓存验证与补充生成
@@ -1289,6 +1329,7 @@ def main():
         diagnosis_code_map=diagnosis_code_map,
         skip_cache_set=missing_cache_set,
         inter_norm=inter_norm,
+        plasma_source_filter=plasma_source_filter,
     )
     print(f"Total samples: {len(full_dataset)}")
     if missing_cache_set:
@@ -1325,6 +1366,7 @@ def main():
         subset_indices=train_indices,
         skip_cache_set=missing_cache_set,
         inter_norm=inter_norm,
+        plasma_source_filter=plasma_source_filter,
     )
     val_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
@@ -1338,6 +1380,7 @@ def main():
         subset_indices=val_indices,
         skip_cache_set=missing_cache_set,
         inter_norm=inter_norm,
+        plasma_source_filter=plasma_source_filter,
     )
     print(f"Train dataset: {len(train_dataset)}, Val dataset: {len(val_dataset)}")
     
@@ -1447,6 +1490,7 @@ def main():
         mri_cache_dir=mri_cache_dir,
         split_path=split_path,
         seed=seed,
+        plasma_source_filter=plasma_source_filter,
         train_count=len(train_dataset),
         val_count=len(val_dataset),
     )

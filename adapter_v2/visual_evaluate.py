@@ -30,7 +30,7 @@ def _build_val_loader(config: dict, split_json: Path):
     script_dir = Path(__file__).parent
     seed = int(config["training"].get("seed", 42))
     class_names = config["classes"]["names"]
-    selected_plasma_keys, plasma_prompts = resolve_plasma_config(config)
+    selected_plasma_keys, plasma_prompts, _, _, _, _ = resolve_plasma_config(config)
 
     csv_path = script_dir / config["data"]["csv_path"]
     cache_dir = Path(config["data"]["cache_dir"])
@@ -401,7 +401,7 @@ def _default_output_dir(ckpt_path: Path) -> Path:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Visualize image-plasma individual alignment from train.py checkpoints")
-    parser.add_argument("--checkpoint", type=str, default='/home/ssddata/linshuijin/replicaLT/adapter_v2/runs/03.09_122698/ckpt/epoch_050.pt', help="checkpoint path, e.g. runs/<run>/ckpt/best.pt")
+    parser.add_argument("--checkpoint", type=str, default='/home/ssddata/linshuijin/replicaLT/adapter_v2/runs/03.09_127948/ckpt/epoch_100.pt', help="checkpoint path, e.g. runs/<run>/ckpt/best.pt")
     parser.add_argument("--config", type=str, default="config.yaml", help="adapter_v2 config path")
     parser.add_argument("--split_json", type=str, default="fixed_split.json", help="fixed split json shared with train.py")
     parser.add_argument("--device", type=str, default="cuda", help="cuda or cpu")

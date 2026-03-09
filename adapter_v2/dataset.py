@@ -231,6 +231,7 @@ class TAUPlasmaDataset(Dataset):
         subset_indices: List[int] = None,
         skip_cache_set: set = None,
         inter_norm: str = "minmax",
+        plasma_source_filter: List[str] | None = None,
     ):
         """
         Args:
@@ -243,6 +244,7 @@ class TAUPlasmaDataset(Dataset):
             subset_indices: 子集索引（用于 train/val 划分）
             skip_cache_set: Set of (ptid, tau_id) tuples to skip (missing caches)
             inter_norm: 归一化方式，"minmax" 或 "zscore"
+            plasma_source_filter: plasma source 过滤列表，如 ["UPENN"]/["C2N"]；None 表示不过滤
         """
         self.csv_path = Path(csv_path)
         self.cache_dir = Path(cache_dir)
@@ -255,6 +257,7 @@ class TAUPlasmaDataset(Dataset):
         self.skip_cache_set = skip_cache_set or set()
         # 归一化方式
         self.inter_norm = inter_norm
+        self.plasma_source_filter = [str(src).strip().upper() for src in plasma_source_filter] if plasma_source_filter else None
         
         # 加载 CSV - 显式指定 image_id 相关列为字符串，避免被解析为 float
         # 只有 plasma 相关字段是数值，其余字段都应当是字符串
@@ -272,6 +275,18 @@ class TAUPlasmaDataset(Dataset):
         self.df = self.df[
             (self.df["id_av1451"].notna()) & (self.df["id_av1451"] != "nan")
         ].reset_index(drop=True)
+
+        # 可选：按 plasma source 过滤样本
+        if self.plasma_source_filter is not None:
+            before_rows = len(self.df)
+            source_series = self.df["plasma_source"].fillna("UPENN").astype(str).str.strip().str.upper()
+            self.df = self.df[source_series.isin(self.plasma_source_filter)].reset_index(drop=True)
+            after_rows = len(self.df)
+            print(f"[Dataset] Plasma source filter {self.plasma_source_filter}: {before_rows} -> {after_rows}")
+            if after_rows == 0:
+                raise ValueError(
+                    f"plasma_source_filter={self.plasma_source_filter} 过滤后无可用样本，请检查 config.plasma.source 配置"
+                )
         
         # 计算或使用提供的 plasma 统计（按 source 分别计算）
         self.source_col = "plasma_source"
@@ -711,6 +726,7 @@ def build_dataloaders(
     class_names: List[str] = None,
     num_workers: int = 0,
     skip_cache_set: set = None,
+    plasma_source_filter: List[str] | None = None,
 ) -> Tuple[DataLoader, DataLoader, Dict[str, Dict[str, float]]]:
     """
     构建训练和验证 DataLoader
@@ -726,6 +742,7 @@ def build_dataloaders(
         plasma_keys=plasma_keys,
         class_names=class_names,
         skip_cache_set=skip_cache_set,
+        plasma_source_filter=plasma_source_filter,
     )
     plasma_stats = full_dataset.plasma_stats
     
@@ -742,6 +759,7 @@ def build_dataloaders(
         plasma_stats=plasma_stats,
         subset_indices=train_indices,
         skip_cache_set=skip_cache_set,
+        plasma_source_filter=plasma_source_filter,
     )
     val_dataset = TAUPlasmaDataset(
         csv_path=csv_path,
@@ -752,6 +770,7 @@ def build_dataloaders(
         plasma_stats=plasma_stats,
         subset_indices=val_indices,
         skip_cache_set=skip_cache_set,
+        plasma_source_filter=plasma_source_filter,
     )
     
     # 构建 DataLoader
