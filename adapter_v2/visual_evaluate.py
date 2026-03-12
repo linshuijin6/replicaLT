@@ -30,21 +30,25 @@ def _build_val_loader(config: dict, split_json: Path):
     script_dir = Path(__file__).parent
     seed = int(config["training"].get("seed", 42))
     class_names = config["classes"]["names"]
-    selected_plasma_keys, plasma_prompts, _, _, _, _ = resolve_plasma_config(config)
+    selected_plasma_keys, plasma_prompts, inter_norm, intra_norm, intra_norm_temperature, plasma_source_filter = resolve_plasma_config(config)
 
     csv_path = script_dir / config["data"]["csv_path"]
     cache_dir = Path(config["data"]["cache_dir"])
+    mri_cache_dir = Path(config["data"].get("mri_cache_dir", str(cache_dir)))
     diagnosis_csv = config.get("data", {}).get("diagnosis_csv", None)
     diagnosis_code_map = config.get("classes", {}).get("diagnosis_code_map", None)
 
     full_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
         cache_dir=str(cache_dir),
+        mri_cache_dir=str(mri_cache_dir),
         plasma_keys=selected_plasma_keys,
         class_names=class_names,
         diagnosis_csv=diagnosis_csv,
         diagnosis_code_map=diagnosis_code_map,
         skip_cache_set=set(),
+        inter_norm=inter_norm,
+        plasma_source_filter=plasma_source_filter,
     )
 
     val_ratio = float(config["data"].get("val_ratio", 0.1))
@@ -61,6 +65,7 @@ def _build_val_loader(config: dict, split_json: Path):
     val_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
         cache_dir=str(cache_dir),
+        mri_cache_dir=str(mri_cache_dir),
         plasma_keys=selected_plasma_keys,
         class_names=class_names,
         plasma_stats=full_dataset.plasma_stats,
@@ -68,6 +73,8 @@ def _build_val_loader(config: dict, split_json: Path):
         diagnosis_code_map=diagnosis_code_map,
         subset_indices=val_indices,
         skip_cache_set=set(),
+        inter_norm=inter_norm,
+        plasma_source_filter=plasma_source_filter,
     )
 
     batch_size = int(config["training"].get("batch_size", 16))
@@ -81,10 +88,24 @@ def _build_val_loader(config: dict, split_json: Path):
         pin_memory=True,
     )
 
-    return val_loader, selected_plasma_keys, plasma_prompts, class_names
+    return (
+        val_loader,
+        selected_plasma_keys,
+        plasma_prompts,
+        class_names,
+        intra_norm,
+        intra_norm_temperature,
+    )
 
 
-def _build_model(config: dict, plasma_prompts: list[str], class_names: list[str], device: torch.device):
+def _build_model(
+    config: dict,
+    plasma_prompts: list[str],
+    class_names: list[str],
+    intra_norm: str,
+    intra_temperature: float,
+    device: torch.device,
+):
     from models import CoCoOpTAUModel
 
     model_cfg = config["model"]
@@ -100,6 +121,8 @@ def _build_model(config: dict, plasma_prompts: list[str], class_names: list[str]
         ctx_hidden_dim=model_cfg.get("ctx_hidden_dim", 1024),
         share_ctx_base=model_cfg.get("share_ctx_base", False),
         plasma_temperature=config["plasma"].get("temperature", 1.0),
+        intra_norm=intra_norm,
+        intra_temperature=intra_temperature,
     )
     return model.to(device)
 
@@ -117,6 +140,7 @@ def _collect_embeddings(model, dataloader, device, expected_plasma_dim: int | No
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Collect", leave=False):
             patch_emb = batch["patch_emb"].to(device)
+            mri_patch_emb = batch["mri_patch_emb"].to(device)
             label_idx = batch["label_idx"].to(device)
             plasma_vals = batch["plasma_vals"].to(device)
             plasma_mask = batch["plasma_mask"].to(device)
@@ -130,6 +154,7 @@ def _collect_embeddings(model, dataloader, device, expected_plasma_dim: int | No
 
             outputs = model(
                 tau_tokens=patch_emb,
+                mri_tokens=mri_patch_emb,
                 diagnosis_id=label_idx,
                 plasma_values=plasma_vals,
                 plasma_mask=plasma_mask,
@@ -401,7 +426,7 @@ def _default_output_dir(ckpt_path: Path) -> Path:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Visualize image-plasma individual alignment from train.py checkpoints")
-    parser.add_argument("--checkpoint", type=str, default='/home/ssddata/linshuijin/replicaLT/adapter_v2/runs/03.09_127948/ckpt/epoch_100.pt', help="checkpoint path, e.g. runs/<run>/ckpt/best.pt")
+    parser.add_argument("--checkpoint", type=str, default='/home/ssddata/linshuijin/replicaLT/adapter_v2/runs/03.10_865656/ckpt/epoch_100.pt', help="checkpoint path, e.g. runs/<run>/ckpt/best.pt")
     parser.add_argument("--config", type=str, default="config.yaml", help="adapter_v2 config path")
     parser.add_argument("--split_json", type=str, default="fixed_split.json", help="fixed split json shared with train.py")
     parser.add_argument("--device", type=str, default="cuda", help="cuda or cpu")
@@ -442,9 +467,19 @@ def main():
         requested_device = "cpu"
     device = torch.device(requested_device)
 
-    val_loader, plasma_keys, plasma_prompts, class_names = _build_val_loader(config=config, split_json=split_json)
+    val_loader, plasma_keys, plasma_prompts, class_names, intra_norm, intra_norm_temperature = _build_val_loader(
+        config=config,
+        split_json=split_json,
+    )
 
-    model = _build_model(config=config, plasma_prompts=plasma_prompts, class_names=class_names, device=device)
+    model = _build_model(
+        config=config,
+        plasma_prompts=plasma_prompts,
+        class_names=class_names,
+        intra_norm=intra_norm,
+        intra_temperature=intra_norm_temperature,
+        device=device,
+    )
     state = torch.load(str(ckpt_path), map_location="cpu")
     model.load_state_dict(state["model_state_dict"], strict=True)
 
