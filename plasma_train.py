@@ -10,16 +10,54 @@ plasma_train.py
 
 前置依赖：
   1. 运行 precompute_plasma_emb.py 生成 plasma_emb 缓存
-  2. 已有 MRI/PET NIfTI 数据和 PersistentDataset 缓存
+    2. 已有 MRI/PET NIfTI 数据，PersistentDataset 缓存可在训练前自动补齐
 
 用法：
-  python plasma_train.py
+  PLASMA_TRAIN_GPUS=1,2 python plasma_train.py
 """
 #%%
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 import os
-_TARGET_GPU_IDS = [5]  # 指定使用的 GPU ID
-os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, _TARGET_GPU_IDS))
+
+DEFAULT_GPU_IDS = [3,6]  # 模型并行，支持 2~4 张 GPU
+GPU_ENV_VAR = "PLASMA_TRAIN_GPUS"
+
+
+def resolve_gpu_ids(default_gpu_ids=None, env_var=GPU_ENV_VAR):
+    """统一解析物理 GPU 卡号，格式如 `1,2`。"""
+    if default_gpu_ids is None:
+        default_gpu_ids = DEFAULT_GPU_IDS
+
+    raw_value = os.environ.get(env_var)
+    if raw_value is None:
+        raw_value = ",".join(map(str, default_gpu_ids))
+
+    raw_value = raw_value.strip()
+    if not raw_value:
+        raise ValueError(f"环境变量 {env_var} 不能为空，请使用如 `0` 或 `1,2` 的格式。")
+
+    try:
+        gpu_ids = [int(part.strip()) for part in raw_value.split(",") if part.strip()]
+    except ValueError as exc:
+        raise ValueError(f"环境变量 {env_var} 必须是逗号分隔的整数，例如 `0` 或 `1,2`。") from exc
+
+    if not gpu_ids:
+        raise ValueError(f"环境变量 {env_var} 未解析出任何 GPU 卡号。")
+    if len(set(gpu_ids)) != len(gpu_ids):
+        raise ValueError(f"环境变量 {env_var} 包含重复 GPU 卡号: {gpu_ids}")
+    if any(gpu_id < 0 for gpu_id in gpu_ids):
+        raise ValueError(f"环境变量 {env_var} 只能包含非负整数: {gpu_ids}")
+    if len(gpu_ids) not in (1, 2, 3, 4):
+        raise ValueError(
+            f"支持 1 张 GPU（单卡）或 2~4 张 GPU（模型并行），收到 {len(gpu_ids)} 张: {gpu_ids}"
+        )
+
+    return gpu_ids
+
+
+PHYSICAL_GPU_IDS = resolve_gpu_ids()
+VISIBLE_DEVICE_IDS = list(range(len(PHYSICAL_GPU_IDS)))
+os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, PHYSICAL_GPU_IDS))
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 import pandas as pd
@@ -146,30 +184,34 @@ def main():
     from torch.utils.tensorboard import SummaryWriter
     from datetime import datetime
     from pathlib import Path
+    import time
 
     # ================================================================
     # 0. 训练参数设置
     # ================================================================
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
     # ★ 使用独立的缓存目录，避免与 train.py 缓存冲突（因 index_transform 不同）
-    cache_dir = '/mnt/nfsdata/nfsdata/linshuijin/ADNI_CSF_plasma_cache192'
+    cache_dir = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_cache0312'
     plasma_csv_path = "adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # ★ plasma_emb 预计算缓存目录（由 precompute_plasma_emb.py 生成）
-    plasma_emb_dir = "/mnt/nfsdata/nfsdata/linshuijin/plasma_emb_cache"
+    plasma_emb_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_plasma_cache"
 
     os.makedirs(cache_dir, exist_ok=True)
     os.makedirs(os.path.join(cache_dir, "train"), exist_ok=True)
     os.makedirs(os.path.join(cache_dir, "val"), exist_ok=True)
     print(f"✅ 缓存目录已创建: {cache_dir}")
 
-    device_id = [0]
+    device_id = VISIBLE_DEVICE_IDS.copy()
     clip_sample_min = 0
     clip_sample_max = 1
     alpha = 1.0  # FDG 损失权重
     beta = 1.0   # AV45 损失权重
     gamma = 1.0  # TAU 损失权重
     accumulation_steps = 1
+
+    print(f"✅ GPU 配置接口: {GPU_ENV_VAR}={','.join(map(str, PHYSICAL_GPU_IDS))}")
+    print(f"✅ 可见逻辑 GPU: {device_id}")
 
     if torch.cuda.is_available():
         primary_device = device_id[0]
@@ -190,11 +232,16 @@ def main():
     # GPU 信息
     if torch.cuda.is_available():
         print(f"\n📊 GPU配置信息:")
-        for did in device_id:
+        for logical_id, physical_id in zip(device_id, PHYSICAL_GPU_IDS):
+            did = logical_id
             device_name = torch.cuda.get_device_name(did)
             free_mem = torch.cuda.get_device_properties(did).total_memory / 1024**3
-            print(f"   GPU {did}: {device_name} - 总显存: {free_mem:.2f} GB")
-        print(f"   使用模式: {'双GPU模型并行' if len(device_id) == 2 else '单GPU'}")
+            print(f"   物理 GPU {physical_id} -> 逻辑 cuda:{did}: {device_name} - 总显存: {free_mem:.2f} GB")
+        if len(device_id) >= 2:
+            _mode = f'{len(device_id)}GPU模型并行 (DistributedDiffusionModelUNet)'
+        else:
+            _mode = '单GPU'
+        print(f"   使用模式: {_mode}")
 
     # ============ TensorBoard 日志初始化 ============
     if run_name:
@@ -464,6 +511,41 @@ def main():
         """context = [plasma_emb, TAU_modality_text] → (2, 512)"""
         return torch.cat([all_plasma_embs_cpu[x].unsqueeze(0), tau_feature_optimized_cpu], dim=0)
 
+    def get_expected_cache_paths(dataset):
+        cache_root = Path(dataset.cache_dir)
+        return [
+            cache_root / f"{dataset.hash_func(item).decode('utf-8')}{dataset.transform_hash}.pt"
+            for item in dataset.data
+        ]
+
+    def ensure_dataset_cache(dataset, split_name):
+        expected_cache_paths = get_expected_cache_paths(dataset)
+        cached_indices = [idx for idx, path in enumerate(expected_cache_paths) if path.is_file()]
+        missing_indices = [idx for idx, path in enumerate(expected_cache_paths) if not path.is_file()]
+
+        print(f"   期望缓存文件数: {len(expected_cache_paths)}")
+        print(f"   已命中缓存文件数: {len(cached_indices)}")
+
+        if not missing_indices:
+            print(f"✅ {split_name}缓存完整，无需预生成")
+            return
+
+        print(f"⚠️  {split_name}缓存不完整，缺失 {len(missing_indices)} 个文件，开始预生成...")
+        for idx in tqdm(missing_indices, desc=f"{split_name}缓存预生成", ncols=70):
+            try:
+                _ = dataset[idx]
+            except Exception as exc:
+                print(f"\n❌ {split_name} 样本 {idx} 缓存失败: {exc}")
+                raise
+
+        remaining_missing = [idx for idx, path in enumerate(expected_cache_paths) if not path.is_file()]
+        if remaining_missing:
+            raise RuntimeError(
+                f"{split_name} 缓存预生成后仍有 {len(remaining_missing)} 个文件缺失，例如索引 {remaining_missing[:5]}"
+            )
+
+        print(f"✅ {split_name}缓存预生成完成，共补齐 {len(missing_indices)} 个文件")
+
     # ================================================================
     # 7. 加载 JSON 数据并构建 DataLoader
     # ================================================================
@@ -549,18 +631,18 @@ def main():
     print(f"   数据量: {len(train_data)} 样本")
     print(f"   缓存目录: {train_cache_dir}")
     train_ds = PersistentDataset(data=train_data, transform=train_transforms, cache_dir=train_cache_dir)
-
-    cache_files = os.listdir(train_cache_dir)
-    print(f"   已有缓存文件数: {len(cache_files)}")
+    ensure_dataset_cache(train_ds, "训练集")
+    cache_files = [p.name for p in Path(train_cache_dir).iterdir() if p.is_file()]
+    print(f"   当前缓存文件数: {len(cache_files)}")
     train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, num_workers=4, pin_memory=True, persistent_workers=True)
 
     print(f"\n📦 创建验证集 PersistentDataset...")
     print(f"   数据量: {len(val_data)} 样本")
     print(f"   缓存目录: {val_cache_dir}")
     val_ds = PersistentDataset(data=val_data, transform=val_transforms, cache_dir=val_cache_dir)
-
-    cache_files = os.listdir(val_cache_dir)
-    print(f"   已有缓存文件数: {len(cache_files)}")
+    ensure_dataset_cache(val_ds, "验证集")
+    cache_files = [p.name for p in Path(val_cache_dir).iterdir() if p.is_file()]
+    print(f"   当前缓存文件数: {len(cache_files)}")
     val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, num_workers=4, pin_memory=True, persistent_workers=True)
 
     # ================================================================
@@ -585,7 +667,8 @@ def main():
             use_flash_attention=True,
         )
         model.to(device)
-    elif len(device_id) == 2:
+        print(f"✅ 单GPU模式: cuda:{device_id[0]}")
+    else:
         model = DistributedDiffusionModelUNet(
             spatial_dims=3,
             in_channels=1,
@@ -599,11 +682,9 @@ def main():
             use_flash_attention=True,
             device_ids=device_id,
         )
-        print(f"✅ 双GPU模式: 模型分布在 GPU {device_id[0]} 和 GPU {device_id[1]}")
-    else:
-        raise ValueError("Currently only support 1 or 2 GPU(s) for training.")
+        print(f"✅ {len(device_id)}GPU模型并行: GPU {device_id}")
 
-    use_distributed = len(device_id) == 2
+    use_distributed = len(device_id) > 1
 
     optimizer = torch.optim.Adam(params=model.parameters(), lr=2.5e-5)
     start_epoch = 0
@@ -624,6 +705,14 @@ def main():
     val_epoch_loss_list = []
     scaler = GradScaler(device=device)
     global_step = 0
+    best_val_loss = float('inf')
+
+    # SSIM / PSNR / MAE 指标（提前初始化，验证循环中复用）
+    from generative.metrics import SSIMMetric
+    from monai.metrics import MAEMetric, PSNRMetric
+    ssim_metric = SSIMMetric(spatial_dims=3, data_range=1.0, kernel_size=7)
+    psnr_metric = PSNRMetric(1.0)
+    mae_metric = MAEMetric(reduction='mean')
 
     # ================================================================
     # 9. 训练循环（与 train.py 完全一致，context 已通过 index_transform 替换）
@@ -631,6 +720,10 @@ def main():
     for epoch in range(start_epoch, n_epochs):
         model.train()
         epoch_loss = 0
+        epoch_start_time = time.time()
+        # 分模态训练损失累计与模态选择计数
+        epoch_fdg_loss, epoch_av45_loss, epoch_tau_loss = 0.0, 0.0, 0.0
+        fdg_count, av45_count, tau_count = 0, 0, 0
         progress_bar = tqdm(enumerate(train_loader), total=len(train_loader), ncols=70)
         progress_bar.set_description(f"Epoch {epoch}")
 
@@ -688,6 +781,8 @@ def main():
                         loss_fdg = (alpha * loss_fdg) / accumulation_steps
                     scaler.scale(loss_fdg).backward()
                     total_loss = loss_fdg.item() * accumulation_steps
+                    epoch_fdg_loss += total_loss
+                    fdg_count += 1
                     del x_t_fdg, v_fdg_prediction, v_fdg, loss_fdg
 
                 elif selected_modality == 'av45':
@@ -701,6 +796,8 @@ def main():
                         loss_av45 = (beta * loss_av45) / accumulation_steps
                     scaler.scale(loss_av45).backward()
                     total_loss = loss_av45.item() * accumulation_steps
+                    epoch_av45_loss += total_loss
+                    av45_count += 1
                     del x_t_av45, v_av45_prediction, v_av45, loss_av45
 
                 elif selected_modality == 'tau':
@@ -714,11 +811,21 @@ def main():
                         loss_tau = (gamma * loss_tau) / accumulation_steps
                     scaler.scale(loss_tau).backward()
                     total_loss = loss_tau.item() * accumulation_steps
+                    epoch_tau_loss += total_loss
+                    tau_count += 1
                     del x_t_tau, v_tau_prediction, v_tau, loss_tau
 
             if (step + 1) % accumulation_steps == 0 and total_loss > 0:
+                # 梯度范数监控（在 unscale 后、step 前记录）
+                scaler.unscale_(optimizer)
+                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float('inf'))
+                if log_every > 0 and global_step % log_every == 0:
+                    writer.add_scalar("train/grad_norm", grad_norm.item(), global_step)
                 scaler.step(optimizer)
                 scaler.update()
+                # GradScaler scale 记录
+                if log_every > 0 and global_step % log_every == 0:
+                    writer.add_scalar("train/amp_scale", scaler.get_scale(), global_step)
 
             epoch_loss += total_loss
             global_step += 1
@@ -738,14 +845,49 @@ def main():
                 "accum": f"{(step % accumulation_steps) + 1}/{accumulation_steps}"
             })
 
+        epoch_elapsed = time.time() - epoch_start_time
         epoch_avg_loss = epoch_loss / (step + 1)
         epoch_loss_list.append(epoch_avg_loss)
         writer.add_scalar("train/epoch_loss", epoch_avg_loss, epoch)
+        writer.add_scalar("train/epoch_time_sec", epoch_elapsed, epoch)
+
+        # 分模态训练损失
+        if fdg_count > 0:
+            writer.add_scalar("train/fdg_loss", epoch_fdg_loss / fdg_count, epoch)
+        if av45_count > 0:
+            writer.add_scalar("train/av45_loss", epoch_av45_loss / av45_count, epoch)
+        if tau_count > 0:
+            writer.add_scalar("train/tau_loss", epoch_tau_loss / tau_count, epoch)
+
+        # 模态选择频率
+        total_modality_steps = fdg_count + av45_count + tau_count
+        if total_modality_steps > 0:
+            writer.add_scalar("train/modality_fdg_ratio", fdg_count / total_modality_steps, epoch)
+            writer.add_scalar("train/modality_av45_ratio", av45_count / total_modality_steps, epoch)
+            writer.add_scalar("train/modality_tau_ratio", tau_count / total_modality_steps, epoch)
+
+        # GPU 显存使用
+        if torch.cuda.is_available():
+            gpu_mem_gb = torch.cuda.max_memory_allocated(device) / 1024**3
+            writer.add_scalar("sys/gpu_mem_allocated_gb", gpu_mem_gb, epoch)
+            torch.cuda.reset_peak_memory_stats(device)
+
+        print(f"Epoch {epoch} | loss={epoch_avg_loss:.4f} | time={epoch_elapsed:.1f}s | FDG={fdg_count} AV45={av45_count} TAU={tau_count}")
 
         # ============ 验证 ============
         if (epoch + 1) % val_interval == 0:
             model.eval()
             val_epoch_loss = 0
+            val_fdg_loss_sum, val_av45_loss_sum, val_tau_loss_sum = 0.0, 0.0, 0.0
+            val_fdg_count, val_av45_count, val_tau_count = 0, 0, 0
+            # 全验证集指标聚合
+            ssim_fdg_list, ssim_av45_list, ssim_tau_list = [], [], []
+            psnr_fdg_list, psnr_av45_list, psnr_tau_list = [], [], []
+            mae_fdg_list, mae_av45_list, mae_tau_list = [], [], []
+            # 分模态保存第一个有效样本用于可视化，避免单一样本缺模态导致日志缺失
+            vis_fdg_sample = None
+            vis_av45_sample = None
+            vis_tau_sample = None
 
             for step, data_val in enumerate(val_loader):
                 images = data_val["mri"].to(device, non_blocking=True)
@@ -807,22 +949,102 @@ def main():
 
                 if has_fdg and x_fdg_t is not None:
                     val_fdg_loss = F.mse_loss(x_fdg_t.float(), seg_fdg.float())
+                    val_fdg_loss_sum += val_fdg_loss.item()
+                    val_fdg_count += 1
+                    # 逐 batch 聚合指标
+                    ssim_fdg_list.append(ssim_metric(seg_fdg.cpu(), x_fdg_t.cpu()).mean().item())
+                    psnr_fdg_list.append(psnr_metric(seg_fdg.cpu(), x_fdg_t.cpu()).mean().item())
+                    mae_fdg_list.append(F.l1_loss(x_fdg_t.float(), seg_fdg.float()).item())
                 if has_av45 and x_av45_t is not None:
                     val_av45_loss = F.mse_loss(x_av45_t.float(), seg_av45.float())
+                    val_av45_loss_sum += val_av45_loss.item()
+                    val_av45_count += 1
+                    ssim_av45_list.append(ssim_metric(seg_av45.cpu(), x_av45_t.cpu()).mean().item())
+                    psnr_av45_list.append(psnr_metric(seg_av45.cpu(), x_av45_t.cpu()).mean().item())
+                    mae_av45_list.append(F.l1_loss(x_av45_t.float(), seg_av45.float()).item())
                 if has_tau and x_tau_t is not None:
                     val_tau_loss = F.mse_loss(x_tau_t.float(), seg_tau.float())
+                    val_tau_loss_sum += val_tau_loss.item()
+                    val_tau_count += 1
+                    ssim_tau_list.append(ssim_metric(seg_tau.cpu(), x_tau_t.cpu()).mean().item())
+                    psnr_tau_list.append(psnr_metric(seg_tau.cpu(), x_tau_t.cpu()).mean().item())
+                    mae_tau_list.append(F.l1_loss(x_tau_t.float(), seg_tau.float()).item())
 
                 val_loss = alpha * val_fdg_loss + beta * val_av45_loss + gamma * val_tau_loss
                 val_epoch_loss += val_loss.item()
 
-            print("Epoch", epoch + 1, "Validation loss", val_epoch_loss / (step + 1))
-            val_epoch_loss_list.append(val_epoch_loss / (step + 1))
+                if vis_fdg_sample is None and has_fdg and x_fdg_t is not None:
+                    vis_fdg_sample = {
+                        'mri': images.cpu(),
+                        'fdg_gt': seg_fdg.cpu(),
+                        'fdg_pred': x_fdg_t.cpu(),
+                    }
+                if vis_av45_sample is None and has_av45 and x_av45_t is not None:
+                    vis_av45_sample = {
+                        'mri': images.cpu(),
+                        'av45_gt': seg_av45.cpu(),
+                        'av45_pred': x_av45_t.cpu(),
+                    }
+                if vis_tau_sample is None and has_tau and x_tau_t is not None:
+                    vis_tau_sample = {
+                        'mri': images.cpu(),
+                        'tau_gt': seg_tau.cpu(),
+                        'tau_pred': x_tau_t.cpu(),
+                    }
 
             val_avg_loss = val_epoch_loss / (step + 1)
+            print(f"Epoch {epoch + 1} | val_loss={val_avg_loss:.4f}")
+            val_epoch_loss_list.append(val_avg_loss)
             writer.add_scalar("val/loss", val_avg_loss, epoch)
 
-            print('epoch:', epoch + 1)
-            print('learning rate:', optimizer.state_dict()['param_groups'][0]['lr'])
+            # 分模态验证损失
+            if val_fdg_count > 0:
+                writer.add_scalar("val/fdg_loss", val_fdg_loss_sum / val_fdg_count, epoch)
+            if val_av45_count > 0:
+                writer.add_scalar("val/av45_loss", val_av45_loss_sum / val_av45_count, epoch)
+            if val_tau_count > 0:
+                writer.add_scalar("val/tau_loss", val_tau_loss_sum / val_tau_count, epoch)
+
+            # 全验证集聚合指标
+            def _log_agg(name_list, tag, ep):
+                if name_list:
+                    avg = sum(name_list) / len(name_list)
+                    writer.add_scalar(tag, avg, ep)
+                    return avg
+                return None
+
+            fdg_ssim_avg = _log_agg(ssim_fdg_list, "val/FDG_SSIM", epoch)
+            fdg_psnr_avg = _log_agg(psnr_fdg_list, "val/FDG_PSNR", epoch)
+            fdg_mae_avg  = _log_agg(mae_fdg_list,  "val/FDG_MAE",  epoch)
+            av45_ssim_avg = _log_agg(ssim_av45_list, "val/AV45_SSIM", epoch)
+            av45_psnr_avg = _log_agg(psnr_av45_list, "val/AV45_PSNR", epoch)
+            av45_mae_avg  = _log_agg(mae_av45_list,  "val/AV45_MAE",  epoch)
+            tau_ssim_avg = _log_agg(ssim_tau_list, "val/TAU_SSIM", epoch)
+            tau_psnr_avg = _log_agg(psnr_tau_list, "val/TAU_PSNR", epoch)
+            tau_mae_avg  = _log_agg(mae_tau_list,  "val/TAU_MAE",  epoch)
+
+            # 打印聚合指标
+            for mod, ss, ps, ma in [("FDG", fdg_ssim_avg, fdg_psnr_avg, fdg_mae_avg),
+                                     ("AV45", av45_ssim_avg, av45_psnr_avg, av45_mae_avg),
+                                     ("TAU", tau_ssim_avg, tau_psnr_avg, tau_mae_avg)]:
+                if ss is not None:
+                    print(f"  {mod} SSIM={ss:.4f}  PSNR={ps:.2f}  MAE={ma:.4f}")
+
+            print(f"  lr={optimizer.state_dict()['param_groups'][0]['lr']}")
+
+            # Best model 跟踪
+            if val_avg_loss < best_val_loss:
+                best_val_loss = val_avg_loss
+                best_ckpt_path = run_dir / "best_model.pt"
+                torch.save({
+                    'model': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'epoch': epoch,
+                    'global_step': global_step,
+                    'val_loss': best_val_loss,
+                }, str(best_ckpt_path))
+                print(f"🏆 Best model saved (val_loss={best_val_loss:.4f}): {best_ckpt_path}")
+            writer.add_scalar("val/best_loss", best_val_loss, epoch)
 
             # 保存 checkpoint
             ckpt_path = run_dir / f"ckpt_epoch{epoch + 1}.pt"
@@ -838,91 +1060,89 @@ def main():
             torch.save(checkpoint, f'{checkpoint_dir}/first_part_{epoch + 1}.pth')
             print('Saved all parameters!\n')
 
-            # 可视化
-            current_fdg_img = x_fdg_t.to('cpu') if x_fdg_t is not None else None
-            current_av45_img = x_av45_t.to('cpu') if x_av45_t is not None else None
-            current_tau_img = x_tau_t.to('cpu') if tau_available and x_tau_t is not None else None
-            labels_fdg = seg_fdg.to('cpu')
-            labels_av45 = seg_av45.to('cpu')
-            labels_tau = seg_tau.to('cpu') if tau_available else None
-            mri_cpu = images.to('cpu')
+            # 可视化样本提取（按模态独立）
+            if vis_fdg_sample is not None:
+                mri_fdg_cpu = vis_fdg_sample['mri']
+                current_fdg_img = vis_fdg_sample['fdg_pred']
+                labels_fdg = vis_fdg_sample['fdg_gt']
+                has_fdg = True
+            else:
+                mri_fdg_cpu = images.cpu()
+                current_fdg_img = x_fdg_t.cpu() if x_fdg_t is not None else None
+                labels_fdg = seg_fdg.cpu()
+                has_fdg = current_fdg_img is not None
 
-            if current_fdg_img is not None or current_av45_img is not None or current_tau_img is not None:
-                gray_imgs = [mri_cpu]
-                jet_diffs = []
-                if current_fdg_img is not None:
-                    gray_imgs.extend([labels_fdg, current_fdg_img])
-                    jet_diffs.append(current_fdg_img - labels_fdg)
-                if current_av45_img is not None:
-                    gray_imgs.extend([labels_av45, current_av45_img])
-                    jet_diffs.append(current_av45_img - labels_av45)
-                if current_tau_img is not None and labels_tau is not None:
-                    gray_imgs.extend([labels_tau, current_tau_img])
-                    jet_diffs.append(current_tau_img - labels_tau)
-                if len(gray_imgs) > 1:
-                    compare_3d(gray_imgs)
-                if len(jet_diffs) > 0:
-                    compare_3d_jet(jet_diffs)
+            if vis_av45_sample is not None:
+                mri_av45_cpu = vis_av45_sample['mri']
+                current_av45_img = vis_av45_sample['av45_pred']
+                labels_av45 = vis_av45_sample['av45_gt']
+                has_av45 = True
+            else:
+                mri_av45_cpu = images.cpu()
+                current_av45_img = x_av45_t.cpu() if x_av45_t is not None else None
+                labels_av45 = seg_av45.cpu()
+                has_av45 = current_av45_img is not None
+
+            if vis_tau_sample is not None:
+                mri_tau_cpu = vis_tau_sample['mri']
+                current_tau_img = vis_tau_sample['tau_pred']
+                labels_tau = vis_tau_sample['tau_gt']
+                has_tau = True
+            else:
+                mri_tau_cpu = images.cpu()
+                current_tau_img = x_tau_t.cpu() if (tau_available and x_tau_t is not None) else None
+                labels_tau = seg_tau.cpu() if tau_available and seg_tau is not None else None
+                has_tau = current_tau_img is not None and labels_tau is not None
+
+            if has_fdg and current_fdg_img is not None:
+                compare_3d([mri_fdg_cpu, labels_fdg, current_fdg_img])
+                compare_3d_jet([current_fdg_img - labels_fdg])
+            if has_av45 and current_av45_img is not None:
+                compare_3d([mri_av45_cpu, labels_av45, current_av45_img])
+                compare_3d_jet([current_av45_img - labels_av45])
+            if has_tau and current_tau_img is not None and labels_tau is not None:
+                compare_3d([mri_tau_cpu, labels_tau, current_tau_img])
+                compare_3d_jet([current_tau_img - labels_tau])
 
             # TensorBoard 图像
             if (epoch + 1) % image_log_interval == 0:
                 print(f"📷 保存过程图像到 TensorBoard (epoch {epoch + 1})...")
-                comparison_volumes = {"MRI": mri_cpu}
                 if has_fdg and current_fdg_img is not None:
-                    comparison_volumes["FDG_GT"] = labels_fdg
-                    comparison_volumes["FDG_Pred"] = current_fdg_img
-                    comparison_volumes["FDG_Diff"] = torch.abs(current_fdg_img - labels_fdg)
-                if has_av45 and current_av45_img is not None:
-                    comparison_volumes["AV45_GT"] = labels_av45
-                    comparison_volumes["AV45_Pred"] = current_av45_img
-                    comparison_volumes["AV45_Diff"] = torch.abs(current_av45_img - labels_av45)
-                if tau_available and has_tau and current_tau_img is not None:
-                    comparison_volumes["TAU_GT"] = labels_tau
-                    comparison_volumes["TAU_Pred"] = current_tau_img
-                    comparison_volumes["TAU_Diff"] = torch.abs(current_tau_img - labels_tau)
-
-                log_comparison_figure(writer, f"val/comparison_epoch{epoch+1}", comparison_volumes, epoch)
-                log_3d_volume_to_tensorboard(writer, "val/MRI", mri_cpu, epoch)
-                if has_fdg and current_fdg_img is not None:
+                    comparison_volumes_fdg = {
+                        "MRI": mri_fdg_cpu,
+                        "FDG_GT": labels_fdg,
+                        "FDG_Pred": current_fdg_img,
+                        "FDG_Diff": torch.abs(current_fdg_img - labels_fdg),
+                    }
+                    log_comparison_figure(writer, f"val/FDG_comparison_epoch{epoch+1}", comparison_volumes_fdg, epoch)
+                    log_3d_volume_to_tensorboard(writer, "val/FDG_MRI", mri_fdg_cpu, epoch)
                     log_3d_volume_to_tensorboard(writer, "val/FDG_GT", labels_fdg, epoch)
                     log_3d_volume_to_tensorboard(writer, "val/FDG_Pred", current_fdg_img, epoch)
                 if has_av45 and current_av45_img is not None:
+                    comparison_volumes_av45 = {
+                        "MRI": mri_av45_cpu,
+                        "AV45_GT": labels_av45,
+                        "AV45_Pred": current_av45_img,
+                        "AV45_Diff": torch.abs(current_av45_img - labels_av45),
+                    }
+                    log_comparison_figure(writer, f"val/AV45_comparison_epoch{epoch+1}", comparison_volumes_av45, epoch)
+                    log_3d_volume_to_tensorboard(writer, "val/AV45_MRI", mri_av45_cpu, epoch)
                     log_3d_volume_to_tensorboard(writer, "val/AV45_GT", labels_av45, epoch)
                     log_3d_volume_to_tensorboard(writer, "val/AV45_Pred", current_av45_img, epoch)
                 if tau_available and has_tau and current_tau_img is not None:
+                    comparison_volumes_tau = {
+                        "MRI": mri_tau_cpu,
+                        "TAU_GT": labels_tau,
+                        "TAU_Pred": current_tau_img,
+                        "TAU_Diff": torch.abs(current_tau_img - labels_tau),
+                    }
+                    log_comparison_figure(writer, f"val/TAU_comparison_epoch{epoch+1}", comparison_volumes_tau, epoch)
+                    log_3d_volume_to_tensorboard(writer, "val/TAU_MRI", mri_tau_cpu, epoch)
                     log_3d_volume_to_tensorboard(writer, "val/TAU_GT", labels_tau, epoch)
                     log_3d_volume_to_tensorboard(writer, "val/TAU_Pred", current_tau_img, epoch)
                 print(f"✅ 图像已保存到 TensorBoard")
 
-            # SSIM / PSNR 指标
-            from generative.metrics import SSIMMetric
-            from monai.metrics import MAEMetric, MSEMetric, PSNRMetric
-            ssim_metric = SSIMMetric(spatial_dims=3, data_range=1.0, kernel_size=7)
-            psnr_metric = PSNRMetric(1.0)
-
-            if has_fdg and current_fdg_img is not None:
-                ssim_fdg_value = ssim_metric(labels_fdg, current_fdg_img)
-                psnr_fdg_value = psnr_metric(labels_fdg, current_fdg_img)
-                print(f"FDG SSIM: {ssim_fdg_value.mean().item()}")
-                print(f"FDG PSNR: {psnr_fdg_value.mean().item()}")
-                writer.add_scalar("val/FDG_SSIM", ssim_fdg_value.mean().item(), epoch)
-                writer.add_scalar("val/FDG_PSNR", psnr_fdg_value.mean().item(), epoch)
-
-            if has_av45 and current_av45_img is not None:
-                ssim_av45_value = ssim_metric(labels_av45, current_av45_img)
-                psnr_av45_value = psnr_metric(labels_av45, current_av45_img)
-                print(f"AV45 SSIM: {ssim_av45_value.mean().item()}")
-                print(f"AV45 PSNR: {psnr_av45_value.mean().item()}")
-                writer.add_scalar("val/AV45_SSIM", ssim_av45_value.mean().item(), epoch)
-                writer.add_scalar("val/AV45_PSNR", psnr_av45_value.mean().item(), epoch)
-
-            if tau_available and has_tau and current_tau_img is not None and labels_tau is not None:
-                ssim_tau_value = ssim_metric(labels_tau, current_tau_img)
-                psnr_tau_value = psnr_metric(labels_tau, current_tau_img)
-                print(f"TAU SSIM: {ssim_tau_value.mean().item()}")
-                print(f"TAU PSNR: {psnr_tau_value.mean().item()}")
-                writer.add_scalar("val/TAU_SSIM", ssim_tau_value.mean().item(), epoch)
-                writer.add_scalar("val/TAU_PSNR", psnr_tau_value.mean().item(), epoch)
+            # 指标已在验证循环中逐 batch 聚合并记录，此处无需重复计算
 
     writer.flush()
     writer.close()

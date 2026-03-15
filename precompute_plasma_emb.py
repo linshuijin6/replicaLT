@@ -183,15 +183,15 @@ def find_mri_cache(ptid: str, mri_cache_dir: Path) -> Optional[Path]:
 
 def main():
     parser = argparse.ArgumentParser(description="预计算 plasma_emb 用于扩散模型训练")
-    parser.add_argument("--cocoop-ckpt", type=str, required=True, help="CoCoOpTAUModel checkpoint 路径")
+    parser.add_argument("--cocoop-ckpt", type=str, default='/mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_v2/runs/03.10_865656/ckpt/epoch_100.pt', help="CoCoOpTAUModel checkpoint 路径")
     parser.add_argument("--config", type=str, default="adapter_v2/config.yaml", help="adapter_v2 config.yaml")
-    parser.add_argument("--output-dir", type=str, required=True, help="plasma_emb 输出目录")
-    parser.add_argument("--paired-json", nargs="+", required=True, help="主 train.py 使用的 JSON 文件")
+    parser.add_argument("--output-dir", type=str, default='/mnt/nfsdata/nfsdata/lsj.14/ADNI_plasma_cache', help="plasma_emb 输出目录")
+    parser.add_argument("--paired-json", nargs="+", default=["train_data_with_description.json", "val_data_with_description.json"], help="主 train.py 使用的 JSON 文件")
     parser.add_argument("--plasma-csv", type=str,
                         default="adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv")
     parser.add_argument("--mri-cache-dir", type=str, default=None,
                         help="MRI vision 缓存目录 (默认使用 config 中的 mri_cache_dir)")
-    parser.add_argument("--gpu", type=int, default=0, help="GPU 卡号")
+    parser.add_argument("--gpu", type=int, default=1, help="GPU 卡号")
     parser.add_argument("--force", action="store_true", help="强制重新计算已存在的缓存")
     args = parser.parse_args()
 
