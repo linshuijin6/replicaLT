@@ -19,7 +19,7 @@ plasma_train.py
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 import os
 
-DEFAULT_GPU_IDS = [3,6]  # 模型并行，支持 2~4 张 GPU
+DEFAULT_GPU_IDS = [3,2]  # 模型并行，支持 2~4 张 GPU
 GPU_ENV_VAR = "PLASMA_TRAIN_GPUS"
 
 
@@ -555,6 +555,13 @@ def main():
         val_data = json.load(f)
     print(f"Loaded {len(train_data)} training, {len(val_data)} validation samples.")
 
+    # ★ 构建 name→paired_data索引 映射，避免使用 JSON 中可能过时的 index
+    name_to_plasma_idx = {item["name"]: idx for idx, item in enumerate(paired_data)}
+
+    def _get_plasma_idx(item, fallback_idx):
+        """从 paired_data 名称映射获取正确的 plasma_emb 索引"""
+        return name_to_plasma_idx.get(item["name"], fallback_idx)
+
     train_data = [
         {
             "name": item["name"],
@@ -562,9 +569,9 @@ def main():
             "av45": item["av45"],
             "fdg": item["fdg"],
             "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "fdg_index": item.get("fdg_index") if item.get("fdg_index") is not None else idx,
-            "av45_index": item.get("av45_index") if item.get("av45_index") is not None else idx,
-            "tau_index": (item.get("tau_index") if item.get("tau_index") is not None else idx) if tau_available else None,
+            "fdg_index": _get_plasma_idx(item, idx),
+            "av45_index": _get_plasma_idx(item, idx),
+            "tau_index": _get_plasma_idx(item, idx) if tau_available else None,
         }
         for idx, item in enumerate(train_data)
     ]
@@ -575,9 +582,9 @@ def main():
             "av45": item["av45"],
             "fdg": item["fdg"],
             "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "fdg_index": item.get("fdg_index") if item.get("fdg_index") is not None else idx,
-            "av45_index": item.get("av45_index") if item.get("av45_index") is not None else idx,
-            "tau_index": (item.get("tau_index") if item.get("tau_index") is not None else idx) if tau_available else None,
+            "fdg_index": _get_plasma_idx(item, idx),
+            "av45_index": _get_plasma_idx(item, idx),
+            "tau_index": _get_plasma_idx(item, idx) if tau_available else None,
         }
         for idx, item in enumerate(val_data)
     ]

@@ -56,6 +56,7 @@ class Evaluator:
         self.save_predictions = save_predictions
         self.use_amp = use_amp
         self.device = torch.device(config.device if torch.cuda.is_available() else "cpu")
+        print(f"目标 PET: {config.data.target_pet}")
         
         # 数据加载器
         print("创建数据加载器...")
@@ -354,7 +355,7 @@ class Evaluator:
         
         with open(report_path, "w") as f:
             f.write("=" * 70 + "\n")
-            f.write("MRI → TAU-PET Baseline 评估报告\n")
+            f.write(f"MRI → {self.config.data.target_pet.upper()}-PET Baseline 评估报告\n")
             f.write("=" * 70 + "\n\n")
             
             f.write(f"测试样本数: {len(df)}\n\n")
@@ -413,14 +414,24 @@ class Evaluator:
 # ============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="MRI → TAU-PET Baseline Evaluation")
+    parser = argparse.ArgumentParser(description="MRI → PET Baseline Evaluation")
     parser.add_argument("checkpoint", type=str, help="模型 checkpoint 路径")
     parser.add_argument("--save_predictions", action="store_true", help="保存预测结果")
     parser.add_argument("--no_amp", action="store_true", help="禁用混合精度")
+    parser.add_argument("--cuda_visible_devices", type=str, default=None, help="指定可见 GPU，如 0,1,2,3")
     parser.add_argument("--output_dir", type=str, default=None, help="输出目录（默认与 checkpoint 同目录）")
+    parser.add_argument("--target_pet", type=str, choices=["tau", "fdg", "av45"], default=None, help="目标 PET: tau/fdg/av45")
     parser.add_argument("--roi_mask", type=str, default=None, help="ROI mask NIfTI 路径（可选）")
     parser.add_argument("--condition_mode", type=str, default=None, help="条件模式: none/clinical/plasma/both")
+    parser.add_argument("--split_subjects_json", type=str, default=None, help="固定划分 JSON（train_subjects/val_subjects/test_subjects）")
+    parser.add_argument("--split_train_json", type=str, default=None, help="核心方法 train_data_with_description.json")
+    parser.add_argument("--split_val_json", type=str, default=None, help="核心方法 val_data_with_description.json")
+    parser.add_argument("--split_test_json", type=str, default=None, help="可选 test_data_with_description.json")
+    parser.add_argument("--split_fallback_test_from_val", action="store_true", help="未提供 test 划分时使用 val 作为 test")
     args = parser.parse_args()
+
+    if args.cuda_visible_devices:
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_visible_devices
     
     # 创建配置
     config = get_default_config()
@@ -428,8 +439,22 @@ def main():
     # 覆盖输出目录
     if args.output_dir:
         config.output_dir = args.output_dir
+    if args.target_pet:
+        config.data.target_pet = args.target_pet
     if args.condition_mode:
         config.condition.mode = args.condition_mode
+    if args.split_subjects_json:
+        config.data.split_subjects_json = args.split_subjects_json
+    if args.split_train_json:
+        config.data.split_train_json = args.split_train_json
+    if args.split_val_json:
+        config.data.split_val_json = args.split_val_json
+    if args.split_test_json:
+        config.data.split_test_json = args.split_test_json
+    if args.split_fallback_test_from_val:
+        config.data.split_fallback_test_from_val = True
+    if args.cuda_visible_devices:
+        config.cuda_visible_devices = args.cuda_visible_devices
     
     # 创建评估器
     evaluator = Evaluator(

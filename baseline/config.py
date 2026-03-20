@@ -14,14 +14,18 @@ from datetime import datetime
 class DataConfig:
     """数据相关配置"""
     # 数据路径
-    pairs_csv: str = "/home/ssddata/linshuijin/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched_with_demog.csv"
-    qc_csv: str = "/home/ssddata/linshuijin/replicaLT/analysis/tau_qc_results.csv"
-    pet_info_csv: str = "/home/ssddata/linshuijin/replicaLT/analysis/3_PET_ADNI3_4_with_Plasma_PET_Images_04Feb2026.csv"
+    pairs_csv: str = "adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched_with_demog.csv"
+    qc_csv: str = "analysis/tau_qc_results.csv"
+    pet_info_csv: str = "analysis/3_PET_ADNI3_4_with_Plasma_PET_Images_04Feb2026.csv"
     
     # ADNI 数据根目录
     adni_root: str = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
     mri_subdir: str = "MRI"
     tau_subdir: str = "PET_MNI/TAU"
+    fdg_subdir: str = "PET_MNI/FDG"
+    av45_subdir: str = "PET_MNI/AV45"
+    # 目标 PET: tau / fdg / av45
+    target_pet: str = "tau"
     
     # 目标尺寸 (D, H, W)
     target_shape: tuple = (160, 192, 160)
@@ -34,6 +38,14 @@ class DataConfig:
     
     # 分层变量
     stratify_by: List[str] = field(default_factory=lambda: ["pet_mfr", "diagnosis", "quality_class"])
+
+    # 外部固定划分（优先级: split_*_json > split_subjects_json）
+    split_subjects_json: Optional[str] = None
+    split_train_json: Optional[str] = None
+    split_val_json: Optional[str] = None
+    split_test_json: Optional[str] = None
+    split_fallback_test_from_val: bool = True
+    split_strict: bool = True
     
     # 数据加载
     num_workers: int = 4
@@ -134,20 +146,28 @@ class Config:
     
     # 输出目录
     output_dir: str = field(default_factory=lambda: os.path.join(
-        "/home/ssddata/linshuijin/replicaLT/baseline/runs",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs"),
         datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{os.getpid()}"
     ))
     
     # 设备
     device: str = "cuda"
-    # 指定可见显卡（如 "0" 或 "0,1"，None 表示不限制/使用环境变量）
-    cuda_visible_devices: Optional[str] = '4'
+    # 指定可见显卡（如 "0" 或 "0,1"）。
+    # 默认继承当前环境变量，避免意外覆盖调用方在 shell 中设置的 CUDA_VISIBLE_DEVICES。
+    cuda_visible_devices: Optional[str] = field(default_factory=lambda: os.environ.get("CUDA_VISIBLE_DEVICES"))
     
     def __post_init__(self):
         """确保输出目录存在"""
         # 约束可见显卡（仅在显式指定时覆盖环境变量）
         if self.cuda_visible_devices is not None:
             os.environ["CUDA_VISIBLE_DEVICES"] = str(self.cuda_visible_devices)
+
+        # 规范化目标 PET 名称
+        self.data.target_pet = str(self.data.target_pet).strip().lower()
+        if self.data.target_pet not in {"tau", "fdg", "av45"}:
+            raise ValueError(
+                f"不支持的 data.target_pet={self.data.target_pet}，仅支持 tau/fdg/av45"
+            )
 
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(os.path.join(self.output_dir, "checkpoints"), exist_ok=True)

@@ -106,6 +106,7 @@ class Trainer:
         self.logger = setup_logging(config.output_dir)
         self.logger.info(f"输出目录: {config.output_dir}")
         self.logger.info(f"设备: {self.device}")
+        self.logger.info(f"目标 PET: {config.data.target_pet}")
         
         # TensorBoard
         self.writer = SummaryWriter(log_dir=config.output_dir)
@@ -503,17 +504,26 @@ class Trainer:
 # ============================================================================
 @email_on_error()
 def main():
-    parser = argparse.ArgumentParser(description="MRI → TAU-PET Baseline Training")
+    parser = argparse.ArgumentParser(description="MRI → PET Baseline Training")
     parser.add_argument("--epochs", type=int, default=None, help="训练轮数")
     parser.add_argument("--batch_size", type=int, default=None, help="批大小")
     parser.add_argument("--lr", type=float, default=None, help="学习率")
     parser.add_argument("--resume", type=str, default=None, help="恢复训练的 checkpoint 路径")
     parser.add_argument("--output_dir", type=str, default=None, help="输出目录")
+    parser.add_argument("--target_pet", type=str, choices=["tau", "fdg", "av45"], default=None, help="目标 PET: tau/fdg/av45")
     parser.add_argument("--condition_mode", type=str, default=None, help="条件模式: none/clinical/plasma/both")
     parser.add_argument("--cuda_visible_devices", type=str, default=None, help="指定可见 GPU，如 0,1,2,3")
     parser.add_argument("--pretrained_backbone", type=str, default=None, help="预训练 backbone 权重路径（baseline best_model.pth）")
+    parser.add_argument("--early_stopping", type=int, default=None, help="早停 patience")
+    parser.add_argument("--accumulation_steps", type=int, default=None, help="梯度累积步数")
+    parser.add_argument("--val_freq", type=int, default=None, help="验证频率（每 N 个 epoch）")
     parser.add_argument("--debug_print", action="store_true", help="打印关键变量")
     parser.add_argument("--debug_batches", type=int, default=1, help="每个 epoch 打印的 batch 数")
+    parser.add_argument("--split_subjects_json", type=str, default=None, help="固定划分 JSON（train_subjects/val_subjects/test_subjects）")
+    parser.add_argument("--split_train_json", type=str, default=None, help="核心方法 train_data_with_description.json")
+    parser.add_argument("--split_val_json", type=str, default=None, help="核心方法 val_data_with_description.json")
+    parser.add_argument("--split_test_json", type=str, default=None, help="可选 test_data_with_description.json")
+    parser.add_argument("--split_fallback_test_from_val", action="store_true", help="未提供 test 划分时使用 val 作为 test")
     args = parser.parse_args()
     
     if args.cuda_visible_devices:
@@ -535,12 +545,30 @@ def main():
         os.makedirs(os.path.join(config.output_dir, "checkpoints"), exist_ok=True)
         os.makedirs(os.path.join(config.output_dir, "visualizations"), exist_ok=True)
         os.makedirs(os.path.join(config.output_dir, "predictions"), exist_ok=True)
+    if args.target_pet:
+        config.data.target_pet = args.target_pet
     if args.condition_mode:
         config.condition.mode = args.condition_mode
     if args.pretrained_backbone:
         config.condition.pretrained_backbone = args.pretrained_backbone
     if args.cuda_visible_devices:
         config.cuda_visible_devices = args.cuda_visible_devices
+    if args.split_subjects_json:
+        config.data.split_subjects_json = args.split_subjects_json
+    if args.split_train_json:
+        config.data.split_train_json = args.split_train_json
+    if args.split_val_json:
+        config.data.split_val_json = args.split_val_json
+    if args.split_test_json:
+        config.data.split_test_json = args.split_test_json
+    if args.split_fallback_test_from_val:
+        config.data.split_fallback_test_from_val = True
+    if args.early_stopping is not None:
+        config.train.early_stopping_patience = args.early_stopping
+    if args.accumulation_steps is not None:
+        config.train.accumulation_steps = args.accumulation_steps
+    if args.val_freq is not None:
+        config.train.val_freq = args.val_freq
     
     # 创建训练器
     trainer = Trainer(config)

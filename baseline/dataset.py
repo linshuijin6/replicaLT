@@ -11,6 +11,7 @@ MRI → TAU-PET 配对数据集实现
 
 import os
 import glob
+import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
@@ -152,6 +153,39 @@ def build_sample_list(config: Config) -> pd.DataFrame:
         - diagnosis, quality_class, train_weight
         - pet_mfr (厂商)
     """
+    target_pet = str(getattr(config.data, "target_pet", "tau")).strip().lower()
+    if target_pet == "tau":
+        target_id_col = "id_av1451"
+        target_subdir = config.data.tau_subdir
+        radiopharm_keyword = "AV1451"
+        use_tau_qc = True
+    elif target_pet == "fdg":
+        target_id_col = "id_fdg"
+        target_subdir = config.data.fdg_subdir
+        radiopharm_keyword = "FDG"
+        use_tau_qc = False
+    elif target_pet == "av45":
+        target_id_col = "id_av45"
+        target_subdir = config.data.av45_subdir
+        radiopharm_keyword = "AV45"
+        use_tau_qc = False
+    else:
+        raise ValueError(f"不支持的 target_pet={target_pet}，仅支持 tau/fdg/av45")
+
+    def _normalize_img_id(x) -> Optional[str]:
+        if x is None:
+            return None
+        try:
+            if pd.isna(x):
+                return None
+        except (ValueError, TypeError):
+            pass
+        try:
+            return str(int(float(x)))
+        except (ValueError, TypeError):
+            sx = str(x).strip()
+            return sx if sx else None
+
     # 读取 pairs 表
     pairs_df = pd.read_csv(config.data.pairs_csv)
     
@@ -171,7 +205,6 @@ def build_sample_list(config: Config) -> pd.DataFrame:
     col_map = {
         "ptid": "ptid",
         "id_mri": "mri_id",
-        "id_av1451": "tau_id",
         "diagnosis": "diagnosis",
     }
     
@@ -179,39 +212,45 @@ def build_sample_list(config: Config) -> pd.DataFrame:
         if old in pairs_df.columns:
             pairs_df[new] = pairs_df[old]
     
-    # 只保留有 TAU 的行
+    if target_id_col not in pairs_df.columns:
+        raise KeyError(f"pairs_csv 缺少目标 PET 列: {target_id_col}")
+
+    # 兼容下游字段命名，统一将当前目标 PET id 写入 tau_id
+    pairs_df["mri_id"] = pairs_df["mri_id"].apply(_normalize_img_id)
+    pairs_df["tau_id"] = pairs_df[target_id_col].apply(_normalize_img_id)
+
+    # 只保留有目标 PET 的行
     pairs_df = pairs_df[pairs_df["tau_id"].notna()].copy()
-    pairs_df["tau_id"] = pairs_df["tau_id"].astype(int).astype(str)
-    pairs_df["mri_id"] = pairs_df["mri_id"].astype(int).astype(str)
-    
-    print(f"[build_sample_list] pairs 中有 TAU 的记录: {len(pairs_df)}")
-    
-    # 读取 QC 结果
-    qc_df = pd.read_csv(config.data.qc_csv)
-    qc_df["id_mri"] = qc_df["id_mri"].astype(str)
-    qc_df["id_tau"] = qc_df["id_tau"].apply(lambda x: str(int(float(x))) if pd.notna(x) else None)
-    
-    # 合并 QC 信息
-    pairs_df = pairs_df.merge(
-        qc_df[["id_mri", "id_tau", "quality_class", "train_weight"]],
-        left_on=["mri_id", "tau_id"],
-        right_on=["id_mri", "id_tau"],
-        how="left"
-    )
-    
-    # 填充缺失的 QC
-    pairs_df["quality_class"] = pairs_df["quality_class"].fillna("Medium")
-    pairs_df["train_weight"] = pairs_df["train_weight"].fillna(0.7)
-    
+    pairs_df = pairs_df[pairs_df["mri_id"].notna()].copy()
+
+    print(f"[build_sample_list] target_pet={target_pet}, pairs 中有目标 PET 的记录: {len(pairs_df)}")
+
+    # 仅 TAU 使用现有 QC 权重；FDG/AV45 默认权重
+    if use_tau_qc and os.path.exists(config.data.qc_csv):
+        qc_df = pd.read_csv(config.data.qc_csv)
+        qc_df["id_mri"] = qc_df["id_mri"].apply(_normalize_img_id)
+        qc_df["id_tau"] = qc_df["id_tau"].apply(_normalize_img_id)
+
+        pairs_df = pairs_df.merge(
+            qc_df[["id_mri", "id_tau", "quality_class", "train_weight"]],
+            left_on=["mri_id", "tau_id"],
+            right_on=["id_mri", "id_tau"],
+            how="left"
+        )
+        pairs_df["quality_class"] = pairs_df["quality_class"].fillna("Medium")
+        pairs_df["train_weight"] = pairs_df["train_weight"].fillna(0.7)
+    else:
+        pairs_df["quality_class"] = "Medium"
+        pairs_df["train_weight"] = 0.7
+
     # 读取 PET 厂商信息
     if os.path.exists(config.data.pet_info_csv):
         pet_df = pd.read_csv(config.data.pet_info_csv)
-        # 筛选 AV1451
-        tau_pet = pet_df[pet_df["pet_radiopharm"].str.contains("AV1451", na=False, case=False)].copy()
-        tau_pet["image_id"] = tau_pet["image_id"].astype(str)
-        
+        target_pet_df = pet_df[pet_df["pet_radiopharm"].str.contains(radiopharm_keyword, na=False, case=False)].copy()
+        target_pet_df["image_id"] = target_pet_df["image_id"].apply(_normalize_img_id)
+
         pairs_df = pairs_df.merge(
-            tau_pet[["image_id", "pet_mfr"]],
+            target_pet_df[["image_id", "pet_mfr"]],
             left_on="tau_id",
             right_on="image_id",
             how="left"
@@ -227,7 +266,7 @@ def build_sample_list(config: Config) -> pd.DataFrame:
     # 查找文件路径
     samples = []
     missing_mri = 0
-    missing_tau = 0
+    missing_target = 0
     
     extra_fields = list({
         *config.condition.clinical_fields,
@@ -248,10 +287,10 @@ def build_sample_list(config: Config) -> pd.DataFrame:
             ptid, mri_id
         )
         
-        # 查找 TAU
+        # 查找目标 PET（字段仍沿用 tau_path/tau_id，以兼容下游代码）
         tau_path = find_nifti_file(
             config.data.adni_root,
-            config.data.tau_subdir,
+            target_subdir,
             ptid, mri_id, tau_id
         )
         
@@ -259,7 +298,14 @@ def build_sample_list(config: Config) -> pd.DataFrame:
             missing_mri += 1
             continue
         if tau_path is None:
-            missing_tau += 1
+            missing_target += 1
+            continue
+        # 跳过 _zero.nii.gz（表示该被试缺少此模态）
+        if _is_missing_modal_path(str(mri_path)):
+            missing_mri += 1
+            continue
+        if _is_missing_modal_path(str(tau_path)):
+            missing_target += 1
             continue
         
         sample = {
@@ -280,7 +326,7 @@ def build_sample_list(config: Config) -> pd.DataFrame:
                 sample[field] = None
         samples.append(sample)
     
-    print(f"[build_sample_list] 有效样本: {len(samples)}, 缺失 MRI: {missing_mri}, 缺失 TAU: {missing_tau}")
+    print(f"[build_sample_list] 有效样本: {len(samples)}, 缺失 MRI: {missing_mri}, 缺失 {target_pet.upper()}: {missing_target}")
     
     return pd.DataFrame(samples)
 
@@ -338,6 +384,146 @@ def stratified_split(
     for df_ in [train_df, val_df, test_df]:
         df_.drop(columns=["_stratify_key"], inplace=True, errors="ignore")
     
+    return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
+
+
+def _is_missing_modal_path(path_value: Any) -> bool:
+    """判断 JSON 中模态路径是否表示缺失（如 zero.nii.gz / NaN）。"""
+    if path_value is None:
+        return True
+    try:
+        if pd.isna(path_value):
+            return True
+    except (ValueError, TypeError):
+        pass
+
+    s = str(path_value).strip().lower()
+    if s in {"", "nan", "none", "null"}:
+        return True
+    s_norm = s.replace("\\", "/")
+    base_name = os.path.basename(s_norm)
+    if base_name in {"zero.nii.gz", "zero.nii"}:
+        return True
+    if base_name.endswith("_zero.nii.gz") or base_name.endswith("_zero.nii"):
+        return True
+    if "/zero/" in s_norm and base_name.endswith(".nii.gz"):
+        return True
+    return False
+
+
+def _load_subjects_from_paired_json(json_path: str, target_pet: Optional[str] = None) -> List[str]:
+    """从 train/val/test_data_with_description.json 提取 subject 列表。"""
+    if not json_path:
+        return []
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    target_field = None
+    if target_pet is not None:
+        target_pet_norm = str(target_pet).strip().lower()
+        target_field = {
+            "tau": "tau",
+            "fdg": "fdg",
+            "av45": "av45",
+        }.get(target_pet_norm)
+
+    subjects = []
+    for item in data:
+        # 若指定了目标 PET，则过滤掉该模态缺失（zero.nii.gz 等）的记录
+        if target_field is not None:
+            if _is_missing_modal_path(item.get(target_field)):
+                continue
+
+        sid = item.get("name") or item.get("ptid") or item.get("Subject ID")
+        if sid is not None:
+            sid_str = str(sid)
+            # name 字段常为 "PTID__exam_id"，固定划分按 PTID 对齐
+            if "__" in sid_str:
+                sid_str = sid_str.split("__", 1)[0]
+            subjects.append(sid_str)
+    return sorted(set(subjects))
+
+
+def resolve_external_split_subjects(config: Config) -> Optional[Dict[str, List[str]]]:
+    """
+    解析外部固定划分。
+
+    优先级:
+    1) data.split_train_json / split_val_json / split_test_json: paired json（核心现有划分）
+    2) data.split_subjects_json: {train_subjects, val_subjects, test_subjects?}
+    """
+    split_cfg = config.data
+
+    if split_cfg.split_train_json and split_cfg.split_val_json:
+        train_subjects = _load_subjects_from_paired_json(
+            split_cfg.split_train_json,
+            target_pet=split_cfg.target_pet,
+        )
+        val_subjects = _load_subjects_from_paired_json(
+            split_cfg.split_val_json,
+            target_pet=split_cfg.target_pet,
+        )
+        test_subjects = []
+        if split_cfg.split_test_json:
+            test_subjects = _load_subjects_from_paired_json(
+                split_cfg.split_test_json,
+                target_pet=split_cfg.target_pet,
+            )
+        elif split_cfg.split_fallback_test_from_val:
+            test_subjects = list(val_subjects)
+        return {
+            "train_subjects": train_subjects,
+            "val_subjects": val_subjects,
+            "test_subjects": sorted(set(test_subjects)),
+        }
+
+    if split_cfg.split_subjects_json:
+        with open(split_cfg.split_subjects_json, "r") as f:
+            payload = json.load(f)
+        train_subjects = payload.get("train_subjects", [])
+        val_subjects = payload.get("val_subjects", [])
+        test_subjects = payload.get("test_subjects", [])
+        if (not test_subjects) and split_cfg.split_fallback_test_from_val:
+            test_subjects = list(val_subjects)
+        return {
+            "train_subjects": sorted(set(map(str, train_subjects))),
+            "val_subjects": sorted(set(map(str, val_subjects))),
+            "test_subjects": sorted(set(map(str, test_subjects))),
+        }
+
+    return None
+
+
+def external_subject_split(
+    df: pd.DataFrame,
+    split_subjects: Dict[str, List[str]],
+    strict: bool = True,
+    allow_val_test_overlap: bool = False,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """按外部 subject 列表执行固定划分。"""
+    train_set = set(split_subjects.get("train_subjects", []))
+    val_set = set(split_subjects.get("val_subjects", []))
+    test_set = set(split_subjects.get("test_subjects", []))
+
+    if strict:
+        overlap = (train_set & val_set) | (train_set & test_set)
+        if not allow_val_test_overlap:
+            overlap = overlap | (val_set & test_set)
+        if overlap:
+            raise ValueError(f"外部划分存在重叠 subjects: {sorted(list(overlap))[:10]}")
+
+    train_df = df[df["ptid"].astype(str).isin(train_set)].copy()
+    val_df = df[df["ptid"].astype(str).isin(val_set)].copy()
+    test_df = df[df["ptid"].astype(str).isin(test_set)].copy()
+
+    if strict:
+        if len(train_df) == 0:
+            raise ValueError("外部划分后训练集为空，请检查 split 与样本表的 ptid 对齐。")
+        if len(val_df) == 0:
+            raise ValueError("外部划分后验证集为空，请检查 split 与样本表的 ptid 对齐。")
+        if len(test_df) == 0:
+            raise ValueError("外部划分后测试集为空，请提供 test_subjects 或启用 val->test 回退。")
+
     return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
 
 
@@ -679,11 +865,27 @@ def create_dataloaders(
     Returns:
         train_loader, val_loader, test_loader, train_df, val_df, test_df
     """
+    print(f"[create_dataloaders] target_pet={config.data.target_pet}")
     # 构建样本列表
     sample_df = build_sample_list(config)
     
-    # 分层划分
-    train_df, val_df, test_df = stratified_split(sample_df, config)
+    # 优先使用外部固定划分（核心方法现有 split），否则走 baseline 内部分层切分
+    external_split_subjects_cfg = resolve_external_split_subjects(config)
+    if external_split_subjects_cfg is not None:
+        print("[create_dataloaders] 使用外部固定划分（来自核心方法 split）")
+        allow_val_test_overlap = (
+            config.data.split_fallback_test_from_val and not bool(config.data.split_test_json)
+        )
+        if allow_val_test_overlap:
+            print("[create_dataloaders] 启用 val->test 回退，允许 val/test subjects 重合")
+        train_df, val_df, test_df = external_subject_split(
+            sample_df,
+            external_split_subjects_cfg,
+            strict=config.data.split_strict,
+            allow_val_test_overlap=allow_val_test_overlap,
+        )
+    else:
+        train_df, val_df, test_df = stratified_split(sample_df, config)
     
     # 打印统计
     stats_path = os.path.join(config.output_dir, "split_statistics.txt")
