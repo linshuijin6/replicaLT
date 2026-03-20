@@ -1,3 +1,12 @@
+# 说明（项目核心指令入口）
+
+本仓库的项目级 Copilot 核心指令已迁移到：
+- `.github/copilot-instructions.md`
+
+该文件聚焦 MRI->PET + plasma 两阶段主链（`adapter_v2/train.py` + `plasma_train.py`）及其实际 import 依赖。
+后续在本项目内提问，优先遵循该入口文件。
+若核心代码发生重要修改，必须同步更新 `.github/copilot-instructions.md`，否则视为任务未完成。
+
 # VS Code Copilot 常用项目指令（推荐版）
 
 > 目的：让 Copilot 在本仓库内默认使用指定 Conda 环境运行/安装依赖、全程中文沟通、并在需要时自动补齐依赖与日志文件。
