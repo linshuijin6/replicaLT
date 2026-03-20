@@ -3,7 +3,7 @@
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 # 防止 CUDA 使用非指定 GPU，避免显存泄漏
 import os
-_TARGET_GPU_IDS = [5]  # 指定使用的 GPU ID，与下方 device_id 保持一致
+_TARGET_GPU_IDS = [2]  # 指定使用的 GPU ID，与下方 device_id 保持一致
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, _TARGET_GPU_IDS))
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # 确保物理 GPU ID 顺序一致
 
@@ -181,7 +181,7 @@ def main():
     # 0.训练参数设置
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
     cache_dir = '/mnt/nfsdata/nfsdata/linshuijin/ADNI_CSF_main_cache192'
-    plasma_csv_path = "/home/ssddata/linshuijin/replicaLT/adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
+    plasma_csv_path = "adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # 确保缓存目录存在
     os.makedirs(cache_dir, exist_ok=True)
@@ -198,10 +198,16 @@ def main():
     clip_sample_min = 0  # 设置合适的最小值
     clip_sample_max = 1   # 设置合适的最大值
 
-    # 定义模态权重
-    alpha = 1.0  # FDG 损失权重
-    beta = 1.0   # AV45 损失权重
-    gamma = 1.0  # TAU 损失权重
+    # ============ 模态开关 ============
+    # 可在此处选择只训练特定模态（例如：仅 TAU）
+    use_fdg = False
+    use_av45 = False
+    use_tau = True
+
+    # 定义模态权重（根据开关自动置 0）
+    alpha = 1.0 if use_fdg else 0.0  # FDG 损失权重
+    beta = 1.0 if use_av45 else 0.0  # AV45 损失权重
+    gamma = 1.0 if use_tau else 0.0  # TAU 损失权重
     
     # ============ 多GPU优化配置 ============
     accumulation_steps = 1  # 梯度累积步数：双GPU时设为1（无梯度累积）
@@ -270,6 +276,9 @@ def main():
 
     # 保存超参数到 hparams.json
     hparams = {
+        "use_fdg": use_fdg,
+        "use_av45": use_av45,
+        "use_tau": use_tau,
         "base_dir": base_dir,
         "cache_dir": cache_dir,
         "device_id": device_id,
@@ -795,35 +804,37 @@ def main():
     with open(val_json_path, "r") as f:
         val_data = json.load(f)
 
-    # 转换数据格式，确保所有索引都有有效值
-    # 注意：description 字段已通过索引转换为文本特征，此处不再需要
-    train_data = [
-        {
-            "name": item["name"],
-            "mri": item["mri"],
-            "av45": item["av45"],
-            "fdg": item["fdg"],
-            "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "fdg_index": item.get("fdg_index") if item.get("fdg_index") is not None else idx,  # 如果为None，使用enumerate索引
-            "av45_index": item.get("av45_index") if item.get("av45_index") is not None else idx,
-            "tau_index": (item.get("tau_index") if item.get("tau_index") is not None else idx) if tau_available else None,
-        }
-        for idx, item in enumerate(train_data)
-    ]
+    # 重新计算每个样本在 paired_data 中的位置
+    name_to_idx = {d["name"]: i for i, d in enumerate(paired_data)}
 
-    val_data = [
-        {
-            "name": item["name"],
-            "mri": item["mri"],
-            "av45": item["av45"],
-            "fdg": item["fdg"],
-            "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "fdg_index": item.get("fdg_index") if item.get("fdg_index") is not None else idx,
-            "av45_index": item.get("av45_index") if item.get("av45_index") is not None else idx,
-            "tau_index": (item.get("tau_index") if item.get("tau_index") is not None else idx) if tau_available else None,
-        }
-        for idx, item in enumerate(val_data)
-    ]
+    # 转换数据格式，确保所有索引都有有效值，并根据模态开关进行过滤
+    # 注意：description 字段已通过索引转换为文本特征，此处不再需要
+    def filter_and_format_data(data_list):
+        formatted = []
+        for item in data_list:
+            av45_file = item["av45"] if use_av45 else None
+            fdg_file = item["fdg"] if use_fdg else None
+            tau_file = (item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None)) if use_tau else None
+            
+            # 如果该被试没有任何选定的模态，则跳过（避免无用的 MRI 处理）
+            if fdg_file is None and av45_file is None and tau_file is None:
+                continue
+                
+            formatted.append({
+                "name": item["name"],
+                "mri": item["mri"],
+                "av45": av45_file,
+                "fdg": fdg_file,
+                "tau": tau_file,
+                "fdg_index": name_to_idx[item["name"]],  # 强制使用 paired_data 中的相对索引，避免 JSON 里的旧数据引发越界
+                "av45_index": name_to_idx[item["name"]],
+                "tau_index": name_to_idx[item["name"]] if tau_available else None,
+            })
+        return formatted
+
+    train_data = filter_and_format_data(train_data)
+    val_data = filter_and_format_data(val_data)
+    print(f"\n🔍 根据模态开关过滤后，使用数据量: train={len(train_data)}, val={len(val_data)}")
 
     # 确保缺失的 TAU 索引被填充（沿用 FDG/AV45 的索引以保持与特征向量对齐）
     if tau_available:
@@ -899,15 +910,15 @@ def main():
     train_ds = PersistentDataset(data=train_data, transform=train_transforms, cache_dir=train_cache_dir)
     
     # # ============ 暂时注释：缓存已在后台生成 ============
-    # print(f"\n⭐ 开始生成训练集缓存（共 {len(train_ds)} 个样本）...")
-    # from tqdm import tqdm as tqdm_module
-    # for i in tqdm_module(range(len(train_ds)), desc="训练集缓存"):
-    #     try:
-    #         _ = train_ds[i]
-    #     except Exception as e:
-    #         print(f"\n❌ 样本 {i} 缓存失败: {e}")
-    #         raise
-    # print("✅ 训练集缓存生成完成！")
+    print(f"\n⭐ 开始生成训练集缓存（共 {len(train_ds)} 个样本）...")
+    from tqdm import tqdm as tqdm_module
+    for i in tqdm_module(range(len(train_ds)), desc="训练集缓存"):
+        try:
+            _ = train_ds[i]
+        except Exception as e:
+            print(f"\n❌ 样本 {i} 缓存失败: {e}")
+            raise
+    print("✅ 训练集缓存生成完成！")
     
     # 检查缓存文件
     cache_files = os.listdir(train_cache_dir)
@@ -924,15 +935,15 @@ def main():
     print(f"   缓存目录: {val_cache_dir}")
     val_ds = PersistentDataset(data=val_data, transform=val_transforms, cache_dir=val_cache_dir)
     
-    # # ============ 暂时注释：缓存已在后台生成 ============
-    # print(f"\n⭐ 开始生成验证集缓存（共 {len(val_ds)} 个样本）...")
-    # for i in tqdm_module(range(len(val_ds)), desc="验证集缓存"):
-    #     try:
-    #         _ = val_ds[i]
-    #     except Exception as e:
-    #         print(f"\n❌ 样本 {i} 缓存失败: {e}")
-    #         raise
-    # print("✅ 验证集缓存生成完成！")
+    # ============ 暂时注释：缓存已在后台生成 ============
+    print(f"\n⭐ 开始生成验证集缓存（共 {len(val_ds)} 个样本）...")
+    for i in tqdm_module(range(len(val_ds)), desc="验证集缓存"):
+        try:
+            _ = val_ds[i]
+        except Exception as e:
+            print(f"\n❌ 样本 {i} 缓存失败: {e}")
+            raise
+    print("✅ 验证集缓存生成完成！")
     
     # 检查缓存文件
     cache_files = os.listdir(val_cache_dir)
