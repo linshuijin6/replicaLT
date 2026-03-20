@@ -1014,6 +1014,13 @@ def main():
     # 显式指定 GradScaler 使用的设备，防止默认使用 cuda:0
     scaler = GradScaler(device=device)
     global_step = 0  # 全局步数计数器（用于 TensorBoard 日志）
+    best_val_loss = float('inf')  # ★ 最佳验证损失，用于保存 best_model.pt
+
+    # ★ 提前初始化验证指标，避免内嵌定义
+    from generative.metrics import SSIMMetric
+    from monai.metrics import MAEMetric, MSEMetric, PSNRMetric
+    ssim_metric = SSIMMetric(spatial_dims=3, data_range=1.0, kernel_size=7)
+    psnr_metric = PSNRMetric(1.0)
 
     # 5. 训练网络
     for epoch in range(start_epoch, n_epochs):
@@ -1041,7 +1048,7 @@ def main():
             if step % accumulation_steps == 0:
                 optimizer.zero_grad(set_to_none=True)
             
-            timesteps = torch.randint(0, 1000, (len(images),)).to(device)  # pick a random time step t
+            timesteps = torch.randint(0, 1000, (len(images),)).to(device)  # 保留兼容（未使用）
 
             # Create time_embedding
             time_embedding = torch.randint(
@@ -1164,6 +1171,8 @@ def main():
         if (epoch + 1) % val_interval == 0:
             model.eval()
             val_epoch_loss = 0
+            # ★ 逐 batch 累积 —— 解决原代码仅用最后一个 batch 计算指标的问题
+            ssim_tau_list, psnr_tau_list, mae_tau_list = [], [], []
 
             for step, data_val in enumerate(val_loader):
                 # 验证阶段使用 non_blocking=True 异步传输
@@ -1197,7 +1206,7 @@ def main():
                             # FDG 输出（仅当非二值化时计算）
                             if has_fdg:
                                 v_fdg_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(device), context=fdg_index)
-                                # 双GPU模式下确保输出在正确设备
+                                # 双 GPU模式下确保输出在正确设备
                                 if use_distributed:
                                     v_fdg_output = v_fdg_output.to(device)
                                 x_fdg_t = x_t + (v_fdg_output / N_sample_tensor)
@@ -1208,7 +1217,7 @@ def main():
                             # AV45 输出（仅当非二值化时计算）
                             if has_av45:
                                 v_av45_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(device), context=av45_index)
-                                # 双GPU模式下确保输出在正确设备
+                                # 双 GPU模式下确保输出在正确设备
                                 if use_distributed:
                                     v_av45_output = v_av45_output.to(device)
                                 x_av45_t = x_t + (v_av45_output / N_sample_tensor)
@@ -1219,7 +1228,7 @@ def main():
                             # TAU 输出（仅当非二值化时计算）
                             if has_tau:
                                 v_tau_output = model(x=x_t, timesteps=torch.Tensor((time_embedding,)).to(device), context=tau_index)
-                                # 双GPU模式下确保输出在正确设备
+                                # 双 GPU模式下确保输出在正确设备
                                 if use_distributed:
                                     v_tau_output = v_tau_output.to(device)
                                 x_tau_t = x_t + (v_tau_output / N_sample_tensor)
@@ -1242,6 +1251,10 @@ def main():
 
                 if has_tau and x_tau_t is not None:
                     val_tau_loss = F.mse_loss(x_tau_t.float(), seg_tau.float())
+                    # ★ 逐 batch 累积 TAU 指标
+                    ssim_tau_list.append(ssim_metric(seg_tau.cpu(), x_tau_t.cpu()).mean().item())
+                    psnr_tau_list.append(psnr_metric(seg_tau.cpu(), x_tau_t.cpu()).mean().item())
+                    mae_tau_list.append(F.l1_loss(x_tau_t.float(), seg_tau.float()).item())
 
                 # 加权总损失
                 val_loss = alpha * val_fdg_loss + beta * val_av45_loss + gamma * val_tau_loss
@@ -1249,17 +1262,40 @@ def main():
                 val_epoch_loss += val_loss.item()
                 # 移除了 torch.cuda.empty_cache()，验证阶段不需要频繁清理
 
-            print("Epoch", epoch + 1, "Validation loss", val_epoch_loss / (step + 1))
-            val_epoch_loss_list.append(val_epoch_loss / (step + 1))
+            val_avg_loss = val_epoch_loss / (step + 1)
+            print(f"Epoch {epoch + 1} | Validation loss {val_avg_loss:.4f}")
+            val_epoch_loss_list.append(val_avg_loss)
+
+            # ★ 全验证集聚合指标输出
+            if ssim_tau_list:
+                tau_ssim_avg = sum(ssim_tau_list) / len(ssim_tau_list)
+                tau_psnr_avg = sum(psnr_tau_list) / len(psnr_tau_list)
+                tau_mae_avg  = sum(mae_tau_list)  / len(mae_tau_list)
+                print(f"  TAU SSIM={tau_ssim_avg:.4f}  PSNR={tau_psnr_avg:.2f}  MAE={tau_mae_avg:.4f}  (n={len(ssim_tau_list)} batches)")
+                writer.add_scalar("val/TAU_SSIM", tau_ssim_avg, epoch)
+                writer.add_scalar("val/TAU_PSNR", tau_psnr_avg, epoch)
+                writer.add_scalar("val/TAU_MAE",  tau_mae_avg,  epoch)
 
             # 验证集日志记录
-            val_avg_loss = val_epoch_loss / (step + 1)
             writer.add_scalar("val/loss", val_avg_loss, epoch)
-
-            # Saving model parameters
             print('epoch:', epoch + 1)
             print('learning rate:', optimizer.state_dict()['param_groups'][0]['lr'])
-            
+
+            # ★ Best model 跟踪并保存
+            if val_avg_loss < best_val_loss:
+                best_val_loss = val_avg_loss
+                best_ckpt_path = run_dir / "best_model.pt"
+                checkpoint_best = {
+                    'model': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'epoch': epoch,
+                    'global_step': global_step,
+                    'val_loss': best_val_loss,
+                }
+                torch.save(checkpoint_best, str(best_ckpt_path))
+                print(f"🏆 Best model saved (val_loss={best_val_loss:.4f}): {best_ckpt_path}")
+            writer.add_scalar("val/best_loss", best_val_loss, epoch)
+
             # 保存 checkpoint 到 run_dir
             ckpt_path = run_dir / f"ckpt_epoch{epoch + 1}.pt"
             checkpoint = {
@@ -1270,7 +1306,7 @@ def main():
             }
             torch.save(checkpoint, str(ckpt_path))
             print(f"✅ Checkpoint saved: {ckpt_path}")
-            
+
             # 也保存到 checkpoint_dir（保持兼容）
             torch.save(checkpoint, f'{checkpoint_dir}/first_part_{epoch + 1}.pth')
             print('Saved all parameters!\n')
@@ -1350,37 +1386,6 @@ def main():
                     log_3d_volume_to_tensorboard(writer, "val/TAU_Pred", current_tau_img, epoch)
                 
                 print(f"✅ 图像已保存到 TensorBoard")
-
-            from generative.metrics import SSIMMetric
-            from monai.metrics import MAEMetric, MSEMetric, PSNRMetric
-
-            ssim_metric = SSIMMetric(spatial_dims=3, data_range=1.0, kernel_size=7)
-            psnr_metric = PSNRMetric(1.0)
-
-            # 计算 SSIM 和 PSNR（仅当非二值化时计算）
-            if has_fdg and current_fdg_img is not None:
-                ssim_fdg_value = ssim_metric(labels_fdg, current_fdg_img)
-                psnr_fdg_value = psnr_metric(labels_fdg, current_fdg_img)
-                print(f"FDG SSIM: {ssim_fdg_value.mean().item()}")
-                print(f"FDG PSNR: {psnr_fdg_value.mean().item()}")
-                writer.add_scalar("val/FDG_SSIM", ssim_fdg_value.mean().item(), epoch)
-                writer.add_scalar("val/FDG_PSNR", psnr_fdg_value.mean().item(), epoch)
-
-            if has_av45 and current_av45_img is not None:
-                ssim_av45_value = ssim_metric(labels_av45, current_av45_img)
-                psnr_av45_value = psnr_metric(labels_av45, current_av45_img)
-                print(f"AV45 SSIM: {ssim_av45_value.mean().item()}")
-                print(f"AV45 PSNR: {psnr_av45_value.mean().item()}")
-                writer.add_scalar("val/AV45_SSIM", ssim_av45_value.mean().item(), epoch)
-                writer.add_scalar("val/AV45_PSNR", psnr_av45_value.mean().item(), epoch)
-
-            if tau_available and has_tau and current_tau_img is not None and labels_tau is not None:
-                ssim_tau_value = ssim_metric(labels_tau, current_tau_img)
-                psnr_tau_value = psnr_metric(labels_tau, current_tau_img)
-                print(f"TAU SSIM: {ssim_tau_value.mean().item()}")
-                print(f"TAU PSNR: {psnr_tau_value.mean().item()}")
-                writer.add_scalar("val/TAU_SSIM", ssim_tau_value.mean().item(), epoch)
-                writer.add_scalar("val/TAU_PSNR", psnr_tau_value.mean().item(), epoch)
 
     # 训练结束，关闭 writer
     writer.flush()

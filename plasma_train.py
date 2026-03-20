@@ -205,8 +205,9 @@ def main():
     device_id = VISIBLE_DEVICE_IDS.copy()
     clip_sample_min = 0
     clip_sample_max = 1
-    alpha = 1.0  # FDG 损失权重
-    beta = 1.0   # AV45 损失权重
+    # ★ 仅训练 TAU 模态（与 train.py / baseline 对齐，保证对比公平）
+    alpha = 0.0  # FDG 损失权重（关闭）
+    beta  = 0.0  # AV45 损失权重（关闭）
     gamma = 1.0  # TAU 损失权重
     accumulation_steps = 1
 
@@ -434,8 +435,12 @@ def main():
     all_plasma_embs = torch.stack(plasma_emb_list, dim=0)  # (N, 512)
     print(f"   plasma_emb shape: {all_plasma_embs.shape}")
     print(f"   缺失 plasma_emb 的样本: {missing_plasma}/{len(paired_data)}")
+    missing_ratio = missing_plasma / max(len(paired_data), 1)
     if missing_plasma > 0:
         print(f"   ⚠️  缺失样本将使用零向量引导（请先运行 precompute_plasma_emb.py）")
+        print(f"   ⚠️  缺失比例: {missing_ratio:.1%}  ({missing_plasma}/{len(paired_data)})")
+        if missing_ratio > 0.3:
+            print(f"   🚨  缺失比例过高！零向量引导将严重干扰 plasma 条件信号，建议优先补全 plasma_emb。")
 
     # 验证 plasma_emb 的 L2 范数（应接近 1.0）
     norms = all_plasma_embs.norm(dim=-1)
@@ -766,11 +771,8 @@ def main():
 
             total_loss = 0.0
 
+            # ★ 仅训练 TAU 模态（alpha=beta=0，关闭 FDG/AV45）
             available_modalities = []
-            if has_fdg:
-                available_modalities.append('fdg')
-            if has_av45:
-                available_modalities.append('av45')
             if has_tau:
                 available_modalities.append('tau')
 
