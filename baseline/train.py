@@ -524,6 +524,7 @@ def main():
     parser.add_argument("--split_val_json", type=str, default=None, help="核心方法 val_data_with_description.json")
     parser.add_argument("--split_test_json", type=str, default=None, help="可选 test_data_with_description.json")
     parser.add_argument("--split_fallback_test_from_val", action="store_true", help="未提供 test 划分时使用 val 作为 test")
+    parser.add_argument("--cache_dir", type=str, default=None, help="SSD 缓存目录，加速数据加载")
     args = parser.parse_args()
     
     if args.cuda_visible_devices:
@@ -569,6 +570,8 @@ def main():
         config.train.accumulation_steps = args.accumulation_steps
     if args.val_freq is not None:
         config.train.val_freq = args.val_freq
+    if args.cache_dir:
+        config.data.cache_dir = args.cache_dir
     
     # 创建训练器
     trainer = Trainer(config)

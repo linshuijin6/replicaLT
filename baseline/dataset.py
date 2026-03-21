@@ -12,6 +12,7 @@ MRI → TAU-PET 配对数据集实现
 import os
 import glob
 import json
+import hashlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 import numpy as np
@@ -653,6 +654,8 @@ class MRITauDataset(Dataset):
         source_col: str = "plasma_source",
         clinical_fields: Optional[List[str]] = None,
         plasma_fields: Optional[List[str]] = None,
+        use_cache: bool = False,
+        cache_dir: Optional[str] = None,
     ):
         self.df = df.reset_index(drop=True)
         self.target_shape = target_shape
@@ -664,6 +667,11 @@ class MRITauDataset(Dataset):
         self.clinical_fields = clinical_fields or CLINICAL_FIELDS
         self.plasma_fields = plasma_fields or PLASMA_FIELDS
         
+        self.use_cache = use_cache
+        self.cache_dir = cache_dir
+        if self.use_cache and self.cache_dir:
+            os.makedirs(self.cache_dir, exist_ok=True)
+            
         # 验证
         self.bad_samples = []
     
@@ -672,6 +680,19 @@ class MRITauDataset(Dataset):
     
     def _load_and_preprocess(self, path: str) -> np.ndarray:
         """加载并预处理 NIfTI 文件"""
+        if self.use_cache and self.cache_dir:
+            hash_str = hashlib.md5(f"{path}_{self.target_shape}".encode()).hexdigest()
+            cache_path = os.path.join(self.cache_dir, f"{hash_str}.npy")
+            if os.path.exists(cache_path):
+                # 如果处于生成缓存模式，命中己有缓存则不加载到内存而直接跳过
+                if getattr(self, "cache_only", False):
+                    return np.zeros(self.target_shape, dtype=np.float32)
+                try:
+                    return np.load(cache_path)
+                except Exception as e:
+                    print(f"[WARNING] 读取缓存失败 {cache_path}: {e}")
+                    pass
+
         img = nib.load(path)
         # Reorient to canonical (RAS+) so axis meaning is consistent across files.
         img = nib.as_closest_canonical(img)
@@ -685,6 +706,12 @@ class MRITauDataset(Dataset):
         # 归一化
         data = normalize_volume(data)
         
+        if self.use_cache and self.cache_dir:
+            try:
+                np.save(cache_path, data)
+            except Exception as e:
+                print(f"[WARNING] 写入缓存失败 {cache_path}: {e}")
+                
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, Any]:
@@ -912,6 +939,8 @@ def create_dataloaders(
         source_col=config.condition.source_col,
         clinical_fields=config.condition.clinical_fields,
         plasma_fields=config.condition.plasma_fields,
+        use_cache=config.data.use_cache,
+        cache_dir=config.data.cache_dir,
     )
     val_dataset = MRITauDataset(
         val_df,
@@ -923,6 +952,8 @@ def create_dataloaders(
         source_col=config.condition.source_col,
         clinical_fields=config.condition.clinical_fields,
         plasma_fields=config.condition.plasma_fields,
+        use_cache=config.data.use_cache,
+        cache_dir=config.data.cache_dir,
     )
     test_dataset = MRITauDataset(
         test_df,
@@ -934,7 +965,11 @@ def create_dataloaders(
         source_col=config.condition.source_col,
         clinical_fields=config.condition.clinical_fields,
         plasma_fields=config.condition.plasma_fields,
+        use_cache=config.data.use_cache,
+        cache_dir=config.data.cache_dir,
     )
+    
+    persistent = config.data.persistent_workers if config.data.num_workers > 0 else False
     
     # 创建 DataLoader
     train_loader = DataLoader(
@@ -944,6 +979,7 @@ def create_dataloaders(
         num_workers=config.data.num_workers,
         pin_memory=config.data.pin_memory,
         drop_last=True,
+        persistent_workers=persistent,
     )
     
     val_loader = DataLoader(
@@ -952,6 +988,7 @@ def create_dataloaders(
         shuffle=False,
         num_workers=config.data.num_workers,
         pin_memory=config.data.pin_memory,
+        persistent_workers=persistent,
     )
     
     test_loader = DataLoader(
@@ -960,6 +997,7 @@ def create_dataloaders(
         shuffle=False,
         num_workers=config.data.num_workers,
         pin_memory=config.data.pin_memory,
+        persistent_workers=persistent,
     )
     
     return train_loader, val_loader, test_loader, train_df, val_df, test_df
