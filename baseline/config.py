@@ -48,8 +48,13 @@ class DataConfig:
     split_strict: bool = True
     
     # 数据加载
-    num_workers: int = 4
+    num_workers: int = 8
     pin_memory: bool = True
+    persistent_workers: bool = True
+    
+    # 数据缓存 (P0优化: 缓存预处理后的数据到 SSD)
+    use_cache: bool = True
+    cache_dir: Optional[str] = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_base_cache"
 
 
 @dataclass
