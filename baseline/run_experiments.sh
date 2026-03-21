@@ -8,7 +8,7 @@ RUNS_DIR="${BASE_DIR}/baseline/runs"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
 # GPU_ID="${CUDA_VISIBLE_DEVICES:-4}"
-GPU_ID="3"
+GPU_ID="4"
 
 # 目标 PET 列表（空格分隔），可在命令行覆盖：
 # PET_TARGETS="tau fdg av45" bash baseline/run_experiments.sh

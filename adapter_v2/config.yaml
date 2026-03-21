@@ -27,7 +27,7 @@ plasma:
   # - "UPENN": 仅使用 UPENN 来源
   # - "C2N": 仅使用 C2N 来源
   # - ["UPENN", "C2N"]: 显式指定多个来源
-  source: ["UPENN"]
+  source: ["all"]
   # 全部可选项（canonical key，默认与 CSV 列名一致）
   # 可选：AB42_AB40_F, pT217_F, pT217_AB42_F, NfL_Q, GFAP_Q
   available_keys: ["AB42_AB40_F", "pT217_F", "pT217_AB42_F", "NfL_Q", "GFAP_Q"]
@@ -49,7 +49,7 @@ plasma:
   # - "none": 不做样本内归一化，直接使用 inter_norm 结果作为权重（默认）
   # - "softmax": 对有效指标执行 softmax(weights / intra_norm_temperature)
   # - "sigmoid": 对有效指标执行 sigmoid(weights)
-  intra_norm: "none"
+  intra_norm: "sigmoid"
   # 样本内归一化温度参数（仅在 intra_norm="softmax" 时生效）
   intra_norm_temperature: 1.0
   # 权重温度（向后兼容，推荐使用 intra_norm_temperature）
@@ -93,7 +93,7 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 3
+  gpu: 2
   batch_size: 16
   epochs: 200
   patience: 150  # 早停：验证指标连续多少个 epoch 未提升则停止训练

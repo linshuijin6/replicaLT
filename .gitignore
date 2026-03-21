@@ -14,3 +14,4 @@ Xftp*/
 # *.csv
 runs/
 adapter_finetune/runs/
+*/*.pth

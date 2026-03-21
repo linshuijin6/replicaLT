@@ -1,0 +1,47 @@
+{
+  "input": {
+    "train_records": 1224,
+    "val_records": 136,
+    "source_counts": {
+      "train": 1224,
+      "val": 136
+    }
+  },
+  "fixed_split": {
+    "train_subjects": 720,
+    "val_subjects": 80
+  },
+  "output": {
+    "train_records": 949,
+    "val_records": 95,
+    "train_subjects": 720,
+    "val_subjects": 80,
+    "subject_overlap": 0,
+    "tracer": {
+      "train": {
+        "fdg_non_zero": 150,
+        "av45_non_zero": 390,
+        "tau_non_zero": 866
+      },
+      "val": {
+        "fdg_non_zero": 13,
+        "av45_non_zero": 33,
+        "tau_non_zero": 88
+      }
+    }
+  },
+  "movement": {
+    "moved_train_to_val": 86,
+    "moved_val_to_train": 79
+  },
+  "dropped": {
+    "outside_fixed_split": 113,
+    "missing_subject": 0,
+    "duplicate_samples_removed": 203
+  },
+  "checks": {
+    "train_subjects_subset_fixed_train": true,
+    "val_subjects_subset_fixed_val": true,
+    "subject_disjoint": true
+  }
+}

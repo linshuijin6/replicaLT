@@ -238,6 +238,8 @@ def main():
     # True: 使用原始方案（train_single_gpu.py），不使用adapter，context = old_descr + modality_text_optimized
     # False: 使用adapter方案，context = plasma_text + adapter(text_features)
     use_legacy_mode = True
+    # True: legacy 模式必须复用现有 train/val JSON 划分，缺失即报错
+    enforce_existing_core_split = True
 
     # 是否继续上次训练
     last_epoch = False
@@ -524,8 +526,11 @@ def main():
     # 匹配文件并加入描述信息和 Subject ID
     tau_available = len(tau_dict) > 0
     
+    train_data_json = None
+    val_data_json = None
+
     # Legacy 模式直接从 JSON 加载 paired_data（包含 old_descr 字段）
-    if use_legacy_mode and os.path.exists(train_json_path):
+    if use_legacy_mode and os.path.exists(train_json_path) and os.path.exists(val_json_path):
         print(f"\n📂 Legacy 模式: 直接从 JSON 加载数据以获取 old_descr 字段")
         with open(train_json_path, "r") as f:
             train_data_json = json.load(f)
@@ -536,6 +541,10 @@ def main():
         # 检查 old_descr 字段
         sample_old_descr = paired_data[0].get("old_descr", None) if paired_data else None
         print(f"   示例 old_descr: {sample_old_descr[:80] if sample_old_descr else 'None'}...")
+    elif use_legacy_mode and enforce_existing_core_split:
+        raise FileNotFoundError(
+            f"Legacy 模式要求复用现有核心划分，但未找到 JSON: {train_json_path} 或 {val_json_path}"
+        )
     else:
         # 非 Legacy 模式或 JSON 不存在时，从文件系统构建 paired_data
         paired_data = []
@@ -634,22 +643,28 @@ def main():
         av45_text_features = modality_text_features["AV45"]
         tau_text_features = modality_text_features.get("TAU") if tau_available else None
         desc_text_features = None  # adapter 方案不使用此变量
-    # 划分训练集和验证集
-    train_data, val_data = train_test_split(paired_data, test_size=int(len(paired_data)*0.1), random_state=42)
-
-    print(f"Training set size: {len(train_data)}")
-    print(f"Validation set size: {len(val_data)}")
-
-    if not os.path.exists(train_json_path):
-        # 保存到 JSON 文件
-        with open(train_json_path, "w") as f:
-            json.dump(train_data, f, indent=4)
-        with open(val_json_path, "w") as f:
-            json.dump(val_data, f, indent=4)
-        print(f"Saved train data to: {train_json_path}")
-        print(f"Saved validation data to: {val_json_path}")
+    if use_legacy_mode and train_data_json is not None and val_data_json is not None:
+        train_data = train_data_json
+        val_data = val_data_json
+        print(f"Training set size (from core split): {len(train_data)}")
+        print(f"Validation set size (from core split): {len(val_data)}")
     else:
-        print(f"JSON files already exist. Skipping save step.")
+        # 划分训练集和验证集
+        train_data, val_data = train_test_split(paired_data, test_size=int(len(paired_data)*0.1), random_state=42)
+
+        print(f"Training set size: {len(train_data)}")
+        print(f"Validation set size: {len(val_data)}")
+
+        if not os.path.exists(train_json_path):
+            # 保存到 JSON 文件
+            with open(train_json_path, "w") as f:
+                json.dump(train_data, f, indent=4)
+            with open(val_json_path, "w") as f:
+                json.dump(val_data, f, indent=4)
+            print(f"Saved train data to: {train_json_path}")
+            print(f"Saved validation data to: {val_json_path}")
+        else:
+            print(f"JSON files already exist. Skipping save step.")
 
     with open(train_json_path, "r") as f:
         train_data = json.load(f)
