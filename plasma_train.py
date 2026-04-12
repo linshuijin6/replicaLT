@@ -19,7 +19,7 @@ plasma_train.py
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 import os
 
-DEFAULT_GPU_IDS = [2,3]  # 模型并行，支持 2~4 张 GPU
+DEFAULT_GPU_IDS = [1,2,3]  # 模型并行，支持 2~4 张 GPU
 GPU_ENV_VAR = "PLASMA_TRAIN_GPUS"
 
 
@@ -191,11 +191,13 @@ def main():
     # ================================================================
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
     # ★ 使用独立的缓存目录，避免与 train.py 缓存冲突（因 index_transform 不同）
-    cache_dir = '/mnt/nfsdata/nfsdata/lsj.14/ADNI_cache0312'
+    # ★ 缓存已迁移到本地 NVMe 盘以加速 I/O（原始副本仍保留在 nfsdata）
+    cache_dir = '/mnt/linshuijin/ADNI_cache0312'
     plasma_csv_path = "adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # ★ plasma_emb 预计算缓存目录（由 precompute_plasma_emb.py 生成）
-    plasma_emb_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_plasma_cache"
+    # ★ 已迁移到本地 NVMe 盘
+    plasma_emb_dir = "/mnt/linshuijin/ADNI_plasma_cache"
 
     os.makedirs(cache_dir, exist_ok=True)
     os.makedirs(os.path.join(cache_dir, "train"), exist_ok=True)
