@@ -162,7 +162,7 @@ class Config:
     cuda_visible_devices: Optional[str] = field(default_factory=lambda: os.environ.get("CUDA_VISIBLE_DEVICES"))
     
     def __post_init__(self):
-        """确保输出目录存在"""
+        """确保配置合法"""
         # 约束可见显卡（仅在显式指定时覆盖环境变量）
         if self.cuda_visible_devices is not None:
             os.environ["CUDA_VISIBLE_DEVICES"] = str(self.cuda_visible_devices)
@@ -173,11 +173,6 @@ class Config:
             raise ValueError(
                 f"不支持的 data.target_pet={self.data.target_pet}，仅支持 tau/fdg/av45"
             )
-
-        os.makedirs(self.output_dir, exist_ok=True)
-        os.makedirs(os.path.join(self.output_dir, "checkpoints"), exist_ok=True)
-        os.makedirs(os.path.join(self.output_dir, "visualizations"), exist_ok=True)
-        os.makedirs(os.path.join(self.output_dir, "predictions"), exist_ok=True)
 
 
 def get_default_config() -> Config:

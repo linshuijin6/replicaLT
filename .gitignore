@@ -15,3 +15,5 @@ Xftp*/
 runs/
 adapter_finetune/runs/
 */*.pth
+test_extracted/*
+*prism*

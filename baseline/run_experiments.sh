@@ -4,15 +4,15 @@ set -euo pipefail
 # 基于脚本位置自动定位仓库根目录，避免因执行目录不同导致模块导入失败
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-RUNS_DIR="${BASE_DIR}/baseline/runs"
-TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+RUNS_DIR="/mnt/linshuijin/baseline_logs"
+TIMESTAMP="$(date +%m%d)"
 
 # GPU_ID="${CUDA_VISIBLE_DEVICES:-4}"
-GPU_ID="4"
+GPU_ID="0"
 
 # 目标 PET 列表（空格分隔），可在命令行覆盖：
 # PET_TARGETS="tau fdg av45" bash baseline/run_experiments.sh
-PET_TARGETS_STR="${PET_TARGETS:-tau fdg av45}"
+PET_TARGETS_STR="${PET_TARGETS:-fdg}"
 read -r -a PET_TARGETS_ARR <<< "${PET_TARGETS_STR}"
 
 # 条件模式列表（空格分隔），可覆盖：
@@ -23,7 +23,7 @@ read -r -a CONDITION_MODES_ARR <<< "${CONDITION_MODES_STR}"
 # ── 训练超参数（均可通过命令行环境变量覆盖）──
 # 用法示例: EPOCHS=100 BATCH_SIZE=2 LEARNING_RATE=5e-5 bash baseline/run_experiments.sh
 EPOCHS="${EPOCHS:-60}"
-BATCH_SIZE="${BATCH_SIZE:-4}"
+BATCH_SIZE="${BATCH_SIZE:-2}"
 LEARNING_RATE="${LEARNING_RATE:-1e-4}"
 EARLY_STOPPING="${EARLY_STOPPING:-30}"
 ACCUMULATION_STEPS="${ACCUMULATION_STEPS:-4}"
@@ -44,7 +44,7 @@ run_exp () {
   local pet="$1"
   local mode="$2"
   local pretrained="${3:-}"   # 可选: 预训练 backbone 路径
-  local out_dir="${RUNS_DIR}/exp_${pet}_${mode}_${TIMESTAMP}"
+  local out_dir="${RUNS_DIR}/${pet}_${mode}_baseline_${TIMESTAMP}_$$"
 
   local extra_args=()
   if [[ -n "${pretrained}" ]]; then

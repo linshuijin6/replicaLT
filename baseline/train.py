@@ -542,10 +542,10 @@ def main():
         config.train.learning_rate = args.lr
     if args.output_dir:
         config.output_dir = args.output_dir
-        os.makedirs(config.output_dir, exist_ok=True)
-        os.makedirs(os.path.join(config.output_dir, "checkpoints"), exist_ok=True)
-        os.makedirs(os.path.join(config.output_dir, "visualizations"), exist_ok=True)
-        os.makedirs(os.path.join(config.output_dir, "predictions"), exist_ok=True)
+    os.makedirs(config.output_dir, exist_ok=True)
+    os.makedirs(os.path.join(config.output_dir, "checkpoints"), exist_ok=True)
+    os.makedirs(os.path.join(config.output_dir, "visualizations"), exist_ok=True)
+    os.makedirs(os.path.join(config.output_dir, "predictions"), exist_ok=True)
     if args.target_pet:
         config.data.target_pet = args.target_pet
     if args.condition_mode:
