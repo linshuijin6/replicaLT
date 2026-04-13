@@ -19,7 +19,7 @@ plasma_train.py
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 import os
 
-DEFAULT_GPU_IDS = [1,2,3]  # 模型并行，支持 2~4 张 GPU
+DEFAULT_GPU_IDS = [2,3]  # 模型并行，支持 2~4 张 GPU
 GPU_ENV_VAR = "PLASMA_TRAIN_GPUS"
 
 
