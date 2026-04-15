@@ -2,15 +2,6 @@
 
 A two-stage MRI-to-PET generation framework with plasma-guided conditioning.
 
-> **Important branch note**
->
-> This README is written for the latest working branch:
->
-> - **Branch:** `test/restore-plasma_loss`
-> - **Required branch check:** this branch must contain **`plasma_train.py`**
->
-> In this branch:
->
 > - **`plasma_train.py` is the main method of the project**
 > - **root `train.py` is only the legacy / baseline implementation** and should not be treated as the primary entrypoint for the current method
 
@@ -121,7 +112,7 @@ These two tokens are concatenated into a conditioning tensor of shape:
 This design allows the conditional information to be injected **without modifying the core diffusion UNet architecture**.
 
 ### Why this matters
-The key contribution of this branch is not simply “MRI to PET”.
+The key contribution of this  is not simply “MRI to PET”.
 It is:
 
 > **MRI-to-PET generation under plasma-guided conditioning**
@@ -156,7 +147,7 @@ So, when debugging or evaluating the model, keep in mind:
 
 ---
 
-## 6. Training formulation in the main branch
+## 6. Training formulation in the main 
 
 ### Generation granularity
 The current mainline generation stage is **3D**, not 2D slice generation.
@@ -192,8 +183,8 @@ The code structure supports independent generation for multiple tracers, includi
 
 Each tracer has its own modality-specific text token construction.
 
-### Current branch default
-In the latest `test/restore-plasma_loss` branch, the active/default experimental configuration is **TAU-focused**.
+### Current  default
+In the latest branch, the active/default experimental configuration is **TAU-focused**.
 
 So when reading experiment code or logs, do not assume that the branch is currently running a fully joint multi-tracer training setup.
 
@@ -287,16 +278,5 @@ Main file:
 
 Main file:
 - `train.py`
-
----
-
-## 11. Critical branch reminder
-
-When revisiting this repository in future work, always verify the following first:
-
-- you are on **`test/restore-plasma_loss`**
-- **`plasma_train.py` exists in the repository root**
-- you are treating **`plasma_train.py` as the mainline implementation**
-- you are treating **root `train.py` only as a legacy / comparison method**
 
 If any summary, script note, or experiment description contradicts this, the latest branch code should be considered the source of truth.
