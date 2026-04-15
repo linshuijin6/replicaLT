@@ -38,6 +38,9 @@ def parse_args():
     p.add_argument("--no_figures", dest="save_figures", action="store_false")
     p.add_argument("--max_samples", type=int, default=None,
                    help="限制样本数（快速测试用）")
+    p.add_argument("--legacy", action="store_true", default=False,
+                   help="Legacy 对比模式：使用 train.py 产出的 checkpoint，"
+                        "Token 0 改为 BiomedCLIP 编码的 old_descr 文本（替代 plasma_emb）")
     return p.parse_args()
 
 
@@ -285,15 +288,24 @@ def main():
         tau_feature_optimized = bio_model.get_text_features(**inputs)  # (1, 512)
     tau_feature_cpu = tau_feature_optimized.cpu()
 
-    del bio_model, processor
-    torch.cuda.empty_cache()
-    print("✅ BiomedCLIP 模态文本编码完成，已释放显存")
-
     # ================================================================
     # 3. 加载验证集数据（筛选有 TAU GT 的样本）
     # ================================================================
     with open(args.val_json) as f:
         val_data_raw = json.load(f)
+
+    # Legacy 模式：预构建 name→old_descr 映射（后续编码 Token 0 时使用）
+    _legacy_raw_map = None
+    if args.legacy:
+        print("\n📎 Legacy 模式: 将使用 BiomedCLIP 编码 old_descr 作为 Token 0")
+        _legacy_raw_map = {
+            item.get("name", ""): item.get("old_descr", "NA") or "NA"
+            for item in val_data_raw
+        }
+    else:
+        del bio_model, processor
+        torch.cuda.empty_cache()
+        print("✅ BiomedCLIP 模态文本编码完成，已释放显存")
 
     # 从文件系统补全可能缺失的 tau 路径
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
@@ -319,28 +331,47 @@ def main():
         return
 
     # ================================================================
-    # 4. 加载 plasma_emb (Token 0)
+    # 4. 加载 Token 0（plasma_emb 或 legacy desc_text）
     # ================================================================
-    print(f"\n🧬 加载 plasma_emb: {plasma_emb_dir}")
-    val_plasma_embs = []
-    missing = 0
-    for item in val_data_filtered:
-        ptid = item["name"]
-        emb_path = os.path.join(plasma_emb_dir, f"{ptid}_plasma_emb.pt")
-        if os.path.exists(emb_path):
-            payload = torch.load(emb_path, map_location="cpu")
-            val_plasma_embs.append(payload["plasma_emb"])
-        else:
-            val_plasma_embs.append(torch.zeros(512))
-            missing += 1
-    val_plasma_embs = torch.stack(val_plasma_embs)  # (N, 512)
-    print(f"   shape: {val_plasma_embs.shape}, 缺失: {missing}/{len(val_data_filtered)}")
+    if args.legacy:
+        # Legacy: 编码每个样本的 old_descr 文本为 Token 0
+        print("\n📎 Legacy: BiomedCLIP 编码 old_descr → desc_text_features")
+        ordered_descrs = [_legacy_raw_map.get(item["name"], "NA") for item in val_data_filtered]
+        text_inputs = processor(
+            text=ordered_descrs, padding=True, truncation=True,
+            return_tensors="pt", max_length=256,
+        ).to(device)
+        with torch.no_grad():
+            val_plasma_embs = bio_model.get_text_features(**text_inputs).cpu()  # (N, 512)
+        print(f"   desc_text_features shape: {val_plasma_embs.shape}")
+        norms = val_plasma_embs.norm(dim=-1)
+        print(f"   L2 norm: mean={norms.mean():.3f}, min={norms.min():.3f}, max={norms.max():.3f}")
+        # 编码完毕，释放 BiomedCLIP
+        del bio_model, processor
+        torch.cuda.empty_cache()
+        print("✅ BiomedCLIP 已释放")
+    else:
+        print(f"\n🧬 加载 plasma_emb: {plasma_emb_dir}")
+        val_plasma_embs = []
+        missing = 0
+        for item in val_data_filtered:
+            ptid = item["name"]
+            emb_path = os.path.join(plasma_emb_dir, f"{ptid}_plasma_emb.pt")
+            if os.path.exists(emb_path):
+                payload = torch.load(emb_path, map_location="cpu")
+                val_plasma_embs.append(payload["plasma_emb"])
+            else:
+                val_plasma_embs.append(torch.zeros(512))
+                missing += 1
+        val_plasma_embs = torch.stack(val_plasma_embs)  # (N, 512)
+        print(f"   shape: {val_plasma_embs.shape}, 缺失: {missing}/{len(val_data_filtered)}")
 
     # ================================================================
     # 5. 构建 DataLoader（transforms 与训练 val 完全一致）
     # ================================================================
     def tau_index_transform(x):
-        """context = [plasma_emb, TAU_modality_text] → (2, 512)"""
+        """context = [Token0, TAU_modality_text] → (2, 512)
+        Token0: plasma_emb (默认) / desc_text_features (--legacy)"""
         return torch.cat([val_plasma_embs[x].unsqueeze(0), tau_feature_cpu], dim=0)
 
     pet_keys = ["mri", "tau"]
@@ -492,6 +523,7 @@ def main():
 
     summary = {
         "checkpoint": str(ckpt_path),
+        "mode": "legacy" if args.legacy else "plasma",
         "epoch": ckpt_data.get("epoch", "?"),
         "n_steps": n_steps,
         "n_samples": len(results),

@@ -19,7 +19,7 @@ plasma_train.py
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 import os
 
-DEFAULT_GPU_IDS = [2,3]  # 模型并行，支持 2~4 张 GPU
+DEFAULT_GPU_IDS = [5,6]  # 模型并行，支持 2~4 张 GPU
 GPU_ENV_VAR = "PLASMA_TRAIN_GPUS"
 
 
@@ -191,8 +191,8 @@ def main():
     # ================================================================
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
     # ★ 使用独立的缓存目录，避免与 train.py 缓存冲突（因 index_transform 不同）
-    # ★ 缓存已迁移到本地 NVMe 盘以加速 I/O（原始副本仍保留在 nfsdata）
-    cache_dir = '/mnt/linshuijin/ADNI_cache0312'
+    # ★ 方案B：TAU-only + float16，单文件 76MB → 19MB，总缓存约 19 GB
+    cache_dir = '/mnt/linshuijin/ADNI_cache_tau_fp16'
     plasma_csv_path = "adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # ★ plasma_emb 预计算缓存目录（由 precompute_plasma_emb.py 生成）
@@ -500,6 +500,18 @@ def main():
                         d[k] = v.mean(dim=-1)
             return d
 
+    class VolumesToFloat16(mt.Transform):
+        """将体积 tensor 转为 float16，节省约 50% 缓存空间（最大误差 < 0.025%）。
+        放在 PersistentDataset transform pipeline 末尾（ScaleIntensityd 之后）写入缓存。
+        DataLoader 加载后需调用 .float() 转回 float32 再送入模型/损失函数。
+        """
+        def __call__(self, data):
+            d = dict(data)
+            for k, v in d.items():
+                if isinstance(v, torch.Tensor) and v.numel() > 1000:
+                    d[k] = v.half()
+            return d
+
     # ★ 核心改动：Token 0 是 plasma_emb，Token 1 是模态优化文本
     all_plasma_embs_cpu = all_plasma_embs.cpu()  # (N, 512)
     fdg_feature_optimized_cpu = fdg_feature_optimized.cpu()  # (1, 512)
@@ -569,15 +581,12 @@ def main():
         """从 paired_data 名称映射获取正确的 plasma_emb 索引"""
         return name_to_plasma_idx.get(item["name"], fallback_idx)
 
+    # ★ 方案B：只加载活跃模态（MRI + TAU），省去 FDG/AV45 的 I/O 和缓存空间
     train_data = [
         {
             "name": item["name"],
             "mri": item["mri"],
-            "av45": item["av45"],
-            "fdg": item["fdg"],
             "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "fdg_index": _get_plasma_idx(item, idx),
-            "av45_index": _get_plasma_idx(item, idx),
             "tau_index": _get_plasma_idx(item, idx) if tau_available else None,
         }
         for idx, item in enumerate(train_data)
@@ -586,26 +595,16 @@ def main():
         {
             "name": item["name"],
             "mri": item["mri"],
-            "av45": item["av45"],
-            "fdg": item["fdg"],
             "tau": item.get("tau") or (tau_dict.get(item["name"]) if tau_available else None),
-            "fdg_index": _get_plasma_idx(item, idx),
-            "av45_index": _get_plasma_idx(item, idx),
             "tau_index": _get_plasma_idx(item, idx) if tau_available else None,
         }
         for idx, item in enumerate(val_data)
     ]
 
-    if tau_available:
-        for item in train_data:
-            if item["tau_index"] is None:
-                item["tau_index"] = item["fdg_index"]
-        for item in val_data:
-            if item["tau_index"] is None:
-                item["tau_index"] = item["fdg_index"]
+    # ★ 方案B：只处理活跃模态（MRI + TAU）
+    pet_keys = ["mri"] + (["tau"] if tau_available else [])
 
-    pet_keys = ["mri", "av45", "fdg"] + (["tau"] if tau_available else [])
-
+    # ★ 方案B：VolumesToFloat16 在 ScaleIntensityd 后、PersistentDataset 写缓存前执行
     train_transforms = mt.Compose([
         mt.Lambdad(keys=pet_keys, func=mat_load),
         ReduceTo3D(keys=pet_keys, reduce='mean'),
@@ -617,8 +616,7 @@ def main():
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
         mt.NormalizeIntensityd(keys=pet_keys),
         mt.ScaleIntensityd(keys=pet_keys),
-        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform),
-        mt.Lambdad(keys=["av45_index"], func=av45_index_transform),
+        VolumesToFloat16(),
         mt.Lambdad(keys=["tau_index"], func=tau_index_transform) if tau_available else mt.Identity(),
     ])
 
@@ -633,8 +631,7 @@ def main():
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
         mt.NormalizeIntensityd(keys=pet_keys),
         mt.ScaleIntensityd(keys=pet_keys),
-        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform),
-        mt.Lambdad(keys=["av45_index"], func=av45_index_transform),
+        VolumesToFloat16(),
         mt.Lambdad(keys=["tau_index"], func=tau_index_transform) if tau_available else mt.Identity(),
     ])
 
@@ -742,13 +739,13 @@ def main():
         progress_bar.set_description(f"Epoch {epoch}")
 
         for step, data in progress_bar:
-            images = data["mri"].to(device, non_blocking=True)
-            seg_fdg = data["fdg"].to(device, non_blocking=True)
-            seg_av45 = data["av45"].to(device, non_blocking=True)
-            fdg_index = data["fdg_index"].to(device, non_blocking=True)
-            av45_index = data["av45_index"].to(device, non_blocking=True)
+            images = data["mri"].float().to(device, non_blocking=True)
+            seg_fdg = data["fdg"].float().to(device, non_blocking=True) if "fdg" in data else None
+            seg_av45 = data["av45"].float().to(device, non_blocking=True) if "av45" in data else None
+            fdg_index = data["fdg_index"].to(device, non_blocking=True) if "fdg_index" in data else None
+            av45_index = data["av45_index"].to(device, non_blocking=True) if "av45_index" in data else None
             if tau_available:
-                seg_tau = data["tau"].to(device, non_blocking=True)
+                seg_tau = data["tau"].float().to(device, non_blocking=True)
                 tau_index = data["tau_index"].to(device, non_blocking=True)
             else:
                 seg_tau = None
@@ -767,8 +764,8 @@ def main():
             with torch.no_grad():
                 t = (time_embedding.float() / 1000).view(-1, 1, 1, 1, 1)
 
-            has_fdg = not torch.all(seg_fdg == 0)
-            has_av45 = not torch.all(seg_av45 == 0)
+            has_fdg = seg_fdg is not None and not torch.all(seg_fdg == 0)
+            has_av45 = seg_av45 is not None and not torch.all(seg_av45 == 0)
             has_tau = tau_available and seg_tau is not None and not torch.all(seg_tau == 0)
 
             total_loss = 0.0
@@ -901,20 +898,20 @@ def main():
             vis_tau_sample = None
 
             for step, data_val in enumerate(val_loader):
-                images = data_val["mri"].to(device, non_blocking=True)
-                seg_fdg = data_val["fdg"].to(device, non_blocking=True)
-                seg_av45 = data_val["av45"].to(device, non_blocking=True)
-                fdg_index = data_val["fdg_index"].to(device, non_blocking=True)
-                av45_index = data_val["av45_index"].to(device, non_blocking=True)
+                images = data_val["mri"].float().to(device, non_blocking=True)
+                seg_fdg = data_val["fdg"].float().to(device, non_blocking=True) if "fdg" in data_val else None
+                seg_av45 = data_val["av45"].float().to(device, non_blocking=True) if "av45" in data_val else None
+                fdg_index = data_val["fdg_index"].to(device, non_blocking=True) if "fdg_index" in data_val else None
+                av45_index = data_val["av45_index"].to(device, non_blocking=True) if "av45_index" in data_val else None
                 if tau_available:
-                    seg_tau = data_val["tau"].to(device, non_blocking=True)
+                    seg_tau = data_val["tau"].float().to(device, non_blocking=True)
                     tau_index = data_val["tau_index"].to(device, non_blocking=True)
                 else:
                     seg_tau = None
                     tau_index = None
 
-                has_fdg = not torch.all(seg_fdg == 0)
-                has_av45 = not torch.all(seg_av45 == 0)
+                has_fdg = seg_fdg is not None and not torch.all(seg_fdg == 0)
+                has_av45 = seg_av45 is not None and not torch.all(seg_av45 == 0)
                 has_tau = tau_available and seg_tau is not None and not torch.all(seg_tau == 0)
 
                 x_t = images
@@ -1080,7 +1077,7 @@ def main():
             else:
                 mri_fdg_cpu = images.cpu()
                 current_fdg_img = x_fdg_t.cpu() if x_fdg_t is not None else None
-                labels_fdg = seg_fdg.cpu()
+                labels_fdg = seg_fdg.cpu() if seg_fdg is not None else None
                 has_fdg = current_fdg_img is not None
 
             if vis_av45_sample is not None:
@@ -1091,7 +1088,7 @@ def main():
             else:
                 mri_av45_cpu = images.cpu()
                 current_av45_img = x_av45_t.cpu() if x_av45_t is not None else None
-                labels_av45 = seg_av45.cpu()
+                labels_av45 = seg_av45.cpu() if seg_av45 is not None else None
                 has_av45 = current_av45_img is not None
 
             if vis_tau_sample is not None:

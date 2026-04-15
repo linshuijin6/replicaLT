@@ -3,7 +3,7 @@
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 # 防止 CUDA 使用非指定 GPU，避免显存泄漏
 import os
-_TARGET_GPU_IDS = [2]  # 指定使用的 GPU ID，与下方 device_id 保持一致
+_TARGET_GPU_IDS = [5]  # 指定使用的 GPU ID，与下方 device_id 保持一致
 os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(map(str, _TARGET_GPU_IDS))
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # 确保物理 GPU ID 顺序一致
 
@@ -180,7 +180,8 @@ def main():
 
     # 0.训练参数设置
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
-    cache_dir = '/mnt/nfsdata/nfsdata/linshuijin/ADNI_CSF_main_cache192'
+    # ★ 方案B：只缓存活跃模态 + float16，单文件 76MB → 19MB，总缓存约 19 GB
+    cache_dir = '/mnt/linshuijin/ADNI_cache_legacy_fp16'
     plasma_csv_path = "adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
 
     # 确保缓存目录存在
@@ -809,6 +810,7 @@ def main():
 
     # 转换数据格式，确保所有索引都有有效值，并根据模态开关进行过滤
     # 注意：description 字段已通过索引转换为文本特征，此处不再需要
+    # ★ 方案B：只在 data dict 中包含活跃模态，跳过关闭的模态以节省缓存空间
     def filter_and_format_data(data_list):
         formatted = []
         for item in data_list:
@@ -819,74 +821,86 @@ def main():
             # 如果该被试没有任何选定的模态，则跳过（避免无用的 MRI 处理）
             if fdg_file is None and av45_file is None and tau_file is None:
                 continue
-                
-            formatted.append({
+
+            entry = {
                 "name": item["name"],
                 "mri": item["mri"],
-                "av45": av45_file,
-                "fdg": fdg_file,
-                "tau": tau_file,
-                "fdg_index": name_to_idx[item["name"]],  # 强制使用 paired_data 中的相对索引，避免 JSON 里的旧数据引发越界
-                "av45_index": name_to_idx[item["name"]],
-                "tau_index": name_to_idx[item["name"]] if tau_available else None,
-            })
+            }
+            idx = name_to_idx[item["name"]]
+            if use_fdg:
+                entry["fdg"] = fdg_file
+                entry["fdg_index"] = idx
+            if use_av45:
+                entry["av45"] = av45_file
+                entry["av45_index"] = idx
+            if use_tau and tau_available:
+                entry["tau"] = tau_file
+                entry["tau_index"] = idx
+            formatted.append(entry)
         return formatted
 
     train_data = filter_and_format_data(train_data)
     val_data = filter_and_format_data(val_data)
     print(f"\n🔍 根据模态开关过滤后，使用数据量: train={len(train_data)}, val={len(val_data)}")
 
-    # 确保缺失的 TAU 索引被填充（沿用 FDG/AV45 的索引以保持与特征向量对齐）
-    if tau_available:
+    # 确保缺失的 TAU 索引被填充
+    if use_tau and tau_available:
         for item in train_data:
-            if item["tau_index"] is None:
-                item["tau_index"] = item["fdg_index"]
+            if item.get("tau_index") is None:
+                item["tau_index"] = name_to_idx.get(item["name"], 0)
         for item in val_data:
-            if item["tau_index"] is None:
-                item["tau_index"] = item["fdg_index"]
+            if item.get("tau_index") is None:
+                item["tau_index"] = name_to_idx.get(item["name"], 0)
 
-    pet_keys = ["mri", "av45", "fdg"] + (["tau"] if tau_available else [])
+    # ★ 方案B：pet_keys 只包含活跃模态
+    pet_keys = ["mri"]
+    if use_fdg:
+        pet_keys.append("fdg")
+    if use_av45:
+        pet_keys.append("av45")
+    if use_tau and tau_available:
+        pet_keys.append("tau")
+
+    # ★ 方案B：VolumesToFloat16 将体积转为 float16 缓存，节省约 50% 空间
+    class VolumesToFloat16(mt.Transform):
+        """将体积 tensor 转为 float16，节省约 50% 缓存空间（最大误差 < 0.025%）。
+        放在 PersistentDataset transform pipeline 末尾（ScaleIntensityd 之后）。
+        DataLoader 加载后需调用 .float() 转回 float32 再送入模型/损失函数。
+        """
+        def __call__(self, data):
+            d = dict(data)
+            for k, v in d.items():
+                if isinstance(v, torch.Tensor) and v.numel() > 1000:
+                    d[k] = v.half()
+            return d
+
+    # 构建 index_transform 列表（动态，基于模态开关）
+    index_transforms = []
+    if use_fdg:
+        index_transforms.append(mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform))
+    if use_av45:
+        index_transforms.append(mt.Lambdad(keys=["av45_index"], func=av45_index_transform))
+    if use_tau and tau_available:
+        index_transforms.append(mt.Lambdad(keys=["tau_index"], func=tau_index_transform))
 
     # 构建数据增强 pipeline
-    # 定义训练集数据增强流程
-    train_transforms = mt.Compose([
-        mt.Lambdad(keys=pet_keys, func=mat_load),  # 加载 NIfTI 文件
-        ReduceTo3D(keys=pet_keys, reduce='mean'),
-        # DebugShape(keys=pet_keys),
-        FillMissingPET(keys=pet_keys, ref_key="mri"),
-        # DebugShape(keys=pet_keys),
-        mt.CropForegroundd(keys=pet_keys, source_key="mri"),
-        # DebugShape(keys=pet_keys),
-        mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
-        mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),  # 减小尺寸节省显存
-        mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
-        mt.NormalizeIntensityd(keys=pet_keys),
-        mt.ScaleIntensityd(keys=pet_keys),
-        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform),  # 添加 fdg_index 转换
-        mt.Lambdad(keys=["av45_index"], func=av45_index_transform),  # 添加 av45_index 转换
-        mt.Lambdad(keys=["tau_index"], func=tau_index_transform) if tau_available else mt.Identity(),
-    ])
-
-    # 定义验证集数据增强流程（通常与训练集一致，但不含随机性增强）
-    val_transforms = mt.Compose([
+    # ★ 方案B：只处理活跃模态 + float16 缓存
+    shared_transforms = [
         mt.Lambdad(keys=pet_keys, func=mat_load),
         ReduceTo3D(keys=pet_keys, reduce='mean'),
-        # DebugShape(keys=pet_keys),
         FillMissingPET(keys=pet_keys, ref_key="mri"),
-        # DebugShape(keys=pet_keys),
         mt.CropForegroundd(keys=pet_keys, source_key="mri"),
-        # DebugShape(keys=pet_keys),
         mt.EnsureChannelFirstd(keys=pet_keys, channel_dim='no_channel'),
         mt.HistogramNormalized(keys=["mri"]),
-        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),  # 减小尺寸节省显存
+        mt.ResizeWithPadOrCropd(keys=pet_keys, spatial_size=[160, 192, 160]),
         mt.Spacingd(keys=pet_keys, pixdim=(1.0, 1.0, 1.0)),
         mt.NormalizeIntensityd(keys=pet_keys),
         mt.ScaleIntensityd(keys=pet_keys),
-        mt.Lambdad(keys=["fdg_index"], func=fdg_index_transform),
-        mt.Lambdad(keys=["av45_index"], func=av45_index_transform),
-        mt.Lambdad(keys=["tau_index"], func=tau_index_transform) if tau_available else mt.Identity(),
-    ])
+        VolumesToFloat16(),
+    ] + index_transforms
+
+    train_transforms = mt.Compose(shared_transforms)
+    val_transforms = mt.Compose(shared_transforms)
 
     # TODO: 保存为 HDF5 格式以加快加载速度
     # 保存 train 和 val
@@ -910,15 +924,15 @@ def main():
     train_ds = PersistentDataset(data=train_data, transform=train_transforms, cache_dir=train_cache_dir)
     
     # # ============ 暂时注释：缓存已在后台生成 ============
-    print(f"\n⭐ 开始生成训练集缓存（共 {len(train_ds)} 个样本）...")
-    from tqdm import tqdm as tqdm_module
-    for i in tqdm_module(range(len(train_ds)), desc="训练集缓存"):
-        try:
-            _ = train_ds[i]
-        except Exception as e:
-            print(f"\n❌ 样本 {i} 缓存失败: {e}")
-            raise
-    print("✅ 训练集缓存生成完成！")
+    # print(f"\n⭐ 开始生成训练集缓存（共 {len(train_ds)} 个样本）...")
+    # from tqdm import tqdm as tqdm_module
+    # for i in tqdm_module(range(len(train_ds)), desc="训练集缓存"):
+    #     try:
+    #         _ = train_ds[i]
+    #     except Exception as e:
+    #         print(f"\n❌ 样本 {i} 缓存失败: {e}")
+    #         raise
+    # print("✅ 训练集缓存生成完成！")
     
     # 检查缓存文件
     cache_files = os.listdir(train_cache_dir)
@@ -936,14 +950,14 @@ def main():
     val_ds = PersistentDataset(data=val_data, transform=val_transforms, cache_dir=val_cache_dir)
     
     # ============ 暂时注释：缓存已在后台生成 ============
-    print(f"\n⭐ 开始生成验证集缓存（共 {len(val_ds)} 个样本）...")
-    for i in tqdm_module(range(len(val_ds)), desc="验证集缓存"):
-        try:
-            _ = val_ds[i]
-        except Exception as e:
-            print(f"\n❌ 样本 {i} 缓存失败: {e}")
-            raise
-    print("✅ 验证集缓存生成完成！")
+    # print(f"\n⭐ 开始生成验证集缓存（共 {len(val_ds)} 个样本）...")
+    # for i in tqdm_module(range(len(val_ds)), desc="验证集缓存"):
+    #     try:
+    #         _ = val_ds[i]
+    #     except Exception as e:
+    #         print(f"\n❌ 样本 {i} 缓存失败: {e}")
+    #         raise
+    # print("✅ 验证集缓存生成完成！")
     
     # 检查缓存文件
     cache_files = os.listdir(val_cache_dir)
@@ -1030,15 +1044,14 @@ def main():
         progress_bar.set_description(f"Epoch {epoch}")
 
         for step, data in progress_bar:
-            # PersistentDataset 返回的数据已经是独立张量，直接 .to(device) 即可
-            # 使用 non_blocking=True 允许异步传输，配合 pin_memory 可以加速
-            images = data["mri"].to(device, non_blocking=True)
-            seg_fdg = data["fdg"].to(device, non_blocking=True)  # this is the ground truth segmentation
-            seg_av45 = data["av45"].to(device, non_blocking=True)
-            fdg_index = data["fdg_index"].to(device, non_blocking=True)
-            av45_index = data["av45_index"].to(device, non_blocking=True)
-            if tau_available:
-                seg_tau = data["tau"].to(device, non_blocking=True)
+            # ★ 方案B：fp16 缓存加载后 .float() 转回 float32 再送入模型
+            images = data["mri"].float().to(device, non_blocking=True)
+            seg_fdg = data["fdg"].float().to(device, non_blocking=True) if "fdg" in data else None
+            seg_av45 = data["av45"].float().to(device, non_blocking=True) if "av45" in data else None
+            fdg_index = data["fdg_index"].to(device, non_blocking=True) if "fdg_index" in data else None
+            av45_index = data["av45_index"].to(device, non_blocking=True) if "av45_index" in data else None
+            if tau_available and "tau" in data:
+                seg_tau = data["tau"].float().to(device, non_blocking=True)
                 tau_index = data["tau_index"].to(device, non_blocking=True)
             else:
                 seg_tau = None
@@ -1064,16 +1077,12 @@ def main():
                 t = (time_embedding.float() / 1000).view(-1, 1, 1, 1, 1)
 
             # 检查 FDG/AV45/TAU 数据是否为二值化（只有 0 和 1）
-            has_fdg = not torch.all(seg_fdg == 0)  # 如果不是二值化数据，则参与计算
-            has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
+            has_fdg = seg_fdg is not None and not torch.all(seg_fdg == 0)
+            has_av45 = seg_av45 is not None and not torch.all(seg_av45 == 0)
             has_tau = tau_available and seg_tau is not None and not torch.all(seg_tau == 0)
 
             # 默认损失为 0
             total_loss = 0.0
-            
-            # ============ 最优显存方案：随机选一个模态训练，避免多模态同时占用显存 ============
-            # 优势：大幅降低显存占用（~70%），每步只训练一个模态
-            # 原理：每个batch随机选择一个可用模态进行训练，长期来看等效于多模态联合训练
             
             # 收集所有可用模态
             available_modalities = []
@@ -1175,22 +1184,21 @@ def main():
             ssim_tau_list, psnr_tau_list, mae_tau_list = [], [], []
 
             for step, data_val in enumerate(val_loader):
-                # 验证阶段使用 non_blocking=True 异步传输
-                images = data_val["mri"].to(device, non_blocking=True)
-                seg_fdg = data_val["fdg"].to(device, non_blocking=True)
-                seg_av45 = data_val["av45"].to(device, non_blocking=True)
-                fdg_index = data_val["fdg_index"].to(device, non_blocking=True)
-                av45_index = data_val["av45_index"].to(device, non_blocking=True)
-                if tau_available:
-                    seg_tau = data_val["tau"].to(device, non_blocking=True)
+                # ★ 方案B：fp16 缓存加载后 .float() 转回 float32
+                images = data_val["mri"].float().to(device, non_blocking=True)
+                seg_fdg = data_val["fdg"].float().to(device, non_blocking=True) if "fdg" in data_val else None
+                seg_av45 = data_val["av45"].float().to(device, non_blocking=True) if "av45" in data_val else None
+                fdg_index = data_val["fdg_index"].to(device, non_blocking=True) if "fdg_index" in data_val else None
+                av45_index = data_val["av45_index"].to(device, non_blocking=True) if "av45_index" in data_val else None
+                if tau_available and "tau" in data_val:
+                    seg_tau = data_val["tau"].float().to(device, non_blocking=True)
                     tau_index = data_val["tau_index"].to(device, non_blocking=True)
                 else:
                     seg_tau = None
                     tau_index = None
 
-                # 检查 FDG/AV45/TAU 数据是否为二值化（只有 0 和 1）
-                has_fdg = not torch.all(seg_fdg == 0)  # 如果不是二值化数据，则参与计算
-                has_av45 = not torch.all(seg_av45 == 0)  # 如果不是二值化数据，则参与计算
+                has_fdg = seg_fdg is not None and not torch.all(seg_fdg == 0)
+                has_av45 = seg_av45 is not None and not torch.all(seg_av45 == 0)
                 has_tau = tau_available and seg_tau is not None and not torch.all(seg_tau == 0)
 
                 x_t = images
@@ -1315,9 +1323,9 @@ def main():
             current_fdg_img = x_fdg_t.to('cpu') if x_fdg_t is not None else None
             current_av45_img = x_av45_t.to('cpu') if x_av45_t is not None else None
             current_tau_img = x_tau_t.to('cpu') if tau_available and x_tau_t is not None else None
-            labels_fdg = seg_fdg.to('cpu')
-            labels_av45 = seg_av45.to('cpu')
-            labels_tau = seg_tau.to('cpu') if tau_available else None
+            labels_fdg = seg_fdg.to('cpu') if seg_fdg is not None else None
+            labels_av45 = seg_av45.to('cpu') if seg_av45 is not None else None
+            labels_tau = seg_tau.to('cpu') if tau_available and seg_tau is not None else None
             mri_cpu = images.to('cpu')
 
             # 如果存在非二值化的 FDG 或 AV45 数据，则进行可视化和评估
