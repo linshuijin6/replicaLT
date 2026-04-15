@@ -10,7 +10,7 @@ data:
   crop: [11, 10, 20, 17, 0, 21]
   target_shape: [160, 180, 160]
   num_workers: 0
-  pin_memory: true
+  pin_memory: false
 
 model:
   spatial_dims: 3

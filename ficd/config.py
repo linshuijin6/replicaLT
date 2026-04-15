@@ -19,7 +19,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "crop": [11, 10, 20, 17, 0, 21],
         "target_shape": [160, 180, 160],
         "num_workers": 0,
-        "pin_memory": True,
+        "pin_memory": False,
     },
     "model": {
         "spatial_dims": 3,

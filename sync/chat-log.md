@@ -23,3 +23,11 @@
 **A:** 创建了 plasma_inference.py（530行），核心设计：Token 0 使用预计算 plasma_emb、Token 1 使用 BiomedCLIP TAU 模态文本（与训练完全一致）；支持 rectified-flow Euler 多步积分（--n_steps）；自动适配单/多 GPU 权重；逐样本计算 SSIM/PSNR/MAE/MSE；输出 NIfTI、三视面对比图 PNG、metrics.csv、summary.json。用法：`python3 plasma_inference.py --ckpt runs/xxx/best_model.pt --gpu 0`。
 
 ---
+
+## 2026-04-15 22:09 | FICD对比基线审查
+
+**Q:** 审查 FICD 对比基线接入计划（strict/aligned 双口径），检查代码落实，在 xiaochou 环境运行并修复问题。
+
+**A:** 计划合理，代码实现与原始 FICD notebook 完全一致（模型结构、loss、scheduler、预处理）。发现并修复两个 Critical 问题：(1) `rfc3987-syntax` 包导致 MONAI 导入挂起，已卸载；(2) `pin_memory=True` 与 torchio SubjectsDataset 不兼容，已改为 false。smoke test 在 GPU 6 成功运行，训练 loop、TensorBoard 记录、run 目录结构均正确。注意正式训练需选空闲 GPU（>=22GB 显存）。
+
+---
