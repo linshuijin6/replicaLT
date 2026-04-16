@@ -6,7 +6,7 @@ import os
 import random
 import time
 from pathlib import Path
-
+from report_error import email_on_error
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -231,7 +231,7 @@ def run_validation(
     )
     return metrics
 
-
+@email_on_error()
 def main() -> None:
     args = parse_args()
     config = load_config(args.config)

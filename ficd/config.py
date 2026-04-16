@@ -42,7 +42,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "num_train_timesteps": 1000,
         "num_inference_steps": 1000,
         "save_every": 1,
-        "val_every": 1,
+        "val_every": 10,
         "image_log_interval": 10,
     },
     "logging": {

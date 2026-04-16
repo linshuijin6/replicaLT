@@ -31,7 +31,7 @@ train:
   epochs: 50
   lr: 5.0e-5
   num_train_timesteps: 1000
-  num_inference_steps: 1000
+  num_inference_steps: 100
   save_every: 1
   val_every: 1
   image_log_interval: 10
