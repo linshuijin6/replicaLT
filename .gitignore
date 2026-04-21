@@ -20,3 +20,8 @@ test_extracted/*
 *.pt
 *.nii.gz
 *.md
+tmp_logs/sync_logs_wc.txt
+tmp_logs/sync_meta.txt
+tmp_logs/zsh_locate.txt
+tmp_logs/zsh_rprompt_verify.txt
+tmp_logs/zshrc_rprompt_snippet.txt

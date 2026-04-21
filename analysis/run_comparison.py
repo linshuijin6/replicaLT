@@ -478,16 +478,18 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
                 break
 
         # ── Predictions → resampled to GT shape ──────────────────────────
-        # PASTA and FiCD are in crop+resize space → inverse crop then resample
-        # Plasma (Ours) / Legacy are already in GT space
+        # PASTA has its own eval_resolution (96,112,96) — just zoom, NO crop.
+        # FiCD is in (crop + resize) space from aligned_tau.yaml → inverse crop then zoom.
+        # Plasma (Ours) / Legacy are already in GT space.
         pred_vols = {}
         for mk in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
             entry = method_niftis.get(mk, {}).get(sid, {})
             pred = entry.get("pred", None)
             if pred is not None and gt_shape is not None:
-                if mk in ("PASTA", "FiCD"):
+                if mk == "FiCD":
                     pred = _uncrop_resample(pred, gt_shape)
                 else:
+                    # PASTA, Plasma (Ours), Legacy: only zoom (no crop inversion)
                     pred = _resample(pred, gt_shape)
             pred_vols[mk] = pred
 
@@ -884,9 +886,17 @@ def main():
             syn_path = PASTA_DIR / pasta_map[sid]["syn"]
             gt_path = PASTA_DIR / pasta_map[sid]["gt"]
             if syn_path.exists() and gt_path.exists():
+                pasta_gt_arr = np.clip(nib.load(str(gt_path)).get_fdata().astype(np.float32), 0, None)
+                pasta_pred_arr = np.clip(nib.load(str(syn_path)).get_fdata().astype(np.float32), 0, None)
+                # PASTA uses its own intensity normalization ([0,~0.6]).
+                # Scale to [0,1] using PASTA's GT 99.5th‐percentile so it is
+                # comparable to the Plasma GT reference (which is in [0,1]).
+                pasta_scale = float(np.percentile(pasta_gt_arr, 99.5))
+                if pasta_scale < 1e-6:
+                    pasta_scale = 1.0
                 method_niftis["PASTA"][sid] = {
-                    "pred": np.clip(nib.load(str(syn_path)).get_fdata().astype(np.float32), 0, 1),
-                    "gt": np.clip(nib.load(str(gt_path)).get_fdata().astype(np.float32), 0, 1),
+                    "pred": np.clip(pasta_pred_arr / pasta_scale, 0, 1),
+                    "gt": np.clip(pasta_gt_arr / pasta_scale, 0, 1),
                 }
 
     # Plasma / Legacy
