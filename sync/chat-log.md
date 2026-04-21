@@ -31,3 +31,57 @@
 **A:** 计划合理，代码实现与原始 FICD notebook 完全一致（模型结构、loss、scheduler、预处理）。发现并修复两个 Critical 问题：(1) `rfc3987-syntax` 包导致 MONAI 导入挂起，已卸载；(2) `pin_memory=True` 与 torchio SubjectsDataset 不兼容，已改为 false。smoke test 在 GPU 6 成功运行，训练 loop、TensorBoard 记录、run 目录结构均正确。注意正式训练需选空闲 GPU（>=22GB 显存）。
 
 ---
+
+## 2026-04-16 13:21 | 激活sync-logger
+
+**Q:** 检查当前 agent.md 并激活 sync-logger。
+
+**A:** 仓库内没有现成的 `agent.md/AGENTS.md`，但存在项目规则文件 `.agent/rules.md` 和本地 skill `sync-logger`。已在仓库根目录新建 `AGENTS.md`，将当前工作区规则委托给 `.agent/rules.md`，并显式启用 `sync-logger`；同时补齐了 `sync/changes.md` 作为变更摘要目标文件。
+
+---
+## 2026-04-17 09:15 | FICD审查Notebook
+
+**Q:** 在 ficd 目录下新建配置驱动的审查与可视化 notebook，复用 ficd 模块现有接口，不重复训练逻辑。需要读取 YAML 配置、自动构建数据集、检查过滤统计、可视化样本、定位 checkpoint、加载模型推理、展示对比图、导出结果。
+
+**A:** 在 `ficd/ficd_review.ipynb` 新建了 27 个单元（14 markdown + 13 code），分为 5 个 Phase：(1) 环境导入与参数单元、加载配置；(2) 数据检查——加载样本统计、构建 Dataset、随机样本可视化、预处理验证；(3) Checkpoint 定位与模型加载；(4) 单样本推理对比图（MRI/GT/Pred/Diff）、小批量指标汇总（L1/PSNR/SSIM DataFrame）、结果导出（PNG+NIfTI）；(5) Run 目录探索与训练曲线绘制。所有数据路径和超参数由 YAML 配置和顶部参数单元控制，完全复用 `ficd.config.load_config`、`ficd.data.*`、`ficd.utils.*`、`ficd_train.build_model` 等现有接口。每个单元标注 [必须执行] 或 [可选审查]。
+
+---
+
+## 2026-04-17 09:28 | Notion补写
+
+**Q:** 已经连接 Notion MCP，要求把上一轮关于 FICD 审查 notebook 的修改记录补写到 Notion 每日日记中。
+
+**A:** 已连接 Notion 数据源并成功写入今天的自动化记录页面，标题为“🤖 自动化记录 2026-04-17”。页面内补入了上一轮新增 `ficd/ficd_review.ipynb` 的变更摘要、项目路径和操作说明，可直接在 Notion 中查看。
+
+---
+
+## 2026-04-17 11:45 | ckpt兼容修复
+
+**Q:** 检查为什么 notebook 加载 checkpoint 时出现参数名多出 `model.` 前缀并报错，继续修复。
+
+**A:** 已定位根因：旧版 FICD 的 `model.pt` 将权重存放在 `checkpoint['model']` 下，且参数名带 `model.` 前缀；同时部分 run 的模型结构与当前 YAML baseline 不一致，导致 shape mismatch。已在 `ficd/utils.py` 新增兼容提取函数，并更新 `ficd/ficd_review.ipynb` 的模型加载单元，自动处理 `model.` / `module.` / `_orig_mod.` 前缀、兼容 `model.pt` / `best_model.pt` / `ckpt_epoch*.pt`，并在 shape 不匹配时给出清晰诊断而不再直接崩溃。
+
+---
+## 2026-04-17 12:11 | 创建网络诊断 Skill
+
+**Q:** 创建一个 SKILL.md，用于诊断和修复 Win VS Code SSH-Remote → Linux 工作区中的网络/代理问题，包括 Clash Verge 代理隧道、MCP OAuth 认证、Copilot 断连等场景。
+
+**A:** 已在 `~/.agents/skills/network-debug/` 创建完整 skill，包含 SKILL.md（5 步诊断决策树、6 个常见故障场景、Quick Fix 速查表）和 `scripts/diagnose.sh` 一键诊断脚本。实测脚本输出正常，修复了 curl 返回码解析 bug，并根据实测发现的 DNS 198.18.x.x 假 IP 问题补充了对应故障场景。
+
+---
+
+## 2026-04-17 13:21 | 完善网络诊断 Skill
+
+**Q:** MCP 服务（mcp.json 中 Notion）处于错误状态，需要诊断修复。同时希望 network-debug skill 能自动触发，不仅限于用户手动调用。
+
+**A:** 诊断结果：Notion MCP 返回 401（OAuth 未认证/过期），网络通道本身正常。用户需在 VS Code 中重启 Notion MCP 服务并完成 OAuth 授权。更新了 SKILL.md：新增 Auto-Trigger Rules（5 类触发信号 + 快速诊断流程）、MCP 配置诊断章节（Notion OAuth/GitHub token/TLS 问题）。创建了 `network-auto-detect.instructions.md` 实现描述匹配自动加载。
+
+---
+
+## 2026-04-20 17:55 | 四方法对比实验计划
+
+**Q:** 给出 PASTA / Legacy / Plasma / FiCD 四种 MRI→TAU PET 生成方法的对比实验计划。要求：单一对比代码文件、YAML 配置、三方位+差异图可视化（TAU-PET colormap）、量化指标（PSNR/SSIM 等，不比较 SUV）、测试集一致性、NIfTI 保存、文献调研选定指标。当前不得修改代码。
+
+**A:** 交付了完整对比实验计划。文献调研（Moon et al. HBM 2026; Plasma-CycleGAN ISBI 2025）确定主指标为 SSIM（主）、PSNR、MAE、MSE、NCC。设计了 `configs/comparison.yaml` 配置面板和 `analysis/run_comparison.py` 单文件架构（Phase 0 测试集校验 → Phase 1 推理 → Phase 2 指标 → Phase 3 可视化）。确认 PASTA 可直接读已有结果、Legacy/Plasma 需执行推理、FiCD 仅 1 epoch smoke test 预期低质量。规划了三方位 inferno colormap 展示面板、hot colormap 差异图、自动全黑/全白检测与异常指标报警。
+
+---

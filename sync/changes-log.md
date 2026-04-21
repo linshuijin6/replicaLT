@@ -26,3 +26,47 @@
 | `configs/ficd/smoke_test.yaml` | 新建 | 用于快速验证训练 loop 的 1-epoch 测试配置 |
 
 ---
+
+## 2026-04-16 13:21 | 新建文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `AGENTS.md` | 新建 | 声明当前工作区遵循 `.agent/rules.md`，并在每次对话后触发 `sync-logger` |
+
+---
+
+## 2026-04-17 09:15 | 新建文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `ficd/ficd_review.ipynb` | 新建 | FICD 配置驱动的审查与可视化 notebook，27 个单元，复用 ficd 模块接口 |
+
+---
+
+## 2026-04-17 11:45 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `ficd/utils.py` | 编辑 | 新增兼容 checkpoint 状态字典提取逻辑，支持旧版 `model.pt` 和前缀清洗 |
+| `ficd/ficd_review.ipynb` | 编辑 | 模型加载单元改为自动处理 `model.` 前缀与 shape mismatch 诊断 |
+
+---
+
+## 2026-04-17 12:11 | 新建文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `~/.agents/skills/network-debug/SKILL.md` | 新建 | 网络/代理诊断 skill，含 5 步决策树、6 个故障场景 |
+| `~/.agents/skills/network-debug/scripts/diagnose.sh` | 新建 | 一键网络诊断脚本，检查隧道/环境变量/连通性/DNS/MCP |
+
+---
+
+## 2026-04-17 13:21 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `~/.agents/skills/network-debug/SKILL.md` | 编辑 | 新增 Auto-Trigger Rules、MCP 配置诊断章节（Notion OAuth/GitHub/TLS） |
+| `~/.agents/skills/network-debug/scripts/diagnose.sh` | 编辑 | 修复 curl 返回码解析 bug |
+| `~/.vscode-server/data/User/prompts/network-auto-detect.instructions.md` | 新建 | 描述匹配自动触发 instructions |
+
+---
