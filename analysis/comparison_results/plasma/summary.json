@@ -1,0 +1,16 @@
+{
+  "checkpoint": "/mnt/nfsdata/nfsdata/lsj.14/replicaLT/runs/plasma_04.12_4053491/ckpt_epoch200.pt",
+  "mode": "plasma",
+  "epoch": 199,
+  "n_steps": 1,
+  "n_samples": 43,
+  "elapsed_sec": 273.3,
+  "ssim_mean": 0.9016,
+  "ssim_std": 0.0278,
+  "psnr_mean": 28.26,
+  "psnr_std": 3.36,
+  "mae_mean": 0.0204,
+  "mae_std": 0.0096,
+  "mse_mean": 0.002,
+  "mse_std": 0.0016
+}

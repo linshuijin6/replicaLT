@@ -1,0 +1,16 @@
+{
+  "checkpoint": "/mnt/nfsdata/nfsdata/lsj.14/replicaLT/runs/04.13_2916235/ckpt_epoch200.pt",
+  "mode": "legacy",
+  "epoch": 199,
+  "n_steps": 1,
+  "n_samples": 43,
+  "elapsed_sec": 199.5,
+  "ssim_mean": 0.9021,
+  "ssim_std": 0.0291,
+  "psnr_mean": 28.33,
+  "psnr_std": 3.5,
+  "mae_mean": 0.0203,
+  "mae_std": 0.0096,
+  "mse_mean": 0.002,
+  "mse_std": 0.0017
+}

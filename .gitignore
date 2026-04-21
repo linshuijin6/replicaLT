@@ -17,3 +17,5 @@ adapter_finetune/runs/
 */*.pth
 test_extracted/*
 *prism*
+*.pt
+*.nii.gz
