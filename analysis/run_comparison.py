@@ -397,7 +397,12 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
       - Row 1 of each group: absolute error maps vs GT (Reds colormap)
       - Columns: MRI | GT PET | PASTA | Legacy | Plasma(Ours) | FiCD | colorbar
       - GT is always taken from Plasma (Ours) / Legacy nifti folder (uncropped reference)
-      - PASTA and FiCD predictions are inverse-cropped (padded with crop params from
+      - PASTA predictions are in (96,112,96) @ 1.5mm (eval_resolution from config);
+        they are mapped back to GT space by undoing the net center-crop that occurred
+        during HDF5 conversion (tio.Resample 1.5mm → CropOrPad 113,137,113) and PASTA's
+        own CropOrPad (96,112,96). Net inverse pad: [(5,6),(8,8),(5,6)] → (107,128,107),
+        then zoom to GT shape.
+      - FiCD predictions are inverse-cropped (padded with crop params from
         aligned_tau.yaml: [11,10,20,17,0,21]) then resampled to GT shape
     """
     import matplotlib
@@ -445,6 +450,39 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
         )
         return _resample(padded, tgt_shape)
 
+    def _pasta_to_ref_space(arr, tgt_shape):
+        """Map PASTA (96,112,96) @ 1.5mm to reference space tgt_shape @ 1.0mm.
+
+        PASTA forward pipeline (convert_nifti_to_h5.py uses scipy.ndimage.zoom):
+          (1) Source NIfTI (182,218,182) @ 1.0mm
+          (2) scipy.ndimage.zoom(×0.667) → (121,145,121) @ 1.5mm
+          (3) crop_or_pad → (113,137,113)  [center-crop by 4 each side]
+          (4) PASTA tio.CropOrPad → (96,112,96)  [center-crop: l=(8,12,8) r=(9,13,9)]
+
+        Inverse pipeline (matches plasma_train.py ResizeWithPadOrCropd logic):
+          (A) pad back: PASTA_NET_PAD = [(12,13),(16,17),(12,13)] → (121,145,121) @ 1.5mm
+          (B) scipy.ndimage.zoom(×1.5) → (182,218,182) @ 1.0mm  (exact MNI space)
+          (C) center crop to tgt_shape, matching ResizeWithPadOrCropd([160,192,160]):
+              x/z: crop 11 left, 11 right  (182→160)
+              y  : crop 13 left, 13 right  (218→192)
+        """
+        # Step A: pad PASTA (96,112,96) back to (121,145,121) @ 1.5mm
+        PASTA_NET_PAD = [(12, 13), (16, 17), (12, 13)]
+        padded = np.pad(arr, PASTA_NET_PAD, mode="constant", constant_values=0)
+        # Step B: zoom × 1.5 to recover MNI space (182,218,182) @ 1.0mm
+        mni = nd_zoom(padded.astype(np.float64), 1.5, order=1).astype(np.float32)
+        # Step C: center crop to tgt_shape (same as ResizeWithPadOrCropd)
+        s, t = np.array(mni.shape), np.array(tgt_shape)
+        diff = s - t
+        cl = diff // 2
+        cr = diff - cl
+        slices = tuple(slice(int(cl[i]), int(s[i] - cr[i])) for i in range(3))
+        cropped = mni[slices]
+        if cropped.shape != tgt_shape:
+            # fallback: pad any remaining mismatch (shouldn't happen for standard shapes)
+            cropped = _resample(cropped, tgt_shape)
+        return np.clip(cropped, 0, 1)
+
     def _blank_ax(ax):
         """Remove all visual elements except the axes frame (keeps ylabel)."""
         ax.set_xticks([])
@@ -478,7 +516,7 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
                 break
 
         # ── Predictions → resampled to GT shape ──────────────────────────
-        # PASTA has its own eval_resolution (96,112,96) — just zoom, NO crop.
+        # PASTA: eval_resolution=(96,112,96) @ 1.5mm — use proper inverse transform.
         # FiCD is in (crop + resize) space from aligned_tau.yaml → inverse crop then zoom.
         # Plasma (Ours) / Legacy are already in GT space.
         pred_vols = {}
@@ -488,8 +526,11 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
             if pred is not None and gt_shape is not None:
                 if mk == "FiCD":
                     pred = _uncrop_resample(pred, gt_shape)
+                elif mk == "PASTA":
+                    # Undo PASTA's internal center-crop + HDF5 padding, then zoom
+                    pred = _pasta_to_ref_space(pred, gt_shape)
                 else:
-                    # PASTA, Plasma (Ours), Legacy: only zoom (no crop inversion)
+                    # Plasma (Ours), Legacy: already in GT space, just ensure shape
                     pred = _resample(pred, gt_shape)
             pred_vols[mk] = pred
 
@@ -787,52 +828,65 @@ def main():
     print("  PHASE 2: COMPUTING UNIFIED METRICS")
     print("=" * 60)
 
-    all_rows = []
+    per_subject_csv = OUT_DIR / "per_subject_metrics.csv"
+    if per_subject_csv.exists():
+        print(f"\n  [跳过计算] 检测到历史 metrics 文件，直接加载: {per_subject_csv}")
+        print("  如需重新计算，请删除该文件后重新运行。")
+        df = pd.read_csv(per_subject_csv)
+        print(f"  已加载 {len(df)} 条历史 metrics 记录（{df['method'].value_counts().to_dict()}）")
+    else:
+        all_rows = []
 
-    print("\n[PASTA] Computing metrics from NIfTI pairs...")
-    pasta_rows = load_pasta_metrics(subjects)
-    for r in pasta_rows:
-        r["method"] = "PASTA"
-    all_rows.extend(pasta_rows)
+        print("\n[PASTA] Computing metrics from NIfTI pairs...")
+        pasta_rows = load_pasta_metrics(subjects)
+        for r in pasta_rows:
+            r["method"] = "PASTA"
+        all_rows.extend(pasta_rows)
 
-    print(f"\n[Plasma] Computing metrics from NIfTI pairs...")
-    plasma_rows = load_plasma_legacy_metrics("plasma", subjects)
-    for r in plasma_rows:
-        r["method"] = "Plasma (Ours)"
-    all_rows.extend(plasma_rows)
+        print(f"\n[Plasma] Computing metrics from NIfTI pairs...")
+        plasma_rows = load_plasma_legacy_metrics("plasma", subjects)
+        for r in plasma_rows:
+            r["method"] = "Plasma (Ours)"
+        all_rows.extend(plasma_rows)
 
-    print(f"\n[Legacy] Computing metrics from NIfTI pairs...")
-    legacy_rows = load_plasma_legacy_metrics("legacy", subjects)
-    for r in legacy_rows:
-        r["method"] = "Legacy"
-    all_rows.extend(legacy_rows)
+        print(f"\n[Legacy] Computing metrics from NIfTI pairs...")
+        legacy_rows = load_plasma_legacy_metrics("legacy", subjects)
+        for r in legacy_rows:
+            r["method"] = "Legacy"
+        all_rows.extend(legacy_rows)
 
-    print(f"\n[FiCD] Loading metrics from subject_metrics.json...")
-    ficd_rows = load_ficd_metrics(subjects)
-    for r in ficd_rows:
-        r["method"] = "FiCD"
-    all_rows.extend(ficd_rows)
+        print(f"\n[FiCD] Loading metrics from subject_metrics.json...")
+        ficd_rows = load_ficd_metrics(subjects)
+        for r in ficd_rows:
+            r["method"] = "FiCD"
+        all_rows.extend(ficd_rows)
 
-    # Create unified DataFrame
-    df = pd.DataFrame(all_rows)
-    df.to_csv(OUT_DIR / "per_subject_metrics.csv", index=False)
+        # Create unified DataFrame
+        df = pd.DataFrame(all_rows)
+        df.to_csv(per_subject_csv, index=False)
+
     print(f"\nTotal metric rows: {len(df)}")
     print(df.groupby("method")[["ssim", "psnr", "mae"]].describe().round(4))
 
     # Summary
-    summary_rows = []
-    for method in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
-        sub = df[df["method"] == method]
-        if len(sub) == 0:
-            continue
-        row = {"method": method, "n": len(sub)}
-        for metric in ["ssim", "psnr", "mae", "mse", "ncc"]:
-            vals = sub[metric].dropna()
-            row[f"{metric}_mean"] = vals.mean() if len(vals) > 0 else np.nan
-            row[f"{metric}_std"] = vals.std() if len(vals) > 0 else np.nan
-        summary_rows.append(row)
-    summary_df = pd.DataFrame(summary_rows)
-    summary_df.to_csv(OUT_DIR / "summary_metrics.csv", index=False)
+    summary_csv = OUT_DIR / "summary_metrics.csv"
+    if summary_csv.exists() and per_subject_csv.exists():
+        print(f"\n  [跳过汇总] 使用历史 summary: {summary_csv}")
+        summary_df = pd.read_csv(summary_csv)
+    else:
+        summary_rows = []
+        for method in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
+            sub = df[df["method"] == method]
+            if len(sub) == 0:
+                continue
+            row = {"method": method, "n": len(sub)}
+            for metric in ["ssim", "psnr", "mae", "mse", "ncc"]:
+                vals = sub[metric].dropna()
+                row[f"{metric}_mean"] = vals.mean() if len(vals) > 0 else np.nan
+                row[f"{metric}_std"] = vals.std() if len(vals) > 0 else np.nan
+            summary_rows.append(row)
+        summary_df = pd.DataFrame(summary_rows)
+        summary_df.to_csv(summary_csv, index=False)
     print("\nSummary:")
     print(summary_df.to_string(index=False))
 
