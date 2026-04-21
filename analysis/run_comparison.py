@@ -27,6 +27,7 @@ VAL_JSON = OUT_DIR / "val_43_subjects.json"
 PASTA_DIR = Path("/mnt/nfsdata/nfsdata/lsj.14/PASTA/replicaLT_comparison/results/2026-04-12_331111/inference_output")
 PASTA_MAP = OUT_DIR / "pasta_file_map.json"
 COMMON_SUBJECTS = OUT_DIR / ".." / "_common_subjects.json"
+PLASMA_VAL_JSON = ROOT / "val_data_with_description.json"
 
 PLASMA_CKPT = ROOT / "runs" / "plasma_04.12_4053491" / "ckpt_epoch200.pt"
 LEGACY_CKPT = ROOT / "runs" / "04.13_2916235" / "ckpt_epoch200.pt"
@@ -387,7 +388,8 @@ def generate_difference_maps(subjects, method_niftis, out_path):
         print(f"  Saved {fig_path}")
 
 
-def generate_unified_comparison(viz_subjects, method_niftis, out_path):
+def generate_unified_comparison(viz_subjects, method_niftis, out_path,
+                                raw_mri_paths=None):
     """
     Generate a single unified figure comparing all methods.
 
@@ -398,10 +400,10 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
       - Columns: MRI | GT PET | PASTA | Legacy | Plasma(Ours) | FiCD | colorbar
       - GT is always taken from Plasma (Ours) / Legacy nifti folder (uncropped reference)
       - PASTA predictions are in (96,112,96) @ 1.5mm (eval_resolution from config);
-        they are mapped back to GT space by undoing the net center-crop that occurred
-        during HDF5 conversion (tio.Resample 1.5mm → CropOrPad 113,137,113) and PASTA's
-        own CropOrPad (96,112,96). Net inverse pad: [(5,6),(8,8),(5,6)] → (107,128,107),
-        then zoom to GT shape.
+        they are mapped back to Plasma's (160,192,160) space by:
+          (A) undoing PASTA's crops+zoom → (182,218,182) @ 1.0mm (MNI space)
+          (B) applying Plasma's CropForeground (using raw MRI bounding box)
+          (C) center crop/pad to (160,192,160)
       - FiCD predictions are inverse-cropped (padded with crop params from
         aligned_tau.yaml: [11,10,20,17,0,21]) then resampled to GT shape
     """
@@ -450,38 +452,73 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
         )
         return _resample(padded, tgt_shape)
 
-    def _pasta_to_ref_space(arr, tgt_shape):
-        """Map PASTA (96,112,96) @ 1.5mm to reference space tgt_shape @ 1.0mm.
+    def _crop_or_pad(data, target_shape):
+        """Center crop or zero-pad to target_shape (same as convert_nifti_to_h5.py)."""
+        result = np.zeros(target_shape, dtype=data.dtype)
+        src_shape = data.shape
+        starts_src, ends_src, starts_dst, ends_dst = [], [], [], []
+        for s, t in zip(src_shape, target_shape):
+            if s >= t:
+                start_s = (s - t) // 2
+                starts_src.append(start_s)
+                ends_src.append(start_s + t)
+                starts_dst.append(0)
+                ends_dst.append(t)
+            else:
+                start_d = (t - s) // 2
+                starts_src.append(0)
+                ends_src.append(s)
+                starts_dst.append(start_d)
+                ends_dst.append(start_d + s)
+        result[starts_dst[0]:ends_dst[0],
+               starts_dst[1]:ends_dst[1],
+               starts_dst[2]:ends_dst[2]] = data[starts_src[0]:ends_src[0],
+                                                  starts_src[1]:ends_src[1],
+                                                  starts_src[2]:ends_src[2]]
+        return result
 
-        PASTA forward pipeline (convert_nifti_to_h5.py uses scipy.ndimage.zoom):
+    def _pasta_to_mni(arr):
+        """Invert PASTA transforms: (96,112,96)@1.5mm → (182,218,182)@1.0mm.
+
+        PASTA forward pipeline (convert_nifti_to_h5.py):
           (1) Source NIfTI (182,218,182) @ 1.0mm
           (2) scipy.ndimage.zoom(×0.667) → (121,145,121) @ 1.5mm
-          (3) crop_or_pad → (113,137,113)  [center-crop by 4 each side]
-          (4) PASTA tio.CropOrPad → (96,112,96)  [center-crop: l=(8,12,8) r=(9,13,9)]
+          (3) crop_or_pad → (113,137,113)  [center-crop 4 each side]
+          (4) PASTA tio.CropOrPad → (96,112,96)  [center-crop: (8,9),(12,13),(8,9)]
 
-        Inverse pipeline (matches plasma_train.py ResizeWithPadOrCropd logic):
-          (A) pad back: PASTA_NET_PAD = [(12,13),(16,17),(12,13)] → (121,145,121) @ 1.5mm
-          (B) scipy.ndimage.zoom(×1.5) → (182,218,182) @ 1.0mm  (exact MNI space)
-          (C) center crop to tgt_shape, matching ResizeWithPadOrCropd([160,192,160]):
-              x/z: crop 11 left, 11 right  (182→160)
-              y  : crop 13 left, 13 right  (218→192)
+        Inverse: pad combined crops → (121,145,121), then zoom ×1.5 → (182,218,182)
         """
-        # Step A: pad PASTA (96,112,96) back to (121,145,121) @ 1.5mm
         PASTA_NET_PAD = [(12, 13), (16, 17), (12, 13)]
         padded = np.pad(arr, PASTA_NET_PAD, mode="constant", constant_values=0)
-        # Step B: zoom × 1.5 to recover MNI space (182,218,182) @ 1.0mm
         mni = nd_zoom(padded.astype(np.float64), 1.5, order=1).astype(np.float32)
-        # Step C: center crop to tgt_shape (same as ResizeWithPadOrCropd)
-        s, t = np.array(mni.shape), np.array(tgt_shape)
-        diff = s - t
-        cl = diff // 2
-        cr = diff - cl
-        slices = tuple(slice(int(cl[i]), int(s[i] - cr[i])) for i in range(3))
-        cropped = mni[slices]
-        if cropped.shape != tgt_shape:
-            # fallback: pad any remaining mismatch (shouldn't happen for standard shapes)
-            cropped = _resample(cropped, tgt_shape)
-        return np.clip(cropped, 0, 1)
+        return mni
+
+    def _pasta_to_ref_space(arr, tgt_shape, raw_mri=None):
+        """Map PASTA (96,112,96) @ 1.5mm to Plasma's reference space.
+
+        Steps:
+          (A) Invert PASTA transforms → (182,218,182) @ 1.0mm (MNI space)
+          (B) Apply CropForeground using raw MRI bounding box (matches Plasma pipeline)
+          (C) Center crop/pad to tgt_shape (160,192,160)
+
+        Without raw_mri, falls back to simple center-crop (less accurate).
+        """
+        # Step A: invert to MNI space
+        mni = _pasta_to_mni(arr)
+
+        # Step B: CropForeground using raw MRI (same as Plasma's CropForegroundd)
+        if raw_mri is not None:
+            nonzero = np.nonzero(raw_mri)
+            if len(nonzero[0]) > 0:
+                bbox_min = [int(n.min()) for n in nonzero]
+                bbox_max = [int(n.max()) + 1 for n in nonzero]
+                mni = mni[bbox_min[0]:bbox_max[0],
+                          bbox_min[1]:bbox_max[1],
+                          bbox_min[2]:bbox_max[2]]
+
+        # Step C: center crop/pad to tgt_shape (same as ResizeWithPadOrCropd)
+        result = _crop_or_pad(mni, tgt_shape)
+        return np.clip(result, 0, 1)
 
     def _blank_ax(ax):
         """Remove all visual elements except the axes frame (keeps ylabel)."""
@@ -515,8 +552,18 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
                 mri_vol = entry["mri"]
                 break
 
+        # ── Load raw MRI for CropForeground (needed by PASTA alignment) ───
+        raw_mri = None
+        if raw_mri_paths and sid in raw_mri_paths:
+            raw_mri_path = raw_mri_paths[sid]
+            if os.path.exists(raw_mri_path):
+                raw_mri = nib.load(raw_mri_path).get_fdata().astype(np.float32)
+                if raw_mri.ndim == 4:
+                    raw_mri = raw_mri.mean(axis=-1)
+
         # ── Predictions → resampled to GT shape ──────────────────────────
-        # PASTA: eval_resolution=(96,112,96) @ 1.5mm — use proper inverse transform.
+        # PASTA: eval_resolution=(96,112,96) @ 1.5mm — invert transforms to
+        #   MNI (182,218,182), then apply Plasma's CropForeground + crop/pad.
         # FiCD is in (crop + resize) space from aligned_tau.yaml → inverse crop then zoom.
         # Plasma (Ours) / Legacy are already in GT space.
         pred_vols = {}
@@ -527,12 +574,30 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
                 if mk == "FiCD":
                     pred = _uncrop_resample(pred, gt_shape)
                 elif mk == "PASTA":
-                    # Undo PASTA's internal center-crop + HDF5 padding, then zoom
-                    pred = _pasta_to_ref_space(pred, gt_shape)
+                    # Undo PASTA transforms → MNI → CropForeground → crop/pad
+                    pred = _pasta_to_ref_space(pred, gt_shape, raw_mri=raw_mri)
                 else:
                     # Plasma (Ours), Legacy: already in GT space, just ensure shape
                     pred = _resample(pred, gt_shape)
             pred_vols[mk] = pred
+
+        # ── Per-method GT for error maps ──────────────────────────────────
+        # PASTA uses its own native GT mapped through the same spatial pipeline
+        # as its prediction (invert → CropForeground → crop/pad) so the error
+        # map reflects synthesis quality rather than spatial misalignment.
+        # Other methods share gt_vol (plasma/legacy GT).
+        diff_gt_vols = {}
+        for mk in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
+            if mk == "PASTA" and gt_shape is not None:
+                pasta_gt_native = method_niftis.get("PASTA", {}).get(sid, {}).get("gt")
+                if pasta_gt_native is not None:
+                    diff_gt_vols[mk] = _pasta_to_ref_space(
+                        pasta_gt_native, gt_shape, raw_mri=raw_mri
+                    )
+                else:
+                    diff_gt_vols[mk] = gt_vol
+            else:
+                diff_gt_vols[mk] = gt_vol
 
         # ── Figure: 6 rows × (6 data cols + 1 colorbar) ──────────────────
         width_ratios = [1] * N_DATA_COLS + [0.07]
@@ -596,11 +661,12 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path):
             for mi, mk in enumerate(["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]):
                 ax = axes[row_e][2 + mi]
                 pred = pred_vols.get(mk)
-                if pred is None or gt_vol is None:
+                ref_gt = diff_gt_vols.get(mk, gt_vol)
+                if pred is None or ref_gt is None:
                     ax.text(0.5, 0.5, "N/A", ha="center", va="center",
                             transform=ax.transAxes, fontsize=7, color="gray")
                 else:
-                    diff = np.abs(pred - gt_vol)
+                    diff = np.abs(pred - ref_gt)
                     im = ax.imshow(_get_slice(diff, direction).T,
                                    cmap="Reds", origin="lower", vmin=0, vmax=DIFF_VMAX)
                     last_diff_im = im
@@ -940,17 +1006,15 @@ def main():
             syn_path = PASTA_DIR / pasta_map[sid]["syn"]
             gt_path = PASTA_DIR / pasta_map[sid]["gt"]
             if syn_path.exists() and gt_path.exists():
-                pasta_gt_arr = np.clip(nib.load(str(gt_path)).get_fdata().astype(np.float32), 0, None)
-                pasta_pred_arr = np.clip(nib.load(str(syn_path)).get_fdata().astype(np.float32), 0, None)
-                # PASTA uses its own intensity normalization ([0,~0.6]).
-                # Scale to [0,1] using PASTA's GT 99.5th‐percentile so it is
-                # comparable to the Plasma GT reference (which is in [0,1]).
-                pasta_scale = float(np.percentile(pasta_gt_arr, 99.5))
-                if pasta_scale < 1e-6:
-                    pasta_scale = 1.0
+                pasta_gt_arr = nib.load(str(gt_path)).get_fdata().astype(np.float32)
+                pasta_pred_arr = nib.load(str(syn_path)).get_fdata().astype(np.float32)
+                # PASTA inference output is already in [0,1]:
+                #   - dataset.py applies tio.RescaleIntensity(out_min_max=(0,1))
+                #   - diffusion sample() applies unnormalize_to_zero_to_one + clamp(0,1)
+                # No additional re-scaling needed; just clip to [0,1].
                 method_niftis["PASTA"][sid] = {
-                    "pred": np.clip(pasta_pred_arr / pasta_scale, 0, 1),
-                    "gt": np.clip(pasta_gt_arr / pasta_scale, 0, 1),
+                    "pred": np.clip(pasta_pred_arr, 0, 1),
+                    "gt": np.clip(pasta_gt_arr, 0, 1),
                 }
 
     # Plasma / Legacy
@@ -1027,9 +1091,18 @@ def main():
                     plt.savefig(str(fig_dir / f"{safe_name}_{sid}.png"), dpi=150, bbox_inches="tight")
                     plt.close()
 
+        # Build raw MRI path mapping for CropForeground alignment
+        raw_mri_paths = {}
+        if PLASMA_VAL_JSON.exists():
+            with open(PLASMA_VAL_JSON) as f:
+                plasma_val_data = json.load(f)
+            for item in plasma_val_data:
+                raw_mri_paths[item["name"]] = item["mri"]
+
         # Unified comparison figure
         print("Generating unified comparison figures...")
-        generate_unified_comparison(viz_subjects, method_niftis, fig_dir)
+        generate_unified_comparison(viz_subjects, method_niftis, fig_dir,
+                                    raw_mri_paths=raw_mri_paths)
 
         # Boxplot
         print("Generating metric boxplots...")

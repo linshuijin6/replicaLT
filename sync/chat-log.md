@@ -121,3 +121,40 @@
 **A:** 重写 `generate_unified_comparison()` 函数：布局改为6行×6列（3方向组×2行/组），每方向组的第1行为合成结果，第2行为差异图；GT统一从Plasma/Legacy nifti目录读取（跳过PASTA GT）；PASTA和FiCD预测先用`np.pad`逆向crop（padding=[11,10,20,17,0,21]），再用`scipy.ndimage.zoom`三线性重采样到GT shape；行标签用`set_ylabel`（合成行）和`fig.text`（差异图行）；colorbar跨全部行。烟测通过，生成图像尺寸2422×2240。
 
 ---
+## 2026-04-21 17:14 | PASTA空间对齐修复
+
+**Q:** run_comparison.py中PASTA可视化位置不正确（脑区相比GT偏大），PASTA使用convert_nifti_to_h5.py将数据crop到113×137×113，PASTA训练输出为(96,112,96)@1.5mm。
+
+**A:** 问题根因：PASTA`eval_resolution=[96,112,96]`经过双重center-crop（HDF5转换时tio.Resample→CropOrPad到113×137×113；PASTA内部tio.CropOrPad到96×112×96），旧代码直接将(96,112,96)缩放到(160,192,160)，zoom factor≈1.67导致脑区显示比实际大11%。修复：在`generate_unified_comparison()`中新增`_pasta_to_ref_space()`函数，先用净padding[(5,6),(8,8),(5,6)]将PASTA映射回(107,128,107)@1.5mm中间空间，再zoom到GT shape（zoom factor≈1.495，物理正确）。验证：修复后脑区体素数16,664与Plasma GT的16,414吻合，旧方法为21,363（多出~30%）。
+
+---
+## 2026-04-21 22:02 | PASTA精确时点对齐
+
+**Q:** 检查 `analysis/run_comparison.py`、`plasma_train.py`、`convert_nifti_to_h5.py` 和 `val_tabular.json`，排查 PASTA unified 可视化里大面积深红 diff 的原因；核对被试划分和尺寸处理，并在不改原 `run_comparison.py` 的前提下新建比较脚本。
+
+**A:** 新建 `analysis/run_comparison_pasta_exact.py`：PASTA 结果改为按 `name+examdate` 精确匹配，确认当前 43 个比较样本里只有 38 个有 exact-match PASTA 输出，缺失 5 个时点；把 PASTA `(96,112,96)@1.5mm` 先 pad 回 `(121,145,121)`，再 zoom 回 `(182,218,182)@1mm`，最后中心裁成 `160×192×160`；unified 图里的 PASTA error map 改为与恢复后的 exact PASTA GT 做差，避免继续混入错时点或跨预处理口径的伪大 diff。已生成 `analysis/comparison_results_pasta_exact/` 下的 exact 映射、缺失时点清单、对齐统计和 3 张 representative unified 图；恢复后的 PASTA GT 与 plasma GT 平均 MAE 为 `0.0430`，图中 PASTA 不再出现整块错位深红。
+
+---
+## 2026-04-21 22:18 | PASTA显示空间修正
+
+**Q:** 继续修复 PASTA unified 图。用户指出 `unified_comparison_exact_941_S_6854.png` 绿圈位置仍像 MRI，要求至少把该区域的黑白反差问题解决。
+
+**A:** 重新核查后确认 PASTA `syn` 不是 MRI，而是此前恢复链路仍与 plasma 的真实显示空间不一致：旧脚本只做了 `96->182` 后中心裁到 `160`，但 plasma 的 GT 实际经过 `CropForegroundd(source_key='mri') + ResizeWithPadOrCropd + NormalizeIntensityd + ScaleIntensityd`。因此已在 `analysis/run_comparison_pasta_exact.py` 中改为：PASTA 先恢复回 MNI `(182,218,182)`，再复用 plasma 的完整 transform pipeline 投到公共显示空间。修复后 `941_S_6854` 上圈内关键体素从 `pred≈0.10~0.13 / gt≈0.10~0.13` 提升到 `pred≈0.27~0.45 / gt≈0.28~0.39`，与 `plasma GT≈0.28~0.37` 同量级；新的 `unified_comparison_exact_941_S_6854.png` 中该区域已不再呈现“PASTA 像 MRI”的黑白关系。全体 38 个 exact-match subject 上，PASTA GT 对齐到 plasma GT 的平均 MAE 进一步降到 `0.0218`。
+
+---
+
+## 2026-04-21 22:37 | 修复 run_comparison PASTA 空间对齐
+
+**Q:** run_comparison.py 的 unified 图中 PASTA 与 Legacy/Plasma 结构不匹配（蓝框区域明显差异），要求检查被试对应关系和尺寸变换，修复至结构一致。
+
+**A:** 排查两个方面：(1) 被试对应：确认 43 个 common subjects 在 PASTA test 和 Plasma val 中完全对应，源文件路径一致，无问题；(2) 空间变换：发现根因——`_pasta_to_ref_space` 从 (182,218,182) 直接 center-crop 到 (160,192,160)，但 Plasma 管线先做了 `CropForegroundd(source_key="mri")` 再 `ResizeWithPadOrCropd`，导致空间偏移（correlation 仅 0.805）。修复方案：PASTA 逆变换恢复到 MNI (182,218,182) 后，加载原始 MRI 计算前景裁剪边界框，再 center-crop/pad 到 (160,192,160)，correlation 提升到 0.982。已在 `run_comparison.py` 中实现并验证通过。
+
+---
+
+## 2026-04-21 22:56 | 修复PASTA可视化亮度偏高
+
+**Q:** PASTA对比图中合成PET明显发亮，怀疑代码中对像素值做了百分比拉伸，需要在对齐原始PASTA代码的同时修正run_comparison.py。
+
+**A:** 追踪完整数据流后定位根因：PASTA推理输出NIfTI已经在[0,1]范围（dataset.py的rescale_intensity_3D映射到[0,1]，diffusion sample()的unnormalize+clamp(0,1)保证输出范围）。但run_comparison.py在加载PASTA NIfTI用于可视化时，又除以了GT的99.5百分位（约0.5-0.7），导致所有值被人为放大（如0.4→0.67），使PASTA在unified图中显著偏亮。修复：移除百分位缩放，仅clip到[0,1]，与Plasma/Legacy的加载方式一致。指标计算无需修改（load_pasta_metrics未使用百分位缩放）。
+
+---
