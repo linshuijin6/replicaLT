@@ -387,6 +387,232 @@ def generate_difference_maps(subjects, method_niftis, out_path):
         print(f"  Saved {fig_path}")
 
 
+def generate_unified_comparison(viz_subjects, method_niftis, out_path):
+    """
+    Generate a single unified figure comparing all methods.
+
+    Layout (per representative subject):
+      - 3 row groups: Axial / Coronal / Sagittal (each group = 2 rows)
+      - Row 0 of each group: synthesis results (inferno colormap)
+      - Row 1 of each group: absolute error maps vs GT (Reds colormap)
+      - Columns: MRI | GT PET | PASTA | Legacy | Plasma(Ours) | FiCD | colorbar
+      - GT is always taken from Plasma (Ours) / Legacy nifti folder (uncropped reference)
+      - PASTA and FiCD predictions are inverse-cropped (padded with crop params from
+        aligned_tau.yaml: [11,10,20,17,0,21]) then resampled to GT shape
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    from scipy.ndimage import zoom as nd_zoom
+
+    DIRECTIONS = ["Axial", "Coronal", "Sagittal"]
+    COL_LABELS = ["MRI", "GT PET", "PASTA", "Legacy", "Plasma\n(Ours)", "FiCD"]
+    # crop from configs/ficd/aligned_tau.yaml: (x_l, x_r, y_l, y_r, z_l, z_r)
+    CROP = (11, 10, 20, 17, 0, 21)
+    N_DATA_COLS = len(COL_LABELS)          # 6
+    N_DIRS = 3
+    N_ROWS_PER_DIR = 2                     # synthesis + error map
+    N_TOTAL_ROWS = N_DIRS * N_ROWS_PER_DIR  # 6
+    DIFF_VMAX = 0.3
+
+    def _get_slice(vol, direction):
+        x, y, z = vol.shape[:3]
+        if direction == "Axial":
+            return vol[:, :, z // 2]
+        elif direction == "Coronal":
+            return vol[:, y // 2, :]
+        else:
+            return vol[x // 2, :, :]
+
+    def _resample(arr, tgt_shape):
+        """Trilinear resample arr to tgt_shape tuple."""
+        if arr.shape == tgt_shape:
+            return arr
+        factors = [t / s for t, s in zip(tgt_shape, arr.shape)]
+        return np.clip(
+            nd_zoom(arr.astype(np.float64), factors, order=1).astype(np.float32),
+            0, 1,
+        )
+
+    def _uncrop_resample(arr, tgt_shape, crop=CROP):
+        """Pad the inverse of crop then resample to tgt_shape."""
+        padded = np.pad(
+            arr,
+            [(crop[0], crop[1]), (crop[2], crop[3]), (crop[4], crop[5])],
+            mode="constant",
+            constant_values=0,
+        )
+        return _resample(padded, tgt_shape)
+
+    def _blank_ax(ax):
+        """Remove all visual elements except the axes frame (keeps ylabel)."""
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+    n = len(viz_subjects)
+    if n == 0:
+        print("  [unified] No viz subjects, skipping.")
+        return
+    indices = sorted(set([0, n // 2, n - 1]))
+    selected = [viz_subjects[i] for i in indices]
+
+    for sid in selected:
+        # ── GT: always from Plasma (Ours) / Legacy nifti (uncropped reference) ──
+        gt_vol = None
+        for _m in ["Plasma (Ours)", "Legacy"]:
+            entry = method_niftis.get(_m, {}).get(sid, {})
+            if "gt" in entry:
+                gt_vol = entry["gt"]
+                break
+        gt_shape = gt_vol.shape if gt_vol is not None else None
+
+        # ── MRI ───────────────────────────────────────────────────────────
+        mri_vol = None
+        for _m in ["Plasma (Ours)", "Legacy"]:
+            entry = method_niftis.get(_m, {}).get(sid, {})
+            if "mri" in entry:
+                mri_vol = entry["mri"]
+                break
+
+        # ── Predictions → resampled to GT shape ──────────────────────────
+        # PASTA and FiCD are in crop+resize space → inverse crop then resample
+        # Plasma (Ours) / Legacy are already in GT space
+        pred_vols = {}
+        for mk in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
+            entry = method_niftis.get(mk, {}).get(sid, {})
+            pred = entry.get("pred", None)
+            if pred is not None and gt_shape is not None:
+                if mk in ("PASTA", "FiCD"):
+                    pred = _uncrop_resample(pred, gt_shape)
+                else:
+                    pred = _resample(pred, gt_shape)
+            pred_vols[mk] = pred
+
+        # ── Figure: 6 rows × (6 data cols + 1 colorbar) ──────────────────
+        width_ratios = [1] * N_DATA_COLS + [0.07]
+        fig_w = N_DATA_COLS * 1.9 + 0.6
+        fig_h = N_TOTAL_ROWS * 1.8 + 0.6
+        fig = plt.figure(figsize=(fig_w, fig_h))
+        gs = gridspec.GridSpec(
+            N_TOTAL_ROWS, N_DATA_COLS + 1,
+            figure=fig,
+            width_ratios=width_ratios,
+            hspace=0.06,
+            wspace=0.04,
+            left=0.11, right=0.97, top=0.95, bottom=0.02,
+        )
+
+        axes = [
+            [fig.add_subplot(gs[r, c]) for c in range(N_DATA_COLS)]
+            for r in range(N_TOTAL_ROWS)
+        ]
+        cbar_ax = fig.add_subplot(gs[:, N_DATA_COLS])
+        last_diff_im = None
+
+        mri_vlo = float(np.percentile(mri_vol, 1)) if mri_vol is not None else 0
+        mri_vhi = float(np.percentile(mri_vol, 99)) if mri_vol is not None else 1
+
+        for dir_idx, direction in enumerate(DIRECTIONS):
+            row_s = dir_idx * N_ROWS_PER_DIR      # synthesis row
+            row_e = dir_idx * N_ROWS_PER_DIR + 1  # error map row
+
+            # ── Synthesis row ─────────────────────────────────────────────
+            ax = axes[row_s][0]   # MRI
+            if mri_vol is not None:
+                ax.imshow(_get_slice(mri_vol, direction).T,
+                          cmap="gray", origin="lower", vmin=mri_vlo, vmax=mri_vhi)
+            else:
+                ax.text(0.5, 0.5, "N/A", ha="center", va="center",
+                        transform=ax.transAxes, fontsize=7, color="gray")
+
+            ax = axes[row_s][1]   # GT PET
+            if gt_vol is not None:
+                ax.imshow(_get_slice(gt_vol, direction).T,
+                          cmap="inferno", origin="lower", vmin=0, vmax=1)
+            else:
+                ax.text(0.5, 0.5, "N/A", ha="center", va="center",
+                        transform=ax.transAxes, fontsize=7, color="gray")
+
+            for mi, mk in enumerate(["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]):
+                ax = axes[row_s][2 + mi]
+                pred = pred_vols.get(mk)
+                if pred is not None:
+                    ax.imshow(_get_slice(pred, direction).T,
+                              cmap="inferno", origin="lower", vmin=0, vmax=1)
+                else:
+                    ax.text(0.5, 0.5, "N/A", ha="center", va="center",
+                            transform=ax.transAxes, fontsize=7, color="gray")
+
+            # ── Error map row ─────────────────────────────────────────────
+            _blank_ax(axes[row_e][0])   # MRI — empty
+            _blank_ax(axes[row_e][1])   # GT  — empty
+
+            for mi, mk in enumerate(["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]):
+                ax = axes[row_e][2 + mi]
+                pred = pred_vols.get(mk)
+                if pred is None or gt_vol is None:
+                    ax.text(0.5, 0.5, "N/A", ha="center", va="center",
+                            transform=ax.transAxes, fontsize=7, color="gray")
+                else:
+                    diff = np.abs(pred - gt_vol)
+                    im = ax.imshow(_get_slice(diff, direction).T,
+                                   cmap="Reds", origin="lower", vmin=0, vmax=DIFF_VMAX)
+                    last_diff_im = im
+
+            # ── Tick removal for all cells in both rows ───────────────────
+            for row in (row_s, row_e):
+                for col in range(N_DATA_COLS):
+                    axes[row][col].set_xticks([])
+                    axes[row][col].set_yticks([])
+
+            # ── Column titles (first direction group only) ─────────────────
+            if dir_idx == 0:
+                for ci, label in enumerate(COL_LABELS):
+                    axes[0][ci].set_title(label, fontsize=8, pad=3, fontweight="bold")
+
+            # ── Row-group left labels ─────────────────────────────────────
+            # Synthesis: ylabel on col-0 (MRI visible)
+            axes[row_s][0].set_ylabel(
+                f"{direction}\nSynthesis", fontsize=8, fontweight="bold", labelpad=4
+            )
+            # Error map: col-0 is blanked, use fig.text in the left margin
+            # Compute approximate vertical center of this row in figure coords.
+            # GridSpec: top=0.95, bottom=0.02 → content height = 0.93
+            # Row row_e spans from bottom + (N_TOTAL_ROWS-1-row_e)/N * content to ...
+            content_h = 0.95 - 0.02
+            row_height = content_h / N_TOTAL_ROWS
+            row_center_y = 0.02 + (N_TOTAL_ROWS - 1 - row_e + 0.5) * row_height
+            fig.text(
+                0.025, row_center_y,
+                "Error\nMap",
+                va="center", ha="center",
+                fontsize=7, color="dimgray",
+                rotation=90,
+            )
+
+        # ── Colorbar ──────────────────────────────────────────────────────
+        if last_diff_im is not None:
+            cb = fig.colorbar(last_diff_im, cax=cbar_ax)
+            cb.set_label("Absolute Error", fontsize=8)
+            cb.ax.tick_params(labelsize=7)
+        else:
+            cbar_ax.axis("off")
+
+        # ── Figure title ──────────────────────────────────────────────────
+        fig.suptitle(
+            f"Method Comparison  |  Subject: {sid}",
+            fontsize=11, fontweight="bold", y=0.98,
+        )
+
+        fig_path = out_path / f"unified_comparison_{sid}.png"
+        plt.savefig(str(fig_path), dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  Saved {fig_path}")
+
+
 def generate_boxplot(all_metrics_df, out_path):
     """Generate boxplot comparison of metrics across methods."""
     import matplotlib
@@ -670,11 +896,15 @@ def main():
         for sid in subjects[:5]:
             pred_p = nifti_dir / f"{sid}_tau_pred.nii.gz"
             gt_p = nifti_dir / f"{sid}_tau_gt.nii.gz"
+            mri_p = nifti_dir / f"{sid}_mri.nii.gz"
             if pred_p.exists() and gt_p.exists():
-                method_niftis[label][sid] = {
+                entry = {
                     "pred": np.clip(nib.load(str(pred_p)).get_fdata().astype(np.float32), 0, 1),
                     "gt": np.clip(nib.load(str(gt_p)).get_fdata().astype(np.float32), 0, 1),
                 }
+                if mri_p.exists():
+                    entry["mri"] = nib.load(str(mri_p)).get_fdata().astype(np.float32)
+                method_niftis[label][sid] = entry
 
     # FiCD - prediction only (different resolution, no GT NIfTI)
     method_niftis["FiCD"] = {}
@@ -732,6 +962,10 @@ def main():
                     safe_name = mname.replace(" ", "_").replace("(", "").replace(")", "")
                     plt.savefig(str(fig_dir / f"{safe_name}_{sid}.png"), dpi=150, bbox_inches="tight")
                     plt.close()
+
+        # Unified comparison figure
+        print("Generating unified comparison figures...")
+        generate_unified_comparison(viz_subjects, method_niftis, fig_dir)
 
         # Boxplot
         print("Generating metric boxplots...")
