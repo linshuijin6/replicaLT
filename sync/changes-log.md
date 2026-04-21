@@ -76,3 +76,11 @@
 | `configs/ficd/aligned_tau.yaml` | 编辑 | num_inference_steps从100改为1000，修复DDPM跳步推理导致的alpha计算错误 |
 
 ---
+
+## 2026-04-21 16:10 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/run_comparison.py` | 编辑 | 重写 generate_unified_comparison()：布局改为6行×6列（3方向组×2行），GT统一用plasma文件夹，PASTA/FiCD预测逆向crop(pad)+scipy zoom重采样到GT shape |
+
+---

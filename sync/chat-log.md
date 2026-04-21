@@ -106,3 +106,18 @@
 **A:** 找到两个根本性代码bug并已修复：①**缺少 x0_pred_loss**：原始FICD训练 loss = noise_loss + x0_pred_loss（其中 x0_pred_loss = L1(x0_pred, images)），ficd_train.py 只有 noise_loss，缺少直接图像重建监督，模型无法学习还原图像；②**DDPM推理步数100 vs 1000**：DDPM的step()在跳步时用 alphas_cumprod[timestep-1] 而非实际前一步的索引，100步时每次跳10个timestep导致alpha计算错误，输出保留大量噪声；原始FICD用1000步。修复：ficd_train.py 的 loss 改为 noise_loss + x0_pred_loss，configs/ficd/aligned_tau.yaml 的 num_inference_steps 从100改为1000。
 
 ---
+
+## 2026-04-21 15:29 | 统一可视化比较图
+
+**Q:** 修改 analysis/run_comparison.py 可视化比较部分：将不同方法比较置于同一图窗，第一行生成结果，第二行差异图，共三组（三方向），包含各方法生成结果、GT PET，差异图用深浅红色表示差异程度并给出colorbar，最左侧给出MRI输入。
+
+**A:** 在 analysis/run_comparison.py 中新增 `generate_unified_comparison()` 函数，生成单张统一大图（2行×18列+1 colorbar列）：三个方向组（Axial/Coronal/Sagittal），每组6列（MRI灰度图、GT PET inferno、PASTA/Legacy/Plasma/FiCD预测 inferno），第二行为各方法与GT的绝对差异图（Reds colormap，vmax=0.3），MRI/GT差异格留空，FiCD无GT时标N/A，PASTA shape不匹配时标Shape Mismatch，最右侧一列colorbar标注Absolute Error。同时在Phase 4数据加载中补充加载 `{sid}_mri.nii.gz`，在viz块末尾调用新函数。烟测通过，成功生成2张PNG。
+
+---
+## 2026-04-21 16:10 | 可视化改三行方向+修正尺寸
+
+**Q:** 修改布局：将三个方向分为三行而不是同一行的三列；每组为两行（生成结果+差异图），总共三组；将PASTA和FiCD的预测逆向crop操作到GT尺寸（使用aligned_tau.yaml的crop参数[11,10,20,17,0,21]）；GT统一使用plasma结果文件夹中保存的（未裁剪），而非FiCD的。
+
+**A:** 重写 `generate_unified_comparison()` 函数：布局改为6行×6列（3方向组×2行/组），每方向组的第1行为合成结果，第2行为差异图；GT统一从Plasma/Legacy nifti目录读取（跳过PASTA GT）；PASTA和FiCD预测先用`np.pad`逆向crop（padding=[11,10,20,17,0,21]），再用`scipy.ndimage.zoom`三线性重采样到GT shape；行标签用`set_ylabel`（合成行）和`fig.text`（差异图行）；colorbar跨全部行。烟测通过，生成图像尺寸2422×2240。
+
+---
