@@ -31,8 +31,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "num_res_blocks": 2,
         "norm_num_groups": 8,
         "use_flash_attention": True,
-        "with_conditioning": True,
-        "cross_attention_dim": 64,
+        "with_conditioning": False,
     },
     "train": {
         "batch_size_train": 2,

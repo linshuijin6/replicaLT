@@ -9,7 +9,7 @@ data:
   training_split_ratio: 0.9
   crop: [11, 10, 20, 17, 0, 21]
   target_shape: [160, 180, 160]
-  num_workers: 0
+  num_workers: 4
   pin_memory: false
 
 model:
@@ -22,8 +22,7 @@ model:
   num_res_blocks: 2
   norm_num_groups: 8
   use_flash_attention: true
-  with_conditioning: true
-  cross_attention_dim: 64
+  with_conditioning: false
 
 train:
   batch_size_train: 2
