@@ -68,5 +68,11 @@
 | `~/.agents/skills/network-debug/SKILL.md` | 编辑 | 新增 Auto-Trigger Rules、MCP 配置诊断章节（Notion OAuth/GitHub/TLS） |
 | `~/.agents/skills/network-debug/scripts/diagnose.sh` | 编辑 | 修复 curl 返回码解析 bug |
 | `~/.vscode-server/data/User/prompts/network-auto-detect.instructions.md` | 新建 | 描述匹配自动触发 instructions |
+## 2026-04-21 14:10 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `ficd_train.py` | 编辑 | 训练loss加入x0_pred_loss（L1重建损失）；添加epoch_x0_pred_loss统计跟踪；日志输出加入x0_pred_loss |
+| `configs/ficd/aligned_tau.yaml` | 编辑 | num_inference_steps从100改为1000，修复DDPM跳步推理导致的alpha计算错误 |
 
 ---

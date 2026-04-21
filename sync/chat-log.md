@@ -1,5 +1,13 @@
 # Chat Log
 
+## 2026-04-20 18:20 | ficd目录全面探索
+
+**Q:** 彻底探索 ficd/ 目录及相关文件：列出所有文件、完整读取 config.py/data.py/utils.py、查找 YAML 配置、检查 report_error.py、查看训练日志。
+
+**A:** ficd/ 含 config.py（配置加载+校验）、data.py（TorchIO 数据集构建，strict/aligned 两种模式过滤）、utils.py（日志/checkpoint/可视化/NIfTI 工具）。YAML 配置有 configs/ficd/aligned_tau.yaml 和 strict_tau.yaml（区别在 metadata_mode 和 run_root）。report_error.py 在项目中不存在（16 处 import 但找不到文件），会导致 ImportError。最新 ficd 运行（aligned 模式，866 train/88 val）仅输出 3 行日志就停了。runs/04.17 有完整 checkpoint（10~100 epoch）。
+
+---
+
 ## 2026-04-12 14:24 | 缓存迁移可行性分析
 
 **Q:** 检查 plasma_train.py 使用的缓存目录，分析其大小，评估迁移到非 nfsdata 路径的可行性，特别关注本地磁盘剩余空间。
@@ -83,5 +91,18 @@
 **Q:** 给出 PASTA / Legacy / Plasma / FiCD 四种 MRI→TAU PET 生成方法的对比实验计划。要求：单一对比代码文件、YAML 配置、三方位+差异图可视化（TAU-PET colormap）、量化指标（PSNR/SSIM 等，不比较 SUV）、测试集一致性、NIfTI 保存、文献调研选定指标。当前不得修改代码。
 
 **A:** 交付了完整对比实验计划。文献调研（Moon et al. HBM 2026; Plasma-CycleGAN ISBI 2025）确定主指标为 SSIM（主）、PSNR、MAE、MSE、NCC。设计了 `configs/comparison.yaml` 配置面板和 `analysis/run_comparison.py` 单文件架构（Phase 0 测试集校验 → Phase 1 推理 → Phase 2 指标 → Phase 3 可视化）。确认 PASTA 可直接读已有结果、Legacy/Plasma 需执行推理、FiCD 仅 1 epoch smoke test 预期低质量。规划了三方位 inferno colormap 展示面板、hot colormap 差异图、自动全黑/全白检测与异常指标报警。
+## 2026-04-21 10:30 | ficd纯噪声原因分析
+
+**Q:** ficd_train.py 生成结果为纯噪声（附训练日志 runs/ficd_aligned_tau/260420.3851434，4 epoch），怀疑 MRI/TAU 数值范围有问题。
+
+**A:** 纯噪声主因不是数值范围，而是：①模型容量极小（num_channels=[16,32,64] 对 160×180×160 3D 体积严重不足，应至少用 64/128/256）；②仅训练 4 epoch，PSNR≈5 dB 是随机白噪声水平，DDPM 在 3D 脑图任务通常需 100~500 epochs；③tio.RescaleIntensity 默认用 true min/max，MRI 异常体素会压缩脑实质范围，建议改用 percentiles=(0.5, 99.5)（次要）；④DDPM sampler 推理仅 100/1000 步，建议改用 DDIMScheduler。优先级：增大模型容量 > 训练更多 epochs > 改百分位归一化。
+
+---
+
+## 2026-04-21 14:10 | ficd纯噪声代码bug修复
+
+**Q:** ficd_train.py 与原始FICD代码对比，找出生成纯噪声的根本代码bug并修复。附件为原始FICD notebook和runs日志（4 epoch，PSNR≈5 dB，SSIM≈0.002）。
+
+**A:** 找到两个根本性代码bug并已修复：①**缺少 x0_pred_loss**：原始FICD训练 loss = noise_loss + x0_pred_loss（其中 x0_pred_loss = L1(x0_pred, images)），ficd_train.py 只有 noise_loss，缺少直接图像重建监督，模型无法学习还原图像；②**DDPM推理步数100 vs 1000**：DDPM的step()在跳步时用 alphas_cumprod[timestep-1] 而非实际前一步的索引，100步时每次跳10个timestep导致alpha计算错误，输出保留大量噪声；原始FICD用1000步。修复：ficd_train.py 的 loss 改为 noise_loss + x0_pred_loss，configs/ficd/aligned_tau.yaml 的 num_inference_steps 从100改为1000。
 
 ---
