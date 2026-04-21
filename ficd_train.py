@@ -368,6 +368,7 @@ def main() -> None:
         model.train()
         epoch_loss = 0.0
         epoch_noise_loss = 0.0
+        epoch_x0_pred_loss = 0.0
         epoch_psnr = 0.0
         epoch_ssim = 0.0
 
@@ -394,13 +395,11 @@ def main() -> None:
                     condition=condition,
                     mode="concat",
                 )
-                noise_loss = F.mse_loss(noise_pred.float(), noise.float())
-                loss = noise_loss
-
-            # x0_pred for monitoring only (not in loss)
-            with torch.no_grad():
                 noised_image = scheduler.add_noise(original_samples=images, noise=noise, timesteps=timesteps)
-                x0_pred = compute_x0_predictions(scheduler, noise_pred.detach(), timesteps, noised_image)
+                x0_pred = compute_x0_predictions(scheduler, noise_pred, timesteps, noised_image)
+                noise_loss = F.mse_loss(noise_pred.float(), noise.float())
+                x0_pred_loss = F.l1_loss(x0_pred.float(), images.float())
+                loss = noise_loss + x0_pred_loss
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -413,6 +412,7 @@ def main() -> None:
 
             epoch_loss += float(loss.item())
             epoch_noise_loss += float(noise_loss.item())
+            epoch_x0_pred_loss += float(x0_pred_loss.item())
             epoch_psnr += psnr_value
             epoch_ssim += ssim_value
             global_step += 1
@@ -426,6 +426,7 @@ def main() -> None:
             progress_bar.set_postfix(
                 {
                     "noise_loss": f"{epoch_noise_loss / (step + 1):.4f}",
+                    "x0_loss": f"{epoch_x0_pred_loss / (step + 1):.4f}",
                     "loss": f"{epoch_loss / (step + 1):.4f}",
                     "PSNR": f"{epoch_psnr / (step + 1):.4f}",
                     "SSIM": f"{epoch_ssim / (step + 1):.4f}",
@@ -444,9 +445,10 @@ def main() -> None:
                 torch.cuda.reset_peak_memory_stats(device)
 
         logger.info(
-            "Epoch %d | noise_loss=%.6f | total_loss=%.6f",
+            "Epoch %d | noise_loss=%.6f | x0_pred_loss=%.6f | total_loss=%.6f",
             epoch,
             epoch_noise_loss / max(len(train_loader), 1),
+            epoch_x0_pred_loss / max(len(train_loader), 1),
             epoch_avg_loss,
         )
 
