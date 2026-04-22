@@ -188,5 +188,10 @@
 **Q:** 新建代码快速校验当前 run_validation 是否能正确运行，并估算 48 个随机 3D 样本配合 checkpoint 的大致验证时间；无需关注结果数值，只关注可运行性和耗时，要求直接在 xiaochou 环境执行直到给出时间估算。
 
 **A:** 已新增 `analysis/benchmark_ficd_run_validation.py`，用 48 个随机 `(160,180,160)` 体数据直接调用当前 `run_validation` 做计时，并兼容加载 FICD 仓库的 `epoch50_checkpoint.pt`。实测发现当前 `run_validation` 原样调用会失败，报错为输入通道数不匹配：验证阶段默认走了 `inferer.sample(..., conditioning=mri)` 的 cross-attention 路径，输入仍是单通道噪声，和当前 2 通道 concat 训练方式不一致。脚本随后用 `mode='concat'` 的兼容包装完成了 48 样本、100 diffusion steps 的整轮基准，总耗时约 2613.29 秒，即 43.6 分钟，折合约每样本 54.44 秒；按步数线性外推，若跑 1000 steps，48 样本约需 26132.91 秒，即约 7.26 小时。峰值显存约 3.38 GB。
+## 2026-04-22 20:25 | README 准确性更新
+
+**Q:** 基于项目内容更新 README.md，使其更准确。
+
+**A:** 阅读了 `plasma_train.py`、`adapter_v2/train.py`、`adapter_v2/config.yaml`、`adapter_v2/models.py`、`adapter_v2/losses.py`、`precompute_plasma_emb.py` 等核心文件，对 README.md 做了以下修正：1）明确当前 plasma key 默认为 `pT217_F`（单 key），生成阶段 TAU-only（alpha=beta=0, gamma=1）；2）Stage A 补充了模型分支细节、损失项、验证指标（线性探针/context注入/plasma shuffle反事实）及 run 产物；3）Stage B 新增了模型架构（DistributedDiffusionModelUNet channels/attention）、DDPM v_prediction + 线性插值训练范式、epoch≥140 相变、AMP、验证指标（SSIM/PSNR/MAE）；4）precompute_plasma_emb.py 补充了完整信号流；5）删除了重复/过时的 section 8-10，合并为简洁的术语表。
 
 ---

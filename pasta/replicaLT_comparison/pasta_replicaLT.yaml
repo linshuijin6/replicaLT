@@ -1,0 +1,78 @@
+##### Unet config ####
+# 与原始 pasta_mri2pet.yaml 相同的 UNet 架构
+
+image_size: [96, 112]
+model_in_channels: 15
+out_channels_model: 15
+unet_dim: 64
+encoder_in_channels: 15
+out_channels_encoder: 15
+num_res_blocks: 4
+attention_resolutions: [16, 8, 4]
+num_heads: 4
+unet_dim_mults: [1, 2, 3, 4]
+dropout: 0
+dims: 2
+cond_emb_channels: 2048
+resblock_updown: true
+use_time_condition: true
+
+# ★ 开启 tabular 条件（使用 extract_tabular.py 提取的 ADNIMERGE2 真实临床信息）
+# tab_cond_dim = 6 特征 + 3 missing mask = 9（由 process_tabular_data 自动追加）
+tab_cond_dim: 9
+use_tabular_cond_model: condition
+use_tabular_cond_encoder: null
+tabular_cond: true
+with_attention: True
+cond_apply_method: 'ada'
+
+
+##### Diffusion config ####
+
+timestep_respacing: ddim100
+beta_schedule: cosine
+timesteps: 1000
+objective: START_X
+model_var_type: FIXED_LARGE
+gen_type: ddim
+condition: True
+loss_type: l1
+reconstructed_loss: l1
+recon_weight: 0.1
+rescale_intensity: True
+
+
+##### Trainer config ####
+
+input_slice_channel: 15
+data_dir: "/home/ssddata/linshuijin/PASTA/data/"
+train_batch_size: 6
+train_lr: !!float 5e-4
+weight_decay: !!float 1e-6
+train_num_steps: 72000
+save_and_sample_every: 500
+num_samples: 16
+gradient_accumulate_every: 3
+ema_decay: 0.999
+amp: false
+fp16: true
+calculate_fid: true
+dataset: MRI2PET
+image_direction: axial
+num_slices: 96
+ROI_mask: null   # 无 ROI mask
+model_cycling: true  # 保留 cycle exchange consistency（PASTA 特色）
+with_DTI: false
+dx_labels: ['CN', 'Dementia', 'MCI']
+results_folder: "pasta_results"
+resume: null
+pretrain: null
+
+
+###### evaluation config #####
+
+test_batch_size: 32
+eval_dataset: ADNI
+eval_resolution: [96, 112, 96]
+eval_mode: false    # 训练模式
+synthesis: false

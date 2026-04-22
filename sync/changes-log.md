@@ -156,5 +156,10 @@
 | 文件 | 操作 | 摘要 |
 |------|------|------|
 | `analysis/benchmark_ficd_run_validation.py` | 新建 | 新增 run_validation 随机数据基准脚本，验证当前验证路径可运行性并实测 48 个 3D 样本的推理耗时，支持 checkpoint 兼容加载与 1000 步外推估算 |
+## 2026-04-22 20:25 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `README.md` | 编辑 | 全面更新以匹配代码实际状态：修正 plasma key 默认配置、TAU-only 训练权重、Stage B 模型架构/训练范式/验证指标、precompute_plasma_emb 信号流，删除过时章节并合并为术语表 |
 
 ---
