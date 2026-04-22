@@ -158,3 +158,35 @@
 **A:** 追踪完整数据流后定位根因：PASTA推理输出NIfTI已经在[0,1]范围（dataset.py的rescale_intensity_3D映射到[0,1]，diffusion sample()的unnormalize+clamp(0,1)保证输出范围）。但run_comparison.py在加载PASTA NIfTI用于可视化时，又除以了GT的99.5百分位（约0.5-0.7），导致所有值被人为放大（如0.4→0.67），使PASTA在unified图中显著偏亮。修复：移除百分位缩放，仅clip到[0,1]，与Plasma/Legacy的加载方式一致。指标计算无需修改（load_pasta_metrics未使用百分位缩放）。
 
 ---
+
+## 2026-04-22 09:56 | 对齐FICD训练
+
+**Q:** 计划修改 ficd_train.py，使其 train 和 validate 逻辑对齐 FICD.ipynb：一致部分直接照 notebook 实现，不保留额外辅助函数或额外默认参数，并补上 validate 的自动混合精度；同时保留 ficd_train.py 现有的 to_unit_range 处理不改。随后要求直接执行。
+
+**A:** 已按 notebook 对齐 ficd_train.py 的 train 和 validate 主体逻辑。删除了额外的 compute_x0_predictions 辅助函数，把 x0 预测恢复过程改回训练循环内的逐样本 scheduler.step 实现；训练阶段的 PSNR/SSIM 计算移回 autocast 块内；验证阶段新增 autocast 包裹 inferer.sample，与 notebook 保持一致。to_unit_range 的额外处理保留未改，并已用 xiaochou 环境执行 python -m py_compile 对 ficd_train.py 做语法校验通过。
+
+---
+
+## 2026-04-22 10:11 | FICD网络核查
+
+**Q:** 核查 aligned_tau 用于 ficd_train 的配置是否与 FICD.jupyter 一致，重点只看网络，不考虑数据部分。
+
+**A:** 结论是不一致。aligned_tau.yaml 与 ficd_train.py 彼此一致，网络主干参数相同：`spatial_dims=3`、`in_channels=2`、`out_channels=1`、`num_channels=[16,32,64]`、`attention_levels=[false,false,true]`、`num_head_channels=[0,0,64]`、`num_res_blocks=2`、`norm_num_groups=8`、`use_flash_attention=true`。但它们和 FICD.ipynb 的关键差异在条件机制：配置里 `with_conditioning: false`，ficd_train 训练时通过 `inferer(..., condition=condition, mode="concat")` 走拼接条件；笔记本则把模型建成 `with_conditioning=True` 且 `cross_attention_dim=64` 的条件版网络，并在训练时直接传 `condition=condition`。所以如果目标是“与原始 FICD notebook 网络一致”，当前 aligned_tau 配置并不一致，主要差在 concat 条件网络 vs cross-attention 条件网络。
+
+---
+
+## 2026-04-22 10:20 | FICD条件机制
+
+**Q:** 将 aligned_tau 改成与 notebook 完全一致的网络配置，并解释修改后的真实差异；进一步确认 notebook 中 inferer 默认 `mode='concat'` 是否与 ficd_train 一致，以及在这种情况下 train 阶段 `with_conditioning=True/False` 是否仍有差别；同时补写此前跳过的 Notion 记录。
+
+**A:** 已把 `configs/ficd/aligned_tau.yaml` 改为 notebook 同款网络：`with_conditioning: true` 且新增 `cross_attention_dim: 64`，并验证 `ficd_train.build_model` 可正常实例化。核查实现后确认 notebook 与 ficd_train 在 inferer 调用上确实都默认走 `mode='concat'`。但这不意味着 `with_conditioning=True` 和 `False` 等价：`with_conditioning=True` 会把 UNet 在注意力层上的结构从普通 attention block 切换成带 transformer/cross-attention 接口的 block；即使当前调用仍走 concat、没有把 MRI 作为 `context` 喂进去，网络本体也已经变了，参数量、注意力路径和表示能力都不同。Notion 已补写成功，并把上午 `ficd_train.py` 的对齐修改和本次 `aligned_tau.yaml` 的配置修改一并写入今天的自动化记录页。
+
+---
+
+## 2026-04-22 10:52 | 校验FICD验证耗时
+
+**Q:** 新建代码快速校验当前 run_validation 是否能正确运行，并估算 48 个随机 3D 样本配合 checkpoint 的大致验证时间；无需关注结果数值，只关注可运行性和耗时，要求直接在 xiaochou 环境执行直到给出时间估算。
+
+**A:** 已新增 `analysis/benchmark_ficd_run_validation.py`，用 48 个随机 `(160,180,160)` 体数据直接调用当前 `run_validation` 做计时，并兼容加载 FICD 仓库的 `epoch50_checkpoint.pt`。实测发现当前 `run_validation` 原样调用会失败，报错为输入通道数不匹配：验证阶段默认走了 `inferer.sample(..., conditioning=mri)` 的 cross-attention 路径，输入仍是单通道噪声，和当前 2 通道 concat 训练方式不一致。脚本随后用 `mode='concat'` 的兼容包装完成了 48 样本、100 diffusion steps 的整轮基准，总耗时约 2613.29 秒，即 43.6 分钟，折合约每样本 54.44 秒；按步数线性外推，若跑 1000 steps，48 样本约需 26132.91 秒，即约 7.26 小时。峰值显存约 3.38 GB。
+
+---

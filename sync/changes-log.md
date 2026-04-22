@@ -134,3 +134,27 @@
 | `analysis/run_comparison.py` | 编辑 | 移除PASTA可视化加载时的百分位缩放（除以GT p99.5），改为直接clip到[0,1]，修复unified图中PASTA偏亮问题 |
 
 ---
+
+## 2026-04-22 09:56 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `ficd_train.py` | 编辑 | 删除额外的 compute_x0_predictions 辅助函数，将 train 中的 x0 恢复逻辑内联为 notebook 同款 scheduler.step 循环，并为 validate 的 inferer.sample 补充 autocast 混合精度 |
+
+---
+
+## 2026-04-22 10:20 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `configs/ficd/aligned_tau.yaml` | 编辑 | 将网络配置改为与 FICD notebook 一致，开启 with_conditioning 并补充 cross_attention_dim=64 |
+
+---
+
+## 2026-04-22 10:52 | 新建文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/benchmark_ficd_run_validation.py` | 新建 | 新增 run_validation 随机数据基准脚本，验证当前验证路径可运行性并实测 48 个 3D 样本的推理耗时，支持 checkpoint 兼容加载与 1000 步外推估算 |
+
+---
