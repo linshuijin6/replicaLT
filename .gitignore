@@ -25,3 +25,17 @@ tmp_logs/sync_meta.txt
 tmp_logs/zsh_locate.txt
 tmp_logs/zsh_rprompt_verify.txt
 tmp_logs/zshrc_rprompt_snippet.txt
+pasta/data/test.h5
+pasta/data/train.h5
+pasta/data/valid.h5
+pasta/replicaLT_comparison/data/test.h5
+pasta/replicaLT_comparison/data/train.h5
+pasta/replicaLT_comparison/data/valid.h5
+pasta/replicaLT_comparison/results/2026-04-12_331111/_hyperparameters.yaml
+pasta/replicaLT_comparison/results/2026-04-12_331111/scores.txt
+pasta/replicaLT_comparison/results/2026-04-12_331111/inference_output/eval_scores.txt
+pasta/replicaLT_comparison/results/2026-04-12_331111/logs/events.out.tfevents.1775987718.pnxc.331111.0
+pasta/replicaLT_comparison/results/2026-04-12_331111/t-inference_output/eval_scores.txt
+sync/changes-log.md
+sync/chat-log.md
+pasta/1-s2.0-S1361841526001040-main.pdf

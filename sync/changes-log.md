@@ -134,3 +134,11 @@
 | `analysis/run_comparison.py` | 编辑 | 移除PASTA可视化加载时的百分位缩放（除以GT p99.5），改为直接clip到[0,1]，修复unified图中PASTA偏亮问题 |
 
 ---
+
+## 2026-04-22 20:25 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `README.md` | 编辑 | 全面更新以匹配代码实际状态：修正 plasma key 默认配置、TAU-only 训练权重、Stage B 模型架构/训练范式/验证指标、precompute_plasma_emb 信号流，删除过时章节并合并为术语表 |
+
+---

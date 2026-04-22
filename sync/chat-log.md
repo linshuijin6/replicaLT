@@ -158,3 +158,11 @@
 **A:** 追踪完整数据流后定位根因：PASTA推理输出NIfTI已经在[0,1]范围（dataset.py的rescale_intensity_3D映射到[0,1]，diffusion sample()的unnormalize+clamp(0,1)保证输出范围）。但run_comparison.py在加载PASTA NIfTI用于可视化时，又除以了GT的99.5百分位（约0.5-0.7），导致所有值被人为放大（如0.4→0.67），使PASTA在unified图中显著偏亮。修复：移除百分位缩放，仅clip到[0,1]，与Plasma/Legacy的加载方式一致。指标计算无需修改（load_pasta_metrics未使用百分位缩放）。
 
 ---
+
+## 2026-04-22 20:25 | README 准确性更新
+
+**Q:** 基于项目内容更新 README.md，使其更准确。
+
+**A:** 阅读了 `plasma_train.py`、`adapter_v2/train.py`、`adapter_v2/config.yaml`、`adapter_v2/models.py`、`adapter_v2/losses.py`、`precompute_plasma_emb.py` 等核心文件，对 README.md 做了以下修正：1）明确当前 plasma key 默认为 `pT217_F`（单 key），生成阶段 TAU-only（alpha=beta=0, gamma=1）；2）Stage A 补充了模型分支细节、损失项、验证指标（线性探针/context注入/plasma shuffle反事实）及 run 产物；3）Stage B 新增了模型架构（DistributedDiffusionModelUNet channels/attention）、DDPM v_prediction + 线性插值训练范式、epoch≥140 相变、AMP、验证指标（SSIM/PSNR/MAE）；4）precompute_plasma_emb.py 补充了完整信号流；5）删除了重复/过时的 section 8-10，合并为简洁的术语表。
+
+---
