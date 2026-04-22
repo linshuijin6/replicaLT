@@ -22,7 +22,8 @@ model:
   num_res_blocks: 2
   norm_num_groups: 8
   use_flash_attention: true
-  with_conditioning: false
+  with_conditioning: true
+  cross_attention_dim: 64
 
 train:
   batch_size_train: 2

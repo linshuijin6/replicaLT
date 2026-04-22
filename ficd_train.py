@@ -89,23 +89,6 @@ def build_model(config: dict, device: torch.device):
     return model
 
 
-def compute_x0_predictions(
-    scheduler,
-    noise_pred: torch.Tensor,
-    timesteps: torch.Tensor,
-    noised_images: torch.Tensor,
-) -> torch.Tensor:
-    x0_pred = torch.zeros_like(noise_pred)
-    for batch_idx in range(noise_pred.shape[0]):
-        _, pred_original = scheduler.step(
-            model_output=noise_pred[batch_idx : batch_idx + 1],
-            timestep=int(timesteps[batch_idx].item()),
-            sample=noised_images[batch_idx : batch_idx + 1],
-        )
-        x0_pred[batch_idx : batch_idx + 1] = pred_original
-    return x0_pred
-
-
 def get_subject_id(batch_subject_ids, index: int) -> str:
     if isinstance(batch_subject_ids, list):
         return str(batch_subject_ids[index])
@@ -167,14 +150,13 @@ def run_validation(
         mri = batch["mri"]["data"].float().to(device)
         gt = batch["pet"]["data"].float().to(device)
         input_noise = torch.randn_like(gt)
-        pred = inferer.sample(
-            input_noise=input_noise,
-            diffusion_model=model,
-            scheduler=scheduler,
-            conditioning=mri,
-            mode="concat",
-            verbose=False,
-        )
+        with autocast(device_type="cuda", enabled=torch.cuda.is_available()):
+            pred = inferer.sample(
+                input_noise=input_noise,
+                diffusion_model=model,
+                scheduler=scheduler,
+                conditioning=mri,
+            )
 
         pred_unit = to_unit_range(pred)
         gt_unit = to_unit_range(gt)
@@ -381,6 +363,8 @@ def main() -> None:
 
             with autocast(device_type="cuda", enabled=torch.cuda.is_available()):
                 noise = torch.randn_like(images)
+                intermediates_pred = torch.randn_like(images).to(device)
+                x0_pred = torch.randn_like(images).to(device)
                 timesteps = torch.randint(
                     0,
                     scheduler.num_train_timesteps,
@@ -392,23 +376,26 @@ def main() -> None:
                     diffusion_model=model,
                     noise=noise,
                     timesteps=timesteps,
-                    condition=condition,
-                    mode="concat",
+                    condition=condition
                 )
                 noised_image = scheduler.add_noise(original_samples=images, noise=noise, timesteps=timesteps)
-                x0_pred = compute_x0_predictions(scheduler, noise_pred, timesteps, noised_image)
+                for n in range(len(noise_pred)):
+                    intermediates_pred[n,], x0_pred[n] = scheduler.step(
+                        torch.unsqueeze(noise_pred[n, :, :, :, :], 0),
+                        timesteps[n],
+                        torch.unsqueeze(noised_image[n, :, :, :, :], 0),
+                    )
                 noise_loss = F.mse_loss(noise_pred.float(), noise.float())
                 x0_pred_loss = F.l1_loss(x0_pred.float(), images.float())
                 loss = noise_loss + x0_pred_loss
+                pred_metric = to_unit_range(x0_pred.detach())
+                gt_metric = to_unit_range(images.detach())
+                psnr_value = float(psnr_metric(pred_metric.cpu(), gt_metric.cpu()).mean().item())
+                ssim_value = float(ssim_metric(gt_metric.cpu(), pred_metric.cpu()).mean().item())
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-
-            pred_metric = to_unit_range(x0_pred.detach())
-            gt_metric = to_unit_range(images.detach())
-            psnr_value = float(psnr_metric(pred_metric.cpu(), gt_metric.cpu()).mean().item())
-            ssim_value = float(ssim_metric(gt_metric.cpu(), pred_metric.cpu()).mean().item())
 
             epoch_loss += float(loss.item())
             epoch_noise_loss += float(noise_loss.item())
