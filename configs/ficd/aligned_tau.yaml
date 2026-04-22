@@ -29,7 +29,7 @@ train:
   batch_size_train: 2
   batch_size_val: 1
   epochs: 50
-  lr: 5.0e-5
+  lr: 1.0e-4
   num_train_timesteps: 1000
   num_inference_steps: 1000
   save_every: 1

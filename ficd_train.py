@@ -39,15 +39,15 @@ from ficd.utils import (
     setup_logger,
     write_json,
 )
-from generative.inferers import DiffusionInferer
-from generative.metrics import SSIMMetric
-from generative.networks.nets import DiffusionModelUNet
-from generative.networks.schedulers import DDPMScheduler
+from ficd.generative.inferers import DiffusionInferer
+from ficd.generative.metrics import SSIMMetric
+from ficd.generative.networks.nets import DiffusionModelUNet
+from ficd.generative.networks.schedulers import DDPMScheduler
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FICD baseline training/evaluation")
-    parser.add_argument("--config", required=True, help="Path to YAML config.")
+    parser.add_argument("--config", default="/home/data/linshuijin/replicaLT/configs/ficd/aligned_tau.yaml", help="Path to YAML config.")
     parser.add_argument("--resume", default=None, help="Existing run directory to resume into.")
     parser.add_argument("--checkpoint", default=None, help="Checkpoint path or name under run dir.")
     parser.add_argument("--eval-only", action="store_true", help="Run validation/inference only.")
@@ -155,7 +155,7 @@ def run_validation(
                 input_noise=input_noise,
                 diffusion_model=model,
                 scheduler=scheduler,
-                conditioning=mri,
+                conditioning=mri
             )
 
         pred_unit = to_unit_range(pred)
@@ -288,9 +288,7 @@ def main() -> None:
         num_train_timesteps=int(config["train"]["num_train_timesteps"]),
         schedule="scaled_linear_beta",
         beta_start=0.0005,
-        beta_end=0.0195,
-        clip_sample_min=-1.0,
-        clip_sample_max=1.0,
+        beta_end=0.0195
     )
     inferer = DiffusionInferer(scheduler)
     scaler = GradScaler(enabled=torch.cuda.is_available())
