@@ -69,7 +69,7 @@ def _resolve_path(repo_root: Path, value: str) -> str:
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
     config_path = Path(config_path).resolve()
-    repo_root = config_path.parents[2]
+    repo_root = config_path.parents[1]
 
     with config_path.open("r", encoding="utf-8") as handle:
         file_config = yaml.safe_load(handle) or {}

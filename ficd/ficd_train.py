@@ -47,7 +47,7 @@ from generative.networks.schedulers import DDPMScheduler
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FICD baseline training/evaluation")
-    parser.add_argument("--config", default="/home/data/linshuijin/replicaLT/configs/ficd/aligned_tau.yaml", help="Path to YAML config.")
+    parser.add_argument("--config", default="/home/data/linshuijin/replicaLT/ficd/aligned_tau.yaml", help="Path to YAML config.")
     parser.add_argument("--resume", default=None, help="Existing run directory to resume into.")
     parser.add_argument("--checkpoint", default=None, help="Checkpoint path or name under run dir.")
     parser.add_argument("--eval-only", action="store_true", help="Run validation/inference only.")
@@ -130,6 +130,7 @@ def run_validation(
     save_predictions: bool,
     figure_suffix: str,
     logger,
+    predictions_dir_override: Path | None = None,
 ) -> dict[str, float]:
     model.eval()
     scheduler.set_timesteps(num_inference_steps=num_inference_steps, device=device)
@@ -142,7 +143,7 @@ def run_validation(
     subject_metric_rows: list[dict[str, float | str]] = []
     visualization_payload = None
 
-    predictions_dir = run_dir / "predictions" / figure_suffix
+    predictions_dir = predictions_dir_override if predictions_dir_override is not None else run_dir / "predictions" / figure_suffix
     if save_predictions:
         predictions_dir.mkdir(parents=True, exist_ok=True)
 
@@ -200,7 +201,16 @@ def run_validation(
     }
 
     if save_predictions:
-        write_json(predictions_dir / "subject_metrics.json", subject_metric_rows)
+        metrics_path = predictions_dir / "subject_metrics.json"
+        if metrics_path.exists():
+            existing_rows = json.loads(metrics_path.read_text())
+            existing_ids = {r["subject_id"] for r in existing_rows}
+            for row in subject_metric_rows:
+                if row["subject_id"] not in existing_ids:
+                    existing_rows.append(row)
+            write_json(metrics_path, existing_rows)
+        else:
+            write_json(metrics_path, subject_metric_rows)
 
     if writer is not None:
         writer.add_scalar("val/loss", metrics["val_loss"], epoch)
@@ -308,31 +318,56 @@ def main() -> None:
         logger.info("Loaded checkpoint: %s", checkpoint_path)
 
     if args.eval_only:
-        metrics = run_validation(
-            model=model,
-            inferer=inferer,
-            loader=val_loader,
-            scheduler=scheduler,
-            device=device,
-            run_dir=run_dir,
-            writer=writer,
-            global_step=global_step,
-            epoch=start_epoch,
-            num_inference_steps=int(config["train"]["num_inference_steps"]),
-            save_predictions=True,
-            figure_suffix="eval",
-            logger=logger,
+        # Derive predictions_dir from checkpoint location
+        eval_predictions_dir = checkpoint_path.parent / "inference"
+        eval_predictions_dir.mkdir(parents=True, exist_ok=True)
+
+        # Scan existing predictions and filter out completed subjects
+        existing_nii = {p.stem.replace(".nii", "") for p in eval_predictions_dir.glob("*.nii.gz")}
+        remaining_samples = [s for s in val_samples if s["subject_id"] not in existing_nii]
+        skipped_count = len(val_samples) - len(remaining_samples)
+        logger.info(
+            "Eval-only: %d/%d subjects already done, %d remaining",
+            skipped_count, len(val_samples), len(remaining_samples),
         )
-        append_csv_row(
-            run_dir / "metrics.csv",
-            {
-                "epoch": start_epoch,
-                "split": "eval",
-                "loss": metrics["val_loss"],
-                "psnr": metrics["val_psnr"],
-                "ssim": metrics["val_ssim"],
-            },
-        )
+
+        if not remaining_samples:
+            logger.info("All subjects already have predictions in %s, nothing to do.", eval_predictions_dir)
+        else:
+            eval_dataset = build_dataset(remaining_samples, transform)
+            eval_loader = DataLoader(
+                eval_dataset,
+                batch_size=int(config["train"]["batch_size_val"]),
+                shuffle=False,
+                num_workers=int(data_cfg["num_workers"]),
+                pin_memory=bool(data_cfg["pin_memory"]),
+            )
+            metrics = run_validation(
+                model=model,
+                inferer=inferer,
+                loader=eval_loader,
+                scheduler=scheduler,
+                device=device,
+                run_dir=run_dir,
+                writer=writer,
+                global_step=global_step,
+                epoch=start_epoch,
+                num_inference_steps=int(config["train"]["num_inference_steps"]),
+                save_predictions=True,
+                figure_suffix="eval",
+                logger=logger,
+                predictions_dir_override=eval_predictions_dir,
+            )
+            append_csv_row(
+                run_dir / "metrics.csv",
+                {
+                    "epoch": start_epoch,
+                    "split": "eval",
+                    "loss": metrics["val_loss"],
+                    "psnr": metrics["val_psnr"],
+                    "ssim": metrics["val_ssim"],
+                },
+            )
         if writer is not None:
             writer.flush()
             writer.close()
