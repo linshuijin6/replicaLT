@@ -1,5 +1,13 @@
 # Chat Log
 
+## 2026-04-24 14:20 | 修复 run_comparison subject 排序与路径兼容
+
+**Q:** `analysis/run_comparison.py` 运行时报 `TypeError: '<' not supported between instances of 'dict' and 'dict'`，定位到 `load_subjects()` 对 `analysis/_common_subjects.json` 直接 `sorted(json.load(f))`。需要修复并确保脚本能继续跑通。
+
+**A:** 根因是 `analysis/_common_subjects.json` 已从 subject 字符串列表改成 `{name, examdate}` 记录列表，`load_subjects()` 仍按旧格式直接排序，触发字典比较异常。已将 loader 改为兼容新旧两种格式：字符串列表时维持旧行为；字典列表时提取 subject 名称，并优先按 `analysis/comparison_results/val_43_subjects.json` 选出当前比较脚本实际使用的 43 个唯一 subject。随后继续联调时又发现两个连带问题并一并修复：(1) PASTA 某些被试存在多次扫描，`find_pasta_pair()` 原先要求“同名只出现一对 NIfTI”，现已改为结合 `val_43_subjects.json` 里的 `examdate/diagnosis` 精确匹配；(2) FiCD 可视化阶段把已是 `.../inference` 的 `run_dir` 又拼了一次 `/inference`，现已改为自动解析 `run_dir`、`run_dir/inference` 和 `run_dir/predictions/*` 等结果目录。最终在 `xiaochou` 环境完整执行 `conda run -n xiaochou python analysis/run_comparison.py` 成功，脚本顺利完成统计、可视化和报告生成。
+
+---
+
 ## 2026-04-20 18:20 | ficd目录全面探索
 
 **Q:** 彻底探索 ficd/ 目录及相关文件：列出所有文件、完整读取 config.py/data.py/utils.py、查找 YAML 配置、检查 report_error.py、查看训练日志。
@@ -193,5 +201,52 @@
 **Q:** 基于项目内容更新 README.md，使其更准确。
 
 **A:** 阅读了 `plasma_train.py`、`adapter_v2/train.py`、`adapter_v2/config.yaml`、`adapter_v2/models.py`、`adapter_v2/losses.py`、`precompute_plasma_emb.py` 等核心文件，对 README.md 做了以下修正：1）明确当前 plasma key 默认为 `pT217_F`（单 key），生成阶段 TAU-only（alpha=beta=0, gamma=1）；2）Stage A 补充了模型分支细节、损失项、验证指标（线性探针/context注入/plasma shuffle反事实）及 run 产物；3）Stage B 新增了模型架构（DistributedDiffusionModelUNet channels/attention）、DDPM v_prediction + 线性插值训练范式、epoch≥140 相变、AMP、验证指标（SSIM/PSNR/MAE）；4）precompute_plasma_emb.py 补充了完整信号流；5）删除了重复/过时的 section 8-10，合并为简洁的术语表。
+
+---
+
+## 2026-04-22 | FiCD 路径 parents[2] 错误
+
+**Q:** run_comparison.py 运行 FiCD eval 时报 FileNotFoundError，路径指向 `/home/data/linshuijin/train_data_with_description.json` 而非项目根目录。
+
+**A:** 根因在 `ficd/config.py` 的 `load_config` 中，`repo_root = config_path.parents[2]` 对于 `ficd/aligned_tau.yaml`（只在仓库根下一层）会错误地上溯到 `/home/data/linshuijin/`。将其改为 `parents[1]` 即可正确指向项目根 `replicaLT/`。
+
+---
+
+## 2026-04-23 10:03 | 硬路径统一至文件头
+
+**Q:** run_comparison.py 的 print 中提示的保存路径与实际不符，需要将硬编码路径统一至文件头。
+
+**A:** 在 `analysis/run_comparison.py` 头部新增 `FIG_DIR = OUT_DIR / "figures"`，将 `main()` 中三处分散的硬编码路径（`(OUT_DIR / "figures").mkdir()`、`ROOT / "analysis" / "_common_subjects.json"`、`fig_dir = OUT_DIR / "figures"`）分别替换为头部变量 `FIG_DIR` 和已有的 `COMMON_SUBJECTS`，所有路径统一由文件头管理。
+
+---
+
+## 2026-04-23 10:39 | run_comparison 运行逻辑重构
+
+**Q:** 重构 `analysis/run_comparison.py`：头部配置分成“方法推理输入 / 已有推理结果”，支持 `legacy/pasta/ficd/plasma` 四方法开关；增加 PASTA 推理入口；已有结果路径允许硬编码；重新推理相关路径不使用硬编码绝对路径；新生成结果统一写到 `OUT_DIR`；去掉补丁式假跑逻辑。
+
+**A:** 将 `run_comparison.py` 重写为配置驱动结构：新增全局 `RUN_MODE`、`ENABLED_METHODS`、`OUT_DIR` 和四方法 `METHOD_SPECS`；`existing_results` 使用绝对路径硬编码，`inference_inputs` 则全部基于仓库根目录派生。新增 `run_pasta_inference()` 对接 `pasta/replicaLT_comparison/inference_pasta_replicaLT.py`，并将 FiCD eval 改为以 `OUT_DIR/ficd` 作为 `resume` 目录、用已有 checkpoint 做 `--eval-only` 输出。统一指标/汇总/统计/图像/报告全部收口到 `OUT_DIR` 下，保留“仅在 `use_existing_results` 且已有统一 metrics CSV 时跳过重算”的行为；其余场景采用 fail-fast，启用方法缺文件会直接报错，不再静默 `continue` 假跑。可视化、统计和报告也改为跟随当前启用方法动态生成。
+
+---
+
+## 2026-04-23 18:05 | 提取 test_data_with_description
+
+**Q:** 基于 `analysis/_common_subjects.json` 中给出的 `Subject_ID`，从 `val_data_with_description.json` 里抽出 `test_data_with_description.json`，并补一段可复用代码直接生成结果。
+
+**A:** 新增 `analysis/extract_test_data_with_description.py`，按 `name in _common_subjects` 过滤 `val_data_with_description.json`，并直接输出根目录 `test_data_with_description.json`。已在 `xiaochou` 环境执行生成，结果为 43 个 subject、56 条记录，且 `_common_subjects.json` 中的 subject 全部命中，无缺失。
+
+---
+
+## 2026-04-23 18:18 | _check_subjects 唯一匹配修正
+
+**Q:** 修改 `analysis/_check_subjects.py` 的检查逻辑：由于同一被试存在多个扫描，不能只按 `subject_id` 匹配，需要增加 `examdate`；各方法的校验 JSON 路径使用硬编码，且不区分 val/test。PASTA 使用 `pasta/data/val_tabular.json`，FiCD / plasma / legacy 使用仓库根目录的 `val_data_with_description.json`。
+
+**A:** 已将 `_check_subjects.py` 重写为基于 `(name, examdate)` 的唯一键校验逻辑，并把四个方法的 JSON 路径硬编码到脚本头部。脚本现直接从各方法 JSON 中提取带真实 TAU 的样本对，不再依赖 `fixed_split.json` 或 PASTA 输出文件名。执行后得到四方法公共样本 88 对，并将 `analysis/_common_subjects.json` 更新为 `[{name, examdate}, ...]` 结构。
+
+---
+## 2026-04-24 | FiCD unified 可视化尺寸和值域修复
+
+**Q:** 按计划修改 `analysis/run_comparison.py`，重点修复 FiCD 在 unified comparison 图中的尺寸不匹配、数据一致性和 clip/背景数值被抬高问题；修改后必须执行一次 `run_comparison.py`，并确认新的 `unified...png` 与预期相符。
+
+**A:** 已修复 FiCD 可视化路径：删除对 FiCD NIfTI 的二次 `(raw + 1) / 2` 转换，改为检查并直接 `clip` 已保存的 `[0,1]` `pred_unit`；从 FiCD run 的 `hparams.json` 读取 `crop=(11,10,20,17,0,21)` 和 `target_shape=(160,180,160)`，按“逆 resize 到 crop 后原始空间 -> pad 回 182×218×182 -> 参考 MRI foreground crop/pad 到 160×192×160”统一显示空间；新增 FiCD `(subject_id, examdate)` 与 `mri/tau` 路径一致性校验。已运行 `conda run -n xiaochou python -m py_compile analysis/run_comparison.py` 和 `conda run -n xiaochou python analysis/run_comparison.py` 成功；额外生成并查看 `analysis/comparison_results/figures/unified_comparison_006_S_6441.png`，FiCD 背景已恢复黑色，不再出现整块粉红背景，脑区尺寸与 GT/Plasma 同一显示空间。
 
 ---

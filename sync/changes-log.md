@@ -1,10 +1,31 @@
 # Changes Log
 
+## 2026-04-24 14:20 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/run_comparison.py` | 编辑 | 修复 `_common_subjects.json` 改为 `{name, examdate}` 列表后触发的 `load_subjects()` 字典排序报错；兼容新旧 subject 格式；PASTA 文件匹配改为结合 `val_43_subjects.json` 的 `examdate/diagnosis` 做精确筛选；FiCD 结果目录改为自动解析 `run_dir`/`inference`/`predictions` 布局 |
+| `analysis/comparison_results/comparison_report.md` | 编辑 | 重新运行 `analysis/run_comparison.py` 后更新比较报告 |
+| `sync/chat-log.md` | 编辑 | 记录本次 `run_comparison.py` 报错修复与验证结果 |
+| `sync/changes-log.md` | 编辑 | 追加本次代码与输出更新日志 |
+
+---
+
 ## 2026-04-12 14:38 | 编辑文件
 
 | 文件 | 操作 | 摘要 |
 |------|------|------|
 | `plasma_train.py` | 编辑 | cache_dir 和 plasma_emb_dir 从 nfsdata 路径改为本地 NVMe 路径 /mnt/linshuijin/ |
+
+---
+
+## 2026-04-23 10:39 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/run_comparison.py` | 编辑 | 重构为配置驱动运行脚本：新增四方法嵌套配置、`RUN_MODE`/`ENABLED_METHODS`、PASTA 推理入口、统一 `OUT_DIR` 输出、fail-fast 校验、按启用方法动态统计与绘图 |
+| `sync/chat-log.md` | 编辑 | 记录本次 `run_comparison.py` 运行逻辑重构摘要 |
+| `sync/changes-log.md` | 编辑 | 追加本次代码改动日志 |
 
 ---
 
@@ -161,5 +182,56 @@
 | 文件 | 操作 | 摘要 |
 |------|------|------|
 | `README.md` | 编辑 | 全面更新以匹配代码实际状态：修正 plasma key 默认配置、TAU-only 训练权重、Stage B 模型架构/训练范式/验证指标、precompute_plasma_emb 信号流，删除过时章节并合并为术语表 |
+
+---
+
+## 2026-04-22 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `ficd/config.py` | 编辑 | `load_config` 中 `repo_root = config_path.parents[2]` 改为 `parents[1]`，修复 JSON 路径解析错误 |
+
+---
+
+## 2026-04-23 10:03 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/run_comparison.py` | 编辑 | 新增 FIG_DIR 到头部路径块，将 main() 内三处硬编码路径替换为头部变量 FIG_DIR 和 COMMON_SUBJECTS |
+
+---
+
+## 2026-04-23 18:05 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/extract_test_data_with_description.py` | 新建 | 新增最小提取脚本，按 `analysis/_common_subjects.json` 中的 subject 过滤 `val_data_with_description.json`，输出 `test_data_with_description.json` |
+| `test_data_with_description.json` | 新建 | 从 `val_data_with_description.json` 抽取出 56 条记录，覆盖 43 个 common subjects |
+| `sync/chat-log.md` | 编辑 | 记录本次 test split 提取任务摘要 |
+| `sync/changes-log.md` | 编辑 | 追加本次代码与数据文件变更日志 |
+
+---
+
+## 2026-04-23 18:18 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/_check_subjects.py` | 编辑 | 将样本校验从仅按 subject 改为按 `(name, examdate)` 唯一匹配；移除 `fixed_split.json` 和 PASTA 输出文件名依赖；四方法 JSON 路径改为硬编码 |
+| `analysis/_common_subjects.json` | 编辑 | 输出格式从 subject 字符串列表改为 `{name, examdate}` 对列表，保存四方法公共样本 88 对 |
+| `sync/chat-log.md` | 编辑 | 记录本次 `_check_subjects.py` 校验逻辑修正摘要 |
+| `sync/changes-log.md` | 编辑 | 追加本次样本匹配逻辑和输出格式变更日志 |
+
+---
+
+## 2026-04-24 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `analysis/run_comparison.py` | 编辑 | 修复 FiCD unified 可视化：删除二次 `(raw + 1) / 2`，新增 `[0,1]` 值域断言、FiCD `hparams.json` crop/target_shape 读取、按 `examdate` 和 MRI/TAU 路径一致性校验，以及 `160×180×160 -> 182×218×182 -> 160×192×160` 的显示空间还原 |
+| `analysis/comparison_results/comparison_report.md` | 生成/编辑 | 执行 `run_comparison.py` 后重新生成比较报告 |
+| `analysis/comparison_results/figures/unified_comparison_006_S_6441.png` | 生成/编辑 | 使用修复后的 FiCD 对齐逻辑生成指定 subject 的 unified 图，用于确认背景和尺寸问题已修复 |
+| `analysis/comparison_results/figures/unified_comparison_114_S_6429.png` | 生成/编辑 | 执行 `run_comparison.py` 后自动刷新 unified 图 |
+| `analysis/comparison_results/figures/unified_comparison_130_S_6688.png` | 生成/编辑 | 执行 `run_comparison.py` 后自动刷新 unified 图 |
+| `analysis/comparison_results/figures/unified_comparison_033_S_6889.png` | 生成/编辑 | 执行 `run_comparison.py` 后自动刷新 unified 图 |
 
 ---
