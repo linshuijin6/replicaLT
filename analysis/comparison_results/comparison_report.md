@@ -1,4 +1,4 @@
-# MRI → TAU PET 四方法对比实验报告
+# MRI → TAU PET 多方法对比实验报告
 
 ## 实验概述
 
@@ -13,7 +13,7 @@
 
 | 方法 | 模型类型 | 输出分辨率 | 条件注入 |
 |------|----------|-----------|---------|
-| PASTA | 2.5D DDIM-100 扩散 | 96×112×96 (1.5mm) | Slice-level conditioning |
+| PASTA | 2.5D DDIM-100 diffusion | 96×112×96 (1.5mm) | Slice-level conditioning |
 | Legacy | Rectified-flow 1-step | 160×192×160 (1mm) | BiomedCLIP text token |
 | Plasma (Ours) | Rectified-flow 1-step | 160×192×160 (1mm) | Plasma embedding + text token |
 | FiCD | DDPM concat-conditioning | 160×180×160 | MRI concat + text embedding |
@@ -53,7 +53,6 @@
 
 ## 注意事项
 
-1. **分辨率差异**: PASTA 在 96×112×96 (1.5mm) 下评估，其余方法在 ~160³ (1mm) 下评估。各方法使用自身分辨率下的配对 GT 计算指标，因此指标间存在分辨率偏差。
-2. **FiCD 训练不足**: FiCD 仅进行了 1 epoch smoke test 训练，指标预期较差。
-3. **NCC**: FiCD 的 NCC 未计算（缺少同分辨率 GT NIfTI）。
-4. **Plasma (Ours)** 使用预训练 plasma embedding 作为条件 token，是本项目的核心创新方法。
+1. PASTA 在 96×112×96 (1.5mm) 分辨率下评估，其余方法在约 160³ (1mm) 或相近空间下评估。
+2. FiCD 的 NCC 仍未计算，因为当前保存结果缺少可直接对齐的 GT NIfTI。
+3. 若启用 `rerun_inference`，所有新生成结果统一保存在当前 `OUT_DIR` 下。
