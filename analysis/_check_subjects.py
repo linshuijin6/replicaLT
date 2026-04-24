@@ -1,58 +1,85 @@
 #!/usr/bin/env python3
-"""Check subject overlap across all 4 methods."""
-import json, os, re
+"""Check common subject-examdate pairs across all methods."""
 
-# 1) val_json TAU subjects
-with open('val_data_with_description.json') as f:
-    val_data = json.load(f)
-tau_entries = [e for e in val_data if e.get('tau') and '/zero/' not in e.get('tau','')]
-tau_subjects = sorted(set(e['name'] for e in tau_entries))
-print(f'val_json total: {len(val_data)}, with real TAU: {len(tau_entries)}, unique subjects: {len(tau_subjects)}')
+from __future__ import annotations
 
-# 2) fixed_split val_subjects
-with open('fixed_split.json') as f:
-    split = json.load(f)
-val_subs = set(split['val_subjects'])
-print(f'fixed_split val_subjects: {len(val_subs)}')
+import json
+from pathlib import Path
 
-# 3) PASTA subjects
-pasta_dir = '/mnt/nfsdata/nfsdata/lsj.14/PASTA/replicaLT_comparison/results/2026-04-12_331111/inference_output'
-pasta_files = os.listdir(pasta_dir)
-pasta_subjects = set()
-pasta_file_map = {}
-for fn in pasta_files:
-    if fn.endswith('_syn_pet.nii.gz'):
-        m = re.match(r'^(\d+_S_\d+)__', fn)
-        if m:
-            sid = m.group(1)
-            pasta_subjects.add(sid)
-            pasta_file_map[sid] = fn
-print(f'PASTA subjects: {len(pasta_subjects)}')
 
-# 4) Intersection
-common = set(tau_subjects) & val_subs & pasta_subjects
-print(f'\nCommon subjects (all 3): {len(common)}')
-print('Subjects:', sorted(common))
-missing_from_pasta = (set(tau_subjects) & val_subs) - pasta_subjects
-print(f'\nIn val+tau but not in PASTA ({len(missing_from_pasta)}): {sorted(missing_from_pasta)}')
+ROOT = Path("/home/data/linshuijin/replicaLT")
 
-# 5) Check PASTA output shape
-import nibabel as nib
-first_pasta = next(iter(pasta_file_map.values()))
-img = nib.load(os.path.join(pasta_dir, first_pasta))
-print(f'\nPASTA output shape: {img.shape}, voxel size: {img.header.get_zooms()}')
-print(f'Value range: [{img.get_fdata().min():.4f}, {img.get_fdata().max():.4f}]')
+METHOD_JSON_PATHS = {
+    "pasta": ROOT / "pasta/data/val_tabular.json",
+    "ficd": ROOT / "val_data_with_description.json",
+    "plasma": ROOT / "val_data_with_description.json",
+    "legacy": ROOT / "val_data_with_description.json",
+}
 
-# Check a val_json TAU GT shape
-sample = tau_entries[0]
-if os.path.exists(sample['tau']):
-    gt_img = nib.load(sample['tau'])
-    print(f'TAU GT shape: {gt_img.shape}, voxel size: {gt_img.header.get_zooms()}')
-if os.path.exists(sample['mri']):
-    mri_img = nib.load(sample['mri'])
-    print(f'MRI shape: {mri_img.shape}, voxel size: {mri_img.header.get_zooms()}')
+COMMON_KEYS_JSON = ROOT / "analysis/_common_subjects.json"
 
-# Save common subjects list for later use
-with open('analysis/_common_subjects.json', 'w') as f:
-    json.dump(sorted(common), f, indent=2)
-print(f'\nSaved {len(common)} common subjects to analysis/_common_subjects.json')
+
+def load_json_list(path: Path) -> list[dict]:
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        raise ValueError(f"{path} is not a JSON list")
+    return data
+
+
+def has_real_tau(item: dict) -> bool:
+    tau_path = str(item.get("tau", "") or "")
+    return bool(tau_path) and "/zero/" not in tau_path
+
+
+def make_key(item: dict) -> tuple[str, str]:
+    subject_id = str(item.get("name", "") or "")
+    examdate = str(item.get("examdate", "") or "")
+    return subject_id, examdate
+
+
+def collect_keys(data: list[dict]) -> set[tuple[str, str]]:
+    return {
+        make_key(item)
+        for item in data
+        if item.get("name") and item.get("examdate") and has_real_tau(item)
+    }
+
+
+def main() -> None:
+    method_keys: dict[str, set[tuple[str, str]]] = {}
+
+    for method, path in METHOD_JSON_PATHS.items():
+        data = load_json_list(path)
+        keys = collect_keys(data)
+        method_keys[method] = keys
+        unique_subjects = len({subject_id for subject_id, _ in keys})
+        print(
+            f"{method}: total={len(data)}, with real TAU unique pairs={len(keys)}, "
+            f"unique subjects={unique_subjects}"
+        )
+
+    common_keys = set.intersection(*method_keys.values())
+    common_items = [
+        {"name": subject_id, "examdate": examdate}
+        for subject_id, examdate in sorted(common_keys)
+    ]
+
+    print(f"\nCommon subject-examdate pairs across all methods: {len(common_items)}")
+    print("Pairs:", common_items)
+
+    for method, keys in method_keys.items():
+        missing = sorted(common_keys - keys)
+        extra = sorted(keys - common_keys)
+        print(f"\n{method} missing common pairs: {len(missing)}")
+        print(f"{method} extra pairs beyond common set: {len(extra)}")
+
+    COMMON_KEYS_JSON.write_text(
+        json.dumps(common_items, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"\nSaved {len(common_items)} common pairs to {COMMON_KEYS_JSON}")
+
+
+if __name__ == "__main__":
+    main()
