@@ -28,14 +28,14 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # ─────────────────────────── paths ────────────────────────────
 BASE_DIR = Path(__file__).parent
-ADNIMERGE_DATA = BASE_DIR / "ADNIMERGE2" / "data"
+ADNIMERGE_DATA = Path("/mnt/nfsdata/nfsdata/lsj.14/PASTA/replicaLT_comparison/ADNIMERGE2/data")
 REPLICA_DIR = Path("/mnt/nfsdata/nfsdata/lsj.14/replicaLT")
 
 JSON_FILES = {
     "train": REPLICA_DIR / "train_data_with_description.json",
     "val":   REPLICA_DIR / "val_data_with_description.json",
 }
-OUTPUT_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "t"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─────────────────────────── helpers ──────────────────────────

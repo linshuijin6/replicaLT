@@ -46,14 +46,14 @@ import numpy as np
 from tqdm import tqdm
 from report_error import email_on_error
 # ============ 配置 ============
-REPLICA_LT_DIR = "/mnt/nfsdata/nfsdata/lsj.14/replicaLT"
+REPLICA_LT_DIR = "/home/data/linshuijin/replicaLT"
 
 # ★ 使用 extract_tabular.py 生成的、含真实临床字段的 JSON
 TABULAR_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 TRAIN_JSON = os.path.join(TABULAR_DATA_DIR, "train_tabular.json")
 VAL_JSON   = os.path.join(TABULAR_DATA_DIR, "val_tabular.json")
 
-OUTPUT_DIR = "/mnt/linshuijin/data"
+OUTPUT_DIR = "/home/data/linshuijin/replicaLT/pasta/data"
 TARGET_SHAPE = (113, 137, 113)  # PASTA 标准输入
 TARGET_SPACING = (1.5, 1.5, 1.5)  # PASTA 标准体素
 
@@ -338,8 +338,8 @@ def main():
     # 将验证集一半作为 valid，一半作为 test（PASTA 需要 train/valid/test 三份）
     # 或者直接用 val 作为 valid，再用 val 作为 test（对比实验中常用做法）
     mid = len(val_data) // 2
-    valid_data = val_data[:mid]
-    test_data = val_data[mid:]
+    valid_data = val_data
+    test_data = val_data
     print(f"  -> valid: {len(valid_data)}, test: {len(test_data)}")
 
     # 转换
@@ -354,18 +354,18 @@ def main():
     n_train = convert_split(train_data,
                             os.path.join(OUTPUT_DIR, "train.h5"), "train",
                             tabular_mean=train_mean, tabular_std=train_std)
-    n_valid = convert_split(valid_data,
-                            os.path.join(OUTPUT_DIR, "valid.h5"), "valid",
-                            tabular_mean=train_mean, tabular_std=train_std)
-    n_test = convert_split(test_data,
-                           os.path.join(OUTPUT_DIR, "test.h5"), "test",
-                           tabular_mean=train_mean, tabular_std=train_std)
+    # n_valid = convert_split(valid_data,
+    #                         os.path.join(OUTPUT_DIR, "valid.h5"), "valid",
+    #                         tabular_mean=train_mean, tabular_std=train_std)
+    # n_test = convert_split(test_data,
+    #                        os.path.join(OUTPUT_DIR, "test.h5"), "test",
+    #                        tabular_mean=train_mean, tabular_std=train_std)
 
     print(f"\n{'='*60}")
     print(f"✅ 全部转换完成!")
     print(f"  train: {n_train} 样本 → {os.path.join(OUTPUT_DIR, 'train.h5')}")
-    print(f"  valid: {n_valid} 样本 → {os.path.join(OUTPUT_DIR, 'valid.h5')}")
-    print(f"  test:  {n_test} 样本 → {os.path.join(OUTPUT_DIR, 'test.h5')}")
+    # print(f"  valid: {n_valid} 样本 → {os.path.join(OUTPUT_DIR, 'valid.h5')}")
+    # print(f"  test:  {n_test} 样本 → {os.path.join(OUTPUT_DIR, 'test.h5')}")
     print(f"{'='*60}")
 
     # 验证 HDF5 结构

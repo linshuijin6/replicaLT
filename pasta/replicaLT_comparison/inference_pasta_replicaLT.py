@@ -60,20 +60,20 @@ LABEL_MAP = {0: 'CN', 1: 'AD', 2: 'MCI'}
 def parse_args():
     parser = argparse.ArgumentParser(description='PASTA MRI→PET 推理')
     parser.add_argument('--test_data', type=str,
-                        default=os.path.join(PASTA_ROOT, 'data', 'test.h5'),
+                        default=os.path.join(PASTA_ROOT, 'data', 'valid.h5'),
                         help='测试数据 h5 文件路径')
     parser.add_argument('--ckpt', type=str,
                         default=os.path.join(SCRIPT_DIR, 'results', '2026-04-12_331111', 'best_val_model.pt'),
                         help='模型 checkpoint 路径')
     parser.add_argument('--output_dir', type=str,
-                        default=os.path.join(SCRIPT_DIR, 'results', '2026-04-12_331111', 't-inference_output'),
+                        default=os.path.join(SCRIPT_DIR, 'results', '2026-04-12_331111', 'inference_output'),
                         help='合成 PET 输出目录')
     parser.add_argument('--config', type=str,
                         default=os.path.join(SCRIPT_DIR, 'pasta_replicaLT.yaml'),
                         help='配置文件路径')
     parser.add_argument('--device', type=str, default='cuda',
                         help='推理设备 (cuda / cpu)')
-    parser.add_argument('--gpu_id', type=int, default=5,
+    parser.add_argument('--gpu_id', type=int, default=1,
                         help='指定使用的 GPU 编号；当 device=cuda 时生效')
     parser.add_argument('--batch_size', type=int, default=32,
                         help='每轮推理的切片批大小')
