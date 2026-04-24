@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """
-Unified 4-method MRI → TAU PET comparison.
+Unified MRI -> TAU PET comparison.
 Methods: PASTA, Legacy, Plasma (Ours), FiCD
 
 Usage:
     conda run -n xiaochou python analysis/run_comparison.py
 """
-import argparse
+
 import json
 import os
-import re
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -20,47 +18,213 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-# ── Paths ────────────────────────────────────────────────────────────────────
-ROOT = Path("/mnt/nfsdata/nfsdata/lsj.14/replicaLT")
+
+# ── Config ───────────────────────────────────────────────────────────────────
+ROOT = Path(__file__).resolve().parents[1]
+
+# RUN_MODE = "rerun_inference"  # "use_existing_results" | "rerun_inference"
+RUN_MODE = "use_existing_results"
+ENABLED_METHODS = ["pasta", "legacy", "plasma", "ficd"]
+GPU = 5
 OUT_DIR = ROOT / "analysis" / "comparison_results"
-VAL_JSON = OUT_DIR / "val_43_subjects.json"
-PASTA_DIR = Path("/mnt/nfsdata/nfsdata/lsj.14/PASTA/replicaLT_comparison/results/2026-04-12_331111/inference_output")
-PASTA_MAP = OUT_DIR / "pasta_file_map.json"
-COMMON_SUBJECTS = OUT_DIR / ".." / "_common_subjects.json"
+COMMON_SUBJECTS_JSON = ROOT / "analysis" / "_common_subjects.json"
+VAL_SUBJECTS_JSON = OUT_DIR / "val_43_subjects.json"
 PLASMA_VAL_JSON = ROOT / "val_data_with_description.json"
+MAX_VIZ_SUBJECTS = 5
+REFERENCE_VIS_SHAPE = (160, 192, 160)
 
-PLASMA_CKPT = ROOT / "runs" / "plasma_04.12_4053491" / "ckpt_epoch200.pt"
-LEGACY_CKPT = ROOT / "runs" / "04.13_2916235" / "ckpt_epoch200.pt"
-FICD_RUN_DIR = ROOT / "runs" / "ficd_smoke_test" / "260415.3663353"
-FICD_CONFIG = ROOT / "configs" / "ficd" / "eval_43.yaml"
+METHOD_SPECS = {
+    "pasta": {
+        "label": "PASTA",
+        "summary": {
+            "model_type": "2.5D DDIM-100 diffusion",
+            "resolution": "96×112×96 (1.5mm)",
+            "conditioning": "Slice-level conditioning",
+        },
+        "inference_inputs": {
+            "script_path": ROOT / "pasta" / "replicaLT_comparison" / "inference_pasta_replicaLT.py",
+            "config_path": ROOT / "pasta" / "replicaLT_comparison" / "pasta_replicaLT.yaml",
+            "test_data": ROOT / "pasta" / "data" / "test.h5",
+            "ckpt": ROOT / "pasta" / "replicaLT_comparison" / "results" / "2026-04-12_331111" / "best_val_model.pt",
+            "gpu_id": GPU,
+            "batch_size": 32,
+            "amp": "fp16",
+        },
+        "existing_results": {
+            "output_dir": Path("/home/data/linshuijin/replicaLT/pasta/replicaLT_comparison/results/2026-04-12_331111/inference_output"),
+        },
+    },
+    "legacy": {
+        "label": "Legacy",
+        "summary": {
+            "model_type": "Rectified-flow 1-step",
+            "resolution": "160×192×160 (1mm)",
+            "conditioning": "BiomedCLIP text token",
+        },
+        "inference_inputs": {
+            "script_path": ROOT / "plasma_inference.py",
+            "ckpt": ROOT / "runs" / "04.13_2916235" / "ckpt_epoch200.pt",
+            "val_json": VAL_SUBJECTS_JSON,
+            "n_steps": 1,
+            "legacy": True,
+        },
+        "existing_results": {
+            "output_dir": Path("/mnt/nfsdata/nfsdata/lsj.14/replicaLT/analysis/comparison_results/legacy"),
+        },
+    },
+    "plasma": {
+        "label": "Plasma (Ours)",
+        "summary": {
+            "model_type": "Rectified-flow 1-step",
+            "resolution": "160×192×160 (1mm)",
+            "conditioning": "Plasma embedding + text token",
+        },
+        "inference_inputs": {
+            "script_path": ROOT / "plasma_inference.py",
+            "ckpt": ROOT / "runs" / "plasma_04.12_4053491" / "ckpt_epoch200.pt",
+            "val_json": VAL_SUBJECTS_JSON,
+            "n_steps": 1,
+            "legacy": False,
+        },
+        "existing_results": {
+            "output_dir": Path("/mnt/nfsdata/nfsdata/lsj.14/replicaLT/analysis/comparison_results/plasma"),
+        },
+    },
+    "ficd": {
+        "label": "FiCD",
+        "summary": {
+            "model_type": "DDPM concat-conditioning",
+            "resolution": "160×180×160",
+            "conditioning": "MRI concat + text embedding",
+        },
+        "inference_inputs": {
+            "script_path": ROOT / "ficd" / "ficd_train.py",
+            "config_path": ROOT / "ficd" / "aligned_tau.yaml",
+            "checkpoint": ROOT / "runs" / "ficd_aligned_tau" / "260422.1177288" / "ckpt_epoch20.pt",
+            "gpu_id": GPU,
+        },
+        "existing_results": {
+            "run_dir": Path("/home/data/linshuijin/replicaLT/runs/ficd_aligned_tau/260422.1177288/inference"),
+        },
+    },
+}
 
-GPU = 0
+METHOD_ORDER = ["pasta", "legacy", "plasma", "ficd"]
+METHOD_ALIGNMENT = {
+    "pasta": "pasta",
+    "legacy": "native",
+    "plasma": "native",
+    "ficd": "ficd",
+}
+FICD_DEFAULT_CROP = (11, 10, 20, 17, 0, 21)
+FICD_DEFAULT_TARGET_SHAPE = (160, 180, 160)
+
+
+def build_config():
+    return {
+        "root": ROOT,
+        "run_mode": RUN_MODE,
+        "enabled_methods": ENABLED_METHODS,
+        "gpu": GPU,
+        "out_dir": OUT_DIR,
+        "common_subjects_json": COMMON_SUBJECTS_JSON,
+        "val_subjects_json": VAL_SUBJECTS_JSON,
+        "plasma_val_json": PLASMA_VAL_JSON,
+        "max_viz_subjects": MAX_VIZ_SUBJECTS,
+        "method_specs": METHOD_SPECS,
+    }
+
+
+CONFIG = build_config()
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+def require_exists(path, desc):
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"{desc} not found: {path}")
+    return path
+
+
+def output_paths(config):
+    out_dir = config["out_dir"]
+    return {
+        "per_subject_csv": out_dir / "per_subject_metrics.csv",
+        "summary_csv": out_dir / "summary_metrics.csv",
+        "stats_csv": out_dir / "statistical_tests.csv",
+        "report_md": out_dir / "comparison_report.md",
+        "figures_dir": out_dir / "figures",
+    }
+
+
+def get_enabled_methods(config):
+    enabled = config["enabled_methods"]
+    invalid = [m for m in enabled if m not in METHOD_SPECS]
+    if invalid:
+        raise ValueError(f"Unknown methods in ENABLED_METHODS: {invalid}")
+    return [m for m in METHOD_ORDER if m in enabled]
+
+
+def get_method_label(method_id):
+    return METHOD_SPECS[method_id]["label"]
+
+
+def get_enabled_labels(config):
+    return [get_method_label(m) for m in get_enabled_methods(config)]
+
+
+def method_output_dir(config, method_id):
+    return config["out_dir"] / method_id
+
+
+def get_method_source(config, method_id):
+    spec = config["method_specs"][method_id]
+    if config["run_mode"] == "rerun_inference":
+        if method_id == "ficd":
+            return {"run_dir": method_output_dir(config, method_id)}
+        return {"output_dir": method_output_dir(config, method_id)}
+    return spec["existing_results"]
+
+
+def resolve_ficd_prediction_dir(run_dir):
+    run_dir = Path(run_dir)
+    candidates = [
+        run_dir,
+        run_dir / "inference",
+        run_dir / "predictions" / "eval",
+        run_dir / "predictions" / "best_model",
+    ]
+    for path in candidates:
+        if path.exists() and (path / "subject_metrics.json").exists():
+            return path
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(f"FiCD prediction dir not found under: {run_dir}")
+
+
 def run_cmd(cmd, desc=""):
-    """Run a shell command and stream output."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {desc}")
     print(f"  CMD: {cmd}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
     t0 = time.time()
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     elapsed = time.time() - t0
     if result.stdout:
-        print(result.stdout[-3000:])  # last 3000 chars
+        print(result.stdout[-4000:])
     if result.returncode != 0:
-        print(f"STDERR:\n{result.stderr[-3000:]}")
-        print(f"FAILED (exit {result.returncode}) after {elapsed:.0f}s")
-    else:
-        print(f"OK ({elapsed:.0f}s)")
+        if result.stderr:
+            print(f"STDERR:\n{result.stderr[-4000:]}")
+        raise RuntimeError(f"{desc} failed with exit code {result.returncode} after {elapsed:.0f}s")
+    print(f"OK ({elapsed:.0f}s)")
     return result
 
 
 def compute_ssim_3d(pred, gt, win_size=7):
-    """Compute SSIM using MONAI (same as all methods)."""
     import torch
     from monai.metrics import SSIMMetric
+
     p = torch.tensor(pred, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     g = torch.tensor(gt, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
     metric = SSIMMetric(spatial_dims=3, data_range=1.0, win_size=win_size)
@@ -68,28 +232,25 @@ def compute_ssim_3d(pred, gt, win_size=7):
 
 
 def compute_psnr(pred, gt, max_val=1.0):
-    """Compute PSNR."""
     mse = np.mean((pred - gt) ** 2)
     if mse < 1e-10:
         return 100.0
-    return 10 * np.log10(max_val**2 / mse)
+    return 10 * np.log10(max_val ** 2 / mse)
 
 
 def compute_ncc(pred, gt):
-    """Normalized Cross-Correlation."""
     p = pred.flatten().astype(np.float64)
     g = gt.flatten().astype(np.float64)
     p_mean = p - p.mean()
     g_mean = g - g.mean()
     num = np.sum(p_mean * g_mean)
-    den = np.sqrt(np.sum(p_mean**2) * np.sum(g_mean**2))
+    den = np.sqrt(np.sum(p_mean ** 2) * np.sum(g_mean ** 2))
     if den < 1e-10:
         return 0.0
     return float(num / den)
 
 
 def compute_all_metrics(pred, gt):
-    """Compute all metrics on [0,1] arrays."""
     pred = np.clip(pred.astype(np.float64), 0, 1)
     gt = np.clip(gt.astype(np.float64), 0, 1)
     mae = np.mean(np.abs(pred - gt))
@@ -100,360 +261,628 @@ def compute_all_metrics(pred, gt):
     return {"ssim": ssim, "psnr": psnr, "mae": mae, "mse": mse, "ncc": ncc}
 
 
-# ── Phase 1: Run Inference ───────────────────────────────────────────────────
-def run_plasma_inference(method="plasma"):
-    """Run plasma_inference.py for Plasma or Legacy."""
-    is_legacy = method == "legacy"
-    ckpt = LEGACY_CKPT if is_legacy else PLASMA_CKPT
-    out_dir = OUT_DIR / method
-    out_dir.mkdir(parents=True, exist_ok=True)
+def validate_config(config):
+    require_exists(config["root"], "workspace root")
+    require_exists(config["common_subjects_json"], "common subjects json")
+    require_exists(config["plasma_val_json"], "plasma val json")
+    enabled_methods = get_enabled_methods(config)
+    if not enabled_methods:
+        raise ValueError("ENABLED_METHODS is empty")
 
-    # Check if already done
-    metrics_csv = out_dir / "metrics.csv"
-    if metrics_csv.exists():
-        df = pd.read_csv(metrics_csv)
-        if len(df) >= 40:  # roughly all subjects done
-            print(f"[{method}] Already have {len(df)} results, skipping inference.")
-            return True
-
-    cmd = (
-        f"cd {ROOT} && CUDA_VISIBLE_DEVICES={GPU} "
-        f"conda run -n xiaochou python plasma_inference.py "
-        f"--ckpt {ckpt} "
-        f"--gpu 0 "
-        f"--val_json {VAL_JSON} "
-        f"--output_dir {out_dir} "
-        f"--save_nifti --no_figures "
-        f"--n_steps 1 "
-    )
-    if is_legacy:
-        cmd += "--legacy "
-
-    result = run_cmd(cmd, f"Running {method.upper()} inference")
-    return result.returncode == 0
-
-
-def run_ficd_eval():
-    """Run FiCD eval-only."""
-    out_dir = FICD_RUN_DIR / "predictions" / "eval"
-    metrics_file = out_dir / "subject_metrics.json"
-    if metrics_file.exists():
-        with open(metrics_file) as f:
-            data = json.load(f)
-        if len(data) >= 40:
-            print(f"[FiCD] Already have {len(data)} results, skipping eval.")
-            return True
-
-    cmd = (
-        f"cd {ROOT} && CUDA_VISIBLE_DEVICES={GPU} "
-        f"conda run -n xiaochou python ficd_train.py "
-        f"--config {FICD_CONFIG} "
-        f"--eval-only "
-        f"--resume {FICD_RUN_DIR} "
-    )
-    result = run_cmd(cmd, "Running FiCD eval-only")
-    return result.returncode == 0
+    for method_id in enabled_methods:
+        spec = config["method_specs"][method_id]
+        if config["run_mode"] == "rerun_inference":
+            inputs = spec["inference_inputs"]
+            if method_id == "pasta":
+                require_exists(inputs["script_path"], f"{method_id} script")
+                require_exists(inputs["config_path"], f"{method_id} config")
+                require_exists(inputs["test_data"], f"{method_id} test data")
+                require_exists(inputs["ckpt"], f"{method_id} checkpoint")
+            elif method_id in {"legacy", "plasma"}:
+                require_exists(inputs["script_path"], f"{method_id} script")
+                require_exists(inputs["ckpt"], f"{method_id} checkpoint")
+                require_exists(inputs["val_json"], f"{method_id} val json")
+            elif method_id == "ficd":
+                require_exists(inputs["script_path"], f"{method_id} script")
+                require_exists(inputs["config_path"], f"{method_id} config")
+                require_exists(inputs["checkpoint"], f"{method_id} checkpoint")
+        else:
+            source = spec["existing_results"]
+            if method_id == "ficd":
+                require_exists(source["run_dir"], f"{method_id} existing run dir")
+                pred_dir = resolve_ficd_prediction_dir(source["run_dir"])
+                require_exists(pred_dir / "subject_metrics.json", f"{method_id} subject metrics")
+            else:
+                require_exists(source["output_dir"], f"{method_id} existing output dir")
 
 
-# ── Phase 2: Load Results ────────────────────────────────────────────────────
-def load_pasta_metrics(subjects):
-    """Compute metrics from PASTA NIfTI pairs."""
-    with open(PASTA_MAP) as f:
-        pasta_map = json.load(f)
+def load_subject_records(config):
+    with open(config["common_subjects_json"]) as f:
+        raw_subjects = json.load(f)
 
-    rows = []
-    for sid in subjects:
-        if sid not in pasta_map:
-            continue
-        syn_path = PASTA_DIR / pasta_map[sid]["syn"]
-        gt_path = PASTA_DIR / pasta_map[sid]["gt"]
-        if not syn_path.exists() or not gt_path.exists():
-            print(f"  [PASTA] Missing NIfTI for {sid}")
-            continue
-        pred = nib.load(str(syn_path)).get_fdata().astype(np.float32)
-        gt = nib.load(str(gt_path)).get_fdata().astype(np.float32)
-        m = compute_all_metrics(pred, gt)
-        m["subject"] = sid
-        rows.append(m)
-        print(f"  [PASTA] {sid}: SSIM={m['ssim']:.4f} PSNR={m['psnr']:.2f}")
-    return rows
-
-
-def load_plasma_legacy_metrics(method, subjects):
-    """Load Plasma/Legacy metrics from saved NIfTI pairs."""
-    nifti_dir = OUT_DIR / method / "nifti"
-    rows = []
-    for sid in subjects:
-        pred_path = nifti_dir / f"{sid}_tau_pred.nii.gz"
-        gt_path = nifti_dir / f"{sid}_tau_gt.nii.gz"
-        if not pred_path.exists() or not gt_path.exists():
-            print(f"  [{method}] Missing NIfTI for {sid}")
-            continue
-        pred = nib.load(str(pred_path)).get_fdata().astype(np.float32)
-        gt = nib.load(str(gt_path)).get_fdata().astype(np.float32)
-        m = compute_all_metrics(pred, gt)
-        m["subject"] = sid
-        rows.append(m)
-        print(f"  [{method}] {sid}: SSIM={m['ssim']:.4f} PSNR={m['psnr']:.2f}")
-    return rows
-
-
-def load_ficd_metrics(subjects):
-    """Load FiCD metrics from subject_metrics.json + compute NCC from NIfTI."""
-    metrics_file = FICD_RUN_DIR / "predictions" / "eval" / "subject_metrics.json"
-    pred_dir = FICD_RUN_DIR / "predictions" / "eval"
-
-    if not metrics_file.exists():
-        print("[FiCD] subject_metrics.json not found!")
+    if not isinstance(raw_subjects, list):
+        raise ValueError(f"Expected a JSON list in {config['common_subjects_json']}")
+    if not raw_subjects:
         return []
 
+    if all(isinstance(item, str) for item in raw_subjects):
+        return [{"name": str(name), "examdate": None} for name in sorted(raw_subjects)]
+
+    if not all(isinstance(item, dict) for item in raw_subjects):
+        raise TypeError(
+            "common_subjects_json must contain either a list of subject IDs "
+            "or a list of subject metadata dicts"
+        )
+
+    common_names = {str(item["name"]) for item in raw_subjects if item.get("name")}
+    if not common_names:
+        raise ValueError(f"No valid subject names found in {config['common_subjects_json']}")
+
+    val_subjects_path = config.get("val_subjects_json")
+    if val_subjects_path and Path(val_subjects_path).exists():
+        with open(val_subjects_path) as f:
+            val_subjects = json.load(f)
+        if isinstance(val_subjects, list):
+            selected_records = []
+            seen_names = set()
+            for item in val_subjects:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                if name and name in common_names:
+                    if name in seen_names:
+                        raise ValueError(
+                            f"Duplicate subject name in {val_subjects_path}: {name}. "
+                            "run_comparison.py still keys outputs by subject name, so "
+                            "the comparison cohort must be unique by name."
+                        )
+                    selected_records.append(dict(item))
+                    seen_names.add(name)
+            if selected_records:
+                return selected_records
+
+    records = []
+    for item in raw_subjects:
+        if item.get("name"):
+            records.append(
+                {
+                    "name": str(item["name"]),
+                    "examdate": item.get("examdate"),
+                }
+            )
+    return sorted(records, key=lambda row: row["name"])
+
+
+def load_subjects(config):
+    return [record["name"] for record in load_subject_records(config)]
+
+
+def load_subject_lookup(config):
+    for key in ("val_subjects_json", "common_subjects_json"):
+        path = config.get(key)
+        if not path or not Path(path).exists():
+            continue
+
+        with open(path) as f:
+            records = json.load(f)
+
+        if not isinstance(records, list):
+            continue
+
+        lookup = {}
+        for item in records:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            if name and name not in lookup:
+                lookup[str(name)] = item
+        if lookup:
+            return lookup
+
+    return {}
+
+
+def _same_path(path_a, path_b):
+    if not path_a or not path_b:
+        return False
+    return Path(path_a).resolve(strict=False) == Path(path_b).resolve(strict=False)
+
+
+def find_ficd_run_root(source):
+    source_run_dir = Path(source["run_dir"])
+    pred_dir = resolve_ficd_prediction_dir(source_run_dir)
+    candidates = [pred_dir, source_run_dir, pred_dir.parent, source_run_dir.parent]
+    candidates.extend(pred_dir.parents)
+    for path in candidates:
+        if (path / "hparams.json").exists() or (path / "samples_val.json").exists():
+            return path
+    raise FileNotFoundError(f"FiCD run root with hparams/samples_val not found near: {source_run_dir}")
+
+
+def load_ficd_preprocess_spec(config, source):
+    run_root = find_ficd_run_root(source)
+    hparams_path = run_root / "hparams.json"
+    config_path = config["method_specs"]["ficd"]["inference_inputs"]["config_path"]
+
+    if hparams_path.exists():
+        with open(hparams_path) as f:
+            payload = json.load(f)
+        data_cfg = payload.get("data", {})
+        source_path = hparams_path
+    else:
+        import yaml
+
+        with open(config_path) as f:
+            payload = yaml.safe_load(f) or {}
+        data_cfg = payload.get("data", {})
+        source_path = config_path
+
+    crop = tuple(int(x) for x in data_cfg.get("crop", FICD_DEFAULT_CROP))
+    target_shape = tuple(int(x) for x in data_cfg.get("target_shape", FICD_DEFAULT_TARGET_SHAPE))
+    if len(crop) != 6:
+        raise ValueError(f"FiCD crop must have 6 values in {source_path}, got: {crop}")
+    if len(target_shape) != 3:
+        raise ValueError(f"FiCD target_shape must have 3 values in {source_path}, got: {target_shape}")
+    return {
+        "run_root": run_root,
+        "source_path": source_path,
+        "crop": crop,
+        "target_shape": target_shape,
+    }
+
+
+def validate_ficd_subject_records(config, subjects):
+    if "ficd" not in get_enabled_methods(config):
+        return None
+
+    source = get_method_source(config, "ficd")
+    spec = load_ficd_preprocess_spec(config, source)
+    samples_path = require_exists(spec["run_root"] / "samples_val.json", "FiCD samples_val.json")
+    with open(samples_path) as f:
+        samples = json.load(f)
+    sample_map = {}
+    for sample in samples:
+        key = (str(sample.get("subject_id")), str(sample.get("examdate")))
+        sample_map.setdefault(key, []).append(sample)
+
+    subject_lookup = load_subject_lookup(config)
+    checked = 0
+    for sid in subjects:
+        record = subject_lookup.get(sid)
+        if record is None:
+            raise KeyError(f"[FiCD data check] Missing comparison record for {sid}")
+        examdate = record.get("examdate")
+        if not examdate:
+            raise ValueError(f"[FiCD data check] Missing examdate for comparison subject {sid}")
+
+        matches = sample_map.get((str(sid), str(examdate)), [])
+        if len(matches) != 1:
+            raise ValueError(
+                f"[FiCD data check] Expected one FiCD val sample for "
+                f"({sid}, {examdate}), got {len(matches)}"
+            )
+        ficd_sample = matches[0]
+        if not _same_path(ficd_sample.get("mri_path"), record.get("mri")):
+            raise ValueError(
+                f"[FiCD data check] MRI path mismatch for {sid} {examdate}:\n"
+                f"  FiCD: {ficd_sample.get('mri_path')}\n"
+                f"  Ref:  {record.get('mri')}"
+            )
+        if not _same_path(ficd_sample.get("pet_path"), record.get("tau")):
+            raise ValueError(
+                f"[FiCD data check] TAU path mismatch for {sid} {examdate}:\n"
+                f"  FiCD: {ficd_sample.get('pet_path')}\n"
+                f"  Ref:  {record.get('tau')}"
+            )
+        checked += 1
+
+    print(
+        f"  [FiCD data check] {checked} subject-examdate pairs match "
+        f"{samples_path}; crop={spec['crop']} target_shape={spec['target_shape']}"
+    )
+    return spec
+
+
+# ── Inference ────────────────────────────────────────────────────────────────
+def run_plasma_family_inference(config, method_id):
+    spec = config["method_specs"][method_id]["inference_inputs"]
+    out_dir = method_output_dir(config, method_id)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    legacy_flag = "--legacy " if spec["legacy"] else ""
+    cmd = (
+        f"cd {config['root']} && CUDA_VISIBLE_DEVICES={config['gpu']} "
+        f"conda run -n xiaochou python {spec['script_path']} "
+        f"--ckpt {spec['ckpt']} "
+        f"--gpu 0 "
+        f"--val_json {spec['val_json']} "
+        f"--output_dir {out_dir} "
+        f"--save_nifti --no_figures "
+        f"--n_steps {spec['n_steps']} "
+        f"{legacy_flag}"
+    )
+    run_cmd(cmd, f"Running {get_method_label(method_id)} inference")
+
+
+def run_pasta_inference(config):
+    spec = config["method_specs"]["pasta"]["inference_inputs"]
+    out_dir = method_output_dir(config, "pasta")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cmd = (
+        f"cd {config['root']} && CUDA_VISIBLE_DEVICES={config['gpu']} "
+        f"conda run -n xiaochou python {spec['script_path']} "
+        f"--config {spec['config_path']} "
+        f"--test_data {spec['test_data']} "
+        f"--ckpt {spec['ckpt']} "
+        f"--output_dir {out_dir} "
+        f"--gpu_id {spec['gpu_id']} "
+        f"--batch_size {spec['batch_size']} "
+        f"--amp {spec['amp']}"
+    )
+    run_cmd(cmd, "Running PASTA inference")
+
+
+def run_ficd_inference(config):
+    spec = config["method_specs"]["ficd"]["inference_inputs"]
+    run_dir = method_output_dir(config, "ficd")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    cmd = (
+        f"cd {config['root'] / 'ficd'} && CUDA_VISIBLE_DEVICES={config['gpu']} "
+        f"conda run -n xiaochou python {spec['script_path']} "
+        f"--config {spec['config_path']} "
+        f"--resume {run_dir} "
+        f"--checkpoint {spec['checkpoint']} "
+        f"--eval-only "
+        f"--gpu 0"
+    )
+    run_cmd(cmd, "Running FiCD eval-only")
+
+
+def maybe_run_inference(config):
+    if config["run_mode"] != "rerun_inference":
+        print("\n[Mode] use_existing_results -> skip all inference.")
+        return
+
+    print("\n" + "=" * 60)
+    print("  PHASE 1: RUNNING INFERENCE")
+    print("=" * 60)
+    for method_id in get_enabled_methods(config):
+        if method_id == "pasta":
+            run_pasta_inference(config)
+        elif method_id in {"legacy", "plasma"}:
+            run_plasma_family_inference(config, method_id)
+        elif method_id == "ficd":
+            run_ficd_inference(config)
+
+
+# ── Metrics Loading ──────────────────────────────────────────────────────────
+def find_pasta_pair(output_dir, sid, subject_lookup=None):
+    output_dir = Path(output_dir)
+    syn_candidates = sorted(output_dir.glob(f"{sid}_*_syn_pet.nii.gz"))
+    gt_candidates = sorted(output_dir.glob(f"{sid}_*_GT_pet.nii.gz"))
+    if len(syn_candidates) == 1 and len(gt_candidates) == 1:
+        return syn_candidates[0], gt_candidates[0]
+
+    target = (subject_lookup or {}).get(sid)
+    if target is not None:
+        examdate = str(target.get("examdate", "") or "").replace("-", "")
+        diagnosis = str(target.get("diagnosis", "") or "")
+
+        if examdate:
+            syn_match = [p for p in syn_candidates if examdate in p.name]
+            gt_match = [p for p in gt_candidates if examdate in p.name]
+
+            if diagnosis:
+                syn_diag_match = [p for p in syn_match if diagnosis in p.name]
+                gt_diag_match = [p for p in gt_match if diagnosis in p.name]
+                if len(syn_diag_match) == 1 and len(gt_diag_match) == 1:
+                    return syn_diag_match[0], gt_diag_match[0]
+
+            if len(syn_match) == 1 and len(gt_match) == 1:
+                return syn_match[0], gt_match[0]
+
+    raise FileNotFoundError(
+        f"[PASTA] Expected one syn and one gt file for {sid}, "
+        f"got syn={len(syn_candidates)}, gt={len(gt_candidates)} in {output_dir}"
+    )
+
+
+def load_pasta_metrics(config, subjects, source):
+    output_dir = require_exists(source["output_dir"], "PASTA output dir")
+    subject_lookup = load_subject_lookup(config)
+    rows = []
+    for sid in subjects:
+        syn_path, gt_path = find_pasta_pair(output_dir, sid, subject_lookup)
+        pred = nib.load(str(syn_path)).get_fdata().astype(np.float32)
+        gt = nib.load(str(gt_path)).get_fdata().astype(np.float32)
+        metrics = compute_all_metrics(pred, gt)
+        metrics["subject"] = sid
+        rows.append(metrics)
+        print(f"  [PASTA] {sid}: SSIM={metrics['ssim']:.4f} PSNR={metrics['psnr']:.2f}")
+    return rows
+
+
+def load_plasma_family_metrics(method_id, subjects, source):
+    nifti_dir = require_exists(Path(source["output_dir"]) / "nifti", f"{method_id} nifti dir")
+    rows = []
+    for sid in subjects:
+        pred_path = require_exists(nifti_dir / f"{sid}_tau_pred.nii.gz", f"{method_id} pred nifti for {sid}")
+        gt_path = require_exists(nifti_dir / f"{sid}_tau_gt.nii.gz", f"{method_id} gt nifti for {sid}")
+        pred = nib.load(str(pred_path)).get_fdata().astype(np.float32)
+        gt = nib.load(str(gt_path)).get_fdata().astype(np.float32)
+        metrics = compute_all_metrics(pred, gt)
+        metrics["subject"] = sid
+        rows.append(metrics)
+        print(f"  [{get_method_label(method_id)}] {sid}: SSIM={metrics['ssim']:.4f} PSNR={metrics['psnr']:.2f}")
+    return rows
+
+
+def load_ficd_metrics(subjects, source):
+    run_dir = require_exists(source["run_dir"], "FiCD run dir")
+    pred_dir = resolve_ficd_prediction_dir(run_dir)
+    metrics_file = require_exists(pred_dir / "subject_metrics.json", "FiCD subject_metrics.json")
     with open(metrics_file) as f:
         ficd_data = json.load(f)
 
-    # Build subject_id -> metrics mapping
-    ficd_map = {r["subject_id"]: r for r in ficd_data}
+    ficd_map = {row["subject_id"]: row for row in ficd_data}
     rows = []
     for sid in subjects:
         if sid not in ficd_map:
-            continue
-        r = ficd_map[sid]
+            raise KeyError(f"[FiCD] Missing metrics row for subject {sid}")
+        row_data = ficd_map[sid]
         row = {
             "subject": sid,
-            "ssim": r["ssim"],
-            "psnr": r["psnr"],
-            "mae": r["l1_unit"],
-            "mse": r["l1_unit"] ** 2,  # approximate — actual MSE not saved
+            "ssim": row_data["ssim"],
+            "psnr": row_data["psnr"],
+            "mae": row_data["l1_unit"],
+            "mse": row_data["l1_unit"] ** 2,
         }
-        # Try to compute NCC from NIfTI prediction
-        pred_nifti = pred_dir / f"{sid}.nii.gz"
-        if pred_nifti.exists():
-            # FiCD saves in [-1,1], convert to [0,1]
-            pred = nib.load(str(pred_nifti)).get_fdata().astype(np.float32)
-            pred_unit = np.clip((pred + 1.0) / 2.0, 0, 1)
-            # Load GT: apply same transforms as FiCD to the raw TAU NIfTI
-            # For now use the prediction itself for NCC placeholder
-            row["ncc"] = np.nan  # Cannot compute without GT in same space
-        else:
-            row["ncc"] = np.nan
+        pred_nifti = require_exists(pred_dir / f"{sid}.nii.gz", f"FiCD prediction nifti for {sid}")
+        _ = pred_nifti
+        row["ncc"] = np.nan
         rows.append(row)
         print(f"  [FiCD] {sid}: SSIM={row['ssim']:.4f} PSNR={row['psnr']:.2f}")
     return rows
 
 
-# ── Phase 3: Statistical Analysis ────────────────────────────────────────────
+def compute_metrics_dataframe(config, subjects):
+    rows = []
+    for method_id in get_enabled_methods(config):
+        print(f"\n[{get_method_label(method_id)}] Loading metrics...")
+        source = get_method_source(config, method_id)
+        if method_id == "pasta":
+            method_rows = load_pasta_metrics(config, subjects, source)
+        elif method_id in {"legacy", "plasma"}:
+            method_rows = load_plasma_family_metrics(method_id, subjects, source)
+        else:
+            method_rows = load_ficd_metrics(subjects, source)
+        for row in method_rows:
+            row["method"] = get_method_label(method_id)
+        rows.extend(method_rows)
+
+    return pd.DataFrame(rows)
+
+
+# ── Statistics ───────────────────────────────────────────────────────────────
 def wilcoxon_test(values_a, values_b, metric_name, method_a, method_b):
-    """Perform Wilcoxon signed-rank test."""
     a = np.array(values_a)
     b = np.array(values_b)
-    # Filter out pairs where both are nan
     mask = ~(np.isnan(a) | np.isnan(b))
     a, b = a[mask], b[mask]
     if len(a) < 5:
-        return {"metric": metric_name, "pair": f"{method_a} vs {method_b}",
-                "n": len(a), "statistic": np.nan, "p_value": np.nan, "sig": "N/A"}
+        return {
+            "metric": metric_name,
+            "pair": f"{method_a} vs {method_b}",
+            "n": len(a),
+            "statistic": np.nan,
+            "p_value": np.nan,
+            "sig": "N/A",
+        }
     try:
         stat, p = stats.wilcoxon(a, b)
     except Exception:
         stat, p = np.nan, np.nan
     sig = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else "ns"
-    return {"metric": metric_name, "pair": f"{method_a} vs {method_b}",
-            "n": int(len(a)), "statistic": float(stat), "p_value": float(p), "sig": sig}
+    return {
+        "metric": metric_name,
+        "pair": f"{method_a} vs {method_b}",
+        "n": int(len(a)),
+        "statistic": float(stat),
+        "p_value": float(p),
+        "sig": sig,
+    }
 
 
-# ── Phase 4: Visualization ───────────────────────────────────────────────────
-def generate_triplanar_comparison(subjects, method_niftis, out_path):
-    """Generate tri-planar comparison figures for selected subjects."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.gridspec import GridSpec
-
-    # Pick 3 representative subjects (first, middle, last)
-    n = len(subjects)
-    indices = [0, n // 2, n - 1] if n >= 3 else list(range(n))
-    selected = [subjects[i] for i in indices]
-
-    methods = list(method_niftis.keys())
-    n_methods = len(methods)
-
-    for sid in selected:
-        fig, axes = plt.subplots(n_methods + 1, 3, figsize=(12, 3.2 * (n_methods + 1)))
-        fig.suptitle(f"Subject: {sid}", fontsize=14, fontweight="bold")
-
-        col_titles = ["Axial", "Coronal", "Sagittal"]
-        for j, t in enumerate(col_titles):
-            axes[0, j].set_title(t, fontsize=11)
-
-        # Row 0: GT (from first available method)
-        gt_vol = None
-        for mname in methods:
-            if sid in method_niftis[mname] and "gt" in method_niftis[mname][sid]:
-                gt_vol = method_niftis[mname][sid]["gt"]
-                break
-
-        if gt_vol is not None:
-            slices = _get_mid_slices(gt_vol)
-            for j, s in enumerate(slices):
-                axes[0, j].imshow(s.T, cmap="inferno", origin="lower", vmin=0, vmax=1)
-            axes[0, 0].set_ylabel("Ground Truth", fontsize=10, fontweight="bold")
-        else:
-            for j in range(3):
-                axes[0, j].text(0.5, 0.5, "N/A", ha="center", va="center", transform=axes[0, j].transAxes)
-            axes[0, 0].set_ylabel("Ground Truth", fontsize=10, fontweight="bold")
-
-        # Rows 1+: each method's prediction
-        for i, mname in enumerate(methods):
-            row = i + 1
-            if sid in method_niftis[mname] and "pred" in method_niftis[mname][sid]:
-                pred_vol = method_niftis[mname][sid]["pred"]
-                slices = _get_mid_slices(pred_vol)
-                for j, s in enumerate(slices):
-                    axes[row, j].imshow(s.T, cmap="inferno", origin="lower", vmin=0, vmax=1)
-            else:
-                for j in range(3):
-                    axes[row, j].text(0.5, 0.5, "N/A", ha="center", va="center",
-                                      transform=axes[row, j].transAxes)
-            axes[row, 0].set_ylabel(mname, fontsize=10, fontweight="bold")
-
-        for ax in axes.flat:
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-        plt.tight_layout()
-        fig_path = out_path / f"triplanar_{sid}.png"
-        plt.savefig(str(fig_path), dpi=150, bbox_inches="tight")
-        plt.close(fig)
-        print(f"  Saved {fig_path}")
+def build_summary(df, enabled_labels):
+    summary_rows = []
+    for method in enabled_labels:
+        sub = df[df["method"] == method]
+        if len(sub) == 0:
+            continue
+        row = {"method": method, "n": len(sub)}
+        for metric in ["ssim", "psnr", "mae", "mse", "ncc"]:
+            vals = sub[metric].dropna()
+            row[f"{metric}_mean"] = vals.mean() if len(vals) > 0 else np.nan
+            row[f"{metric}_std"] = vals.std() if len(vals) > 0 else np.nan
+        summary_rows.append(row)
+    return pd.DataFrame(summary_rows)
 
 
-def generate_difference_maps(subjects, method_niftis, out_path):
-    """Generate difference maps for selected subjects."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+def run_statistical_tests(df, enabled_labels):
+    if "Plasma (Ours)" in enabled_labels:
+        anchor = "Plasma (Ours)"
+        others = [label for label in enabled_labels if label != anchor]
+    else:
+        anchor = enabled_labels[0]
+        others = enabled_labels[1:]
 
-    n = len(subjects)
-    indices = [0, n // 2, n - 1] if n >= 3 else list(range(n))
-    selected = [subjects[i] for i in indices]
-
-    methods = list(method_niftis.keys())
-    n_methods = len(methods)
-
-    for sid in selected:
-        gt_vol = None
-        for mname in methods:
-            if sid in method_niftis[mname] and "gt" in method_niftis[mname][sid]:
-                gt_vol = method_niftis[mname][sid]["gt"]
-                break
-        if gt_vol is None:
+    stat_tests = []
+    anchor_df = df[df["method"] == anchor].set_index("subject")
+    for other in others:
+        other_df = df[df["method"] == other].set_index("subject")
+        common_sids = sorted(set(anchor_df.index) & set(other_df.index))
+        if len(common_sids) < 5:
+            for metric in ["ssim", "psnr", "mae"]:
+                stat_tests.append(
+                    {
+                        "metric": metric.upper(),
+                        "pair": f"{anchor} vs {other}",
+                        "n": len(common_sids),
+                        "statistic": np.nan,
+                        "p_value": np.nan,
+                        "sig": "N/A",
+                    }
+                )
             continue
 
-        fig, axes = plt.subplots(n_methods, 3, figsize=(12, 3.2 * n_methods))
-        if n_methods == 1:
-            axes = axes[np.newaxis, :]
-        fig.suptitle(f"Absolute Error | {sid}", fontsize=14, fontweight="bold")
+        for metric in ["ssim", "psnr", "mae"]:
+            a = anchor_df.loc[common_sids, metric].values
+            b = other_df.loc[common_sids, metric].values
+            test = wilcoxon_test(a, b, metric.upper(), anchor, other)
+            stat_tests.append(test)
+            print(f"  {test['metric']:5s} | {test['pair']:30s} | p={test['p_value']:.2e} {test['sig']}")
 
-        gt_slices = _get_mid_slices(gt_vol)
-        col_titles = ["Axial", "Coronal", "Sagittal"]
-        for j, t in enumerate(col_titles):
-            axes[0, j].set_title(t, fontsize=11)
-
-        for i, mname in enumerate(methods):
-            if sid in method_niftis[mname] and "pred" in method_niftis[mname][sid]:
-                pred_vol = method_niftis[mname][sid]["pred"]
-                # Need same shape for diff map
-                if pred_vol.shape == gt_vol.shape:
-                    diff = np.abs(pred_vol - gt_vol)
-                    diff_slices = _get_mid_slices(diff)
-                    for j, s in enumerate(diff_slices):
-                        im = axes[i, j].imshow(s.T, cmap="hot", origin="lower", vmin=0, vmax=0.3)
-                else:
-                    for j in range(3):
-                        axes[i, j].text(0.5, 0.5, "Shape\nmismatch",
-                                        ha="center", va="center", transform=axes[i, j].transAxes, fontsize=8)
-            else:
-                for j in range(3):
-                    axes[i, j].text(0.5, 0.5, "N/A", ha="center", va="center",
-                                    transform=axes[i, j].transAxes)
-            axes[i, 0].set_ylabel(mname, fontsize=10, fontweight="bold")
-
-        for ax in axes.flat:
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-        plt.tight_layout()
-        fig_path = out_path / f"diff_{sid}.png"
-        plt.savefig(str(fig_path), dpi=150, bbox_inches="tight")
-        plt.close(fig)
-        print(f"  Saved {fig_path}")
+    return stat_tests
 
 
-def generate_unified_comparison(viz_subjects, method_niftis, out_path,
-                                raw_mri_paths=None):
-    """
-    Generate a single unified figure comparing all methods.
+# ── Visualization ────────────────────────────────────────────────────────────
+def _get_mid_slices(vol):
+    s = vol.shape
+    return [
+        vol[:, :, s[2] // 2],
+        vol[:, s[1] // 2, :],
+        vol[s[0] // 2, :, :],
+    ]
 
-    Layout (per representative subject):
-      - 3 row groups: Axial / Coronal / Sagittal (each group = 2 rows)
-      - Row 0 of each group: synthesis results (inferno colormap)
-      - Row 1 of each group: absolute error maps vs GT (Reds colormap)
-      - Columns: MRI | GT PET | PASTA | Legacy | Plasma(Ours) | FiCD | colorbar
-      - GT is always taken from Plasma (Ours) / Legacy nifti folder (uncropped reference)
-      - PASTA predictions are in (96,112,96) @ 1.5mm (eval_resolution from config);
-        they are mapped back to Plasma's (160,192,160) space by:
-          (A) undoing PASTA's crops+zoom → (182,218,182) @ 1.0mm (MNI space)
-          (B) applying Plasma's CropForeground (using raw MRI bounding box)
-          (C) center crop/pad to (160,192,160)
-      - FiCD predictions are inverse-cropped (padded with crop params from
-        aligned_tau.yaml: [11,10,20,17,0,21]) then resampled to GT shape
-    """
+
+def load_raw_mri_paths(config):
+    subject_lookup = load_subject_lookup(config)
+    if subject_lookup:
+        return {name: item["mri"] for name, item in subject_lookup.items() if item.get("mri")}
+
+    with open(config["plasma_val_json"]) as f:
+        plasma_val_data = json.load(f)
+    return {item["name"]: item["mri"] for item in plasma_val_data if item.get("mri")}
+
+
+def load_pasta_visual_entry(output_dir, sid, subject_lookup=None):
+    syn_path, gt_path = find_pasta_pair(output_dir, sid, subject_lookup)
+    return {
+        "pred": np.clip(nib.load(str(syn_path)).get_fdata().astype(np.float32), 0, 1),
+        "gt": np.clip(nib.load(str(gt_path)).get_fdata().astype(np.float32), 0, 1),
+    }
+
+
+def load_plasma_visual_entry(nifti_dir, sid):
+    pred_p = require_exists(nifti_dir / f"{sid}_tau_pred.nii.gz", f"prediction nifti for {sid}")
+    gt_p = require_exists(nifti_dir / f"{sid}_tau_gt.nii.gz", f"gt nifti for {sid}")
+    entry = {
+        "pred": np.clip(nib.load(str(pred_p)).get_fdata().astype(np.float32), 0, 1),
+        "gt": np.clip(nib.load(str(gt_p)).get_fdata().astype(np.float32), 0, 1),
+    }
+    mri_p = nifti_dir / f"{sid}_mri.nii.gz"
+    if mri_p.exists():
+        entry["mri"] = nib.load(str(mri_p)).get_fdata().astype(np.float32)
+    return entry
+
+
+def load_ficd_visual_entry(pred_dir, sid, ficd_preprocess):
+    pred_p = require_exists(pred_dir / f"{sid}.nii.gz", f"FiCD prediction nifti for {sid}")
+    raw = nib.load(str(pred_p)).get_fdata().astype(np.float32)
+    target_shape = tuple(ficd_preprocess["target_shape"])
+    if raw.shape != target_shape:
+        raise ValueError(f"[FiCD] Expected prediction shape {target_shape} for {sid}, got {raw.shape}")
+
+    raw_min = float(np.nanmin(raw))
+    raw_max = float(np.nanmax(raw))
+    if raw_min < -1e-3 or raw_max > 1.0 + 1e-3:
+        raise ValueError(
+            f"[FiCD] Prediction {sid} is not in [0, 1]: min={raw_min:.6f}, max={raw_max:.6f}. "
+            "FiCD eval saves pred_unit, so run_comparison.py should not apply (x + 1) / 2."
+        )
+    return {
+        "pred": np.clip(raw, 0, 1),
+        "raw_shape": raw.shape,
+        "raw_range": (raw_min, raw_max),
+    }
+
+
+def load_method_niftis(config, subjects, ficd_preprocess=None):
+    method_niftis = {}
+    subject_lookup = load_subject_lookup(config)
+    for method_id in get_enabled_methods(config):
+        label = get_method_label(method_id)
+        source = get_method_source(config, method_id)
+        method_niftis[label] = {}
+        if method_id == "pasta":
+            output_dir = require_exists(source["output_dir"], "PASTA output dir")
+            for sid in subjects:
+                method_niftis[label][sid] = load_pasta_visual_entry(output_dir, sid, subject_lookup)
+        elif method_id in {"legacy", "plasma"}:
+            nifti_dir = require_exists(Path(source["output_dir"]) / "nifti", f"{method_id} nifti dir")
+            for sid in subjects:
+                method_niftis[label][sid] = load_plasma_visual_entry(nifti_dir, sid)
+        elif method_id == "ficd":
+            if ficd_preprocess is None:
+                ficd_preprocess = load_ficd_preprocess_spec(config, source)
+            pred_dir = resolve_ficd_prediction_dir(source["run_dir"])
+            for sid in subjects:
+                method_niftis[label][sid] = load_ficd_visual_entry(pred_dir, sid, ficd_preprocess)
+
+    print("\n  [visual audit] native loaded shapes:")
+    for label, subject_dict in method_niftis.items():
+        for sid, vols in subject_dict.items():
+            pred = vols.get("pred")
+            gt = vols.get("gt")
+            mri = vols.get("mri")
+            msg = f"    {label} | {sid} | pred={None if pred is None else pred.shape}"
+            if gt is not None:
+                msg += f" gt={gt.shape}"
+            if mri is not None:
+                msg += f" mri={mri.shape}"
+            if label == "FiCD":
+                raw_min, raw_max = vols["raw_range"]
+                msg += f" raw_range=[{raw_min:.5f}, {raw_max:.5f}]"
+            print(msg)
+    return method_niftis
+
+
+def generate_unified_comparison(
+    viz_subjects,
+    method_niftis,
+    out_path,
+    method_ids,
+    raw_mri_paths=None,
+    ficd_preprocess=None,
+):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import matplotlib.gridspec as gridspec
     from scipy.ndimage import zoom as nd_zoom
 
-    DIRECTIONS = ["Axial", "Coronal", "Sagittal"]
-    COL_LABELS = ["MRI", "GT PET", "PASTA", "Legacy", "Plasma\n(Ours)", "FiCD"]
-    # crop from configs/ficd/aligned_tau.yaml: (x_l, x_r, y_l, y_r, z_l, z_r)
-    CROP = (11, 10, 20, 17, 0, 21)
-    N_DATA_COLS = len(COL_LABELS)          # 6
-    N_DIRS = 3
-    N_ROWS_PER_DIR = 2                     # synthesis + error map
-    N_TOTAL_ROWS = N_DIRS * N_ROWS_PER_DIR  # 6
-    DIFF_VMAX = 0.3
+    directions = ["Axial", "Coronal", "Sagittal"]
+    method_labels = [get_method_label(m) for m in method_ids]
+    col_labels = ["MRI", "GT PET"] + method_labels
+    n_data_cols = len(col_labels)
+    n_total_rows = 6
+    diff_vmax = 0.3
 
     def _get_slice(vol, direction):
         x, y, z = vol.shape[:3]
         if direction == "Axial":
             return vol[:, :, z // 2]
-        elif direction == "Coronal":
+        if direction == "Coronal":
             return vol[:, y // 2, :]
-        else:
-            return vol[x // 2, :, :]
+        return vol[x // 2, :, :]
 
     def _resample(arr, tgt_shape):
-        """Trilinear resample arr to tgt_shape tuple."""
         if arr.shape == tgt_shape:
             return arr
         factors = [t / s for t, s in zip(tgt_shape, arr.shape)]
-        return np.clip(
-            nd_zoom(arr.astype(np.float64), factors, order=1).astype(np.float32),
-            0, 1,
-        )
-
-    def _uncrop_resample(arr, tgt_shape, crop=CROP):
-        """Pad the inverse of crop then resample to tgt_shape."""
-        padded = np.pad(
-            arr,
-            [(crop[0], crop[1]), (crop[2], crop[3]), (crop[4], crop[5])],
-            mode="constant",
-            constant_values=0,
-        )
-        return _resample(padded, tgt_shape)
+        return np.clip(nd_zoom(arr.astype(np.float64), factors, order=1).astype(np.float32), 0, 1)
 
     def _crop_or_pad(data, target_shape):
-        """Center crop or zero-pad to target_shape (same as convert_nifti_to_h5.py)."""
         result = np.zeros(target_shape, dtype=data.dtype)
         src_shape = data.shape
         starts_src, ends_src, starts_dst, ends_dst = [], [], [], []
@@ -470,239 +899,213 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path,
                 ends_src.append(s)
                 starts_dst.append(start_d)
                 ends_dst.append(start_d + s)
-        result[starts_dst[0]:ends_dst[0],
-               starts_dst[1]:ends_dst[1],
-               starts_dst[2]:ends_dst[2]] = data[starts_src[0]:ends_src[0],
-                                                  starts_src[1]:ends_src[1],
-                                                  starts_src[2]:ends_src[2]]
+        result[
+            starts_dst[0]:ends_dst[0],
+            starts_dst[1]:ends_dst[1],
+            starts_dst[2]:ends_dst[2],
+        ] = data[
+            starts_src[0]:ends_src[0],
+            starts_src[1]:ends_src[1],
+            starts_src[2]:ends_src[2],
+        ]
         return result
 
-    def _pasta_to_mni(arr):
-        """Invert PASTA transforms: (96,112,96)@1.5mm → (182,218,182)@1.0mm.
-
-        PASTA forward pipeline (convert_nifti_to_h5.py):
-          (1) Source NIfTI (182,218,182) @ 1.0mm
-          (2) scipy.ndimage.zoom(×0.667) → (121,145,121) @ 1.5mm
-          (3) crop_or_pad → (113,137,113)  [center-crop 4 each side]
-          (4) PASTA tio.CropOrPad → (96,112,96)  [center-crop: (8,9),(12,13),(8,9)]
-
-        Inverse: pad combined crops → (121,145,121), then zoom ×1.5 → (182,218,182)
-        """
-        PASTA_NET_PAD = [(12, 13), (16, 17), (12, 13)]
-        padded = np.pad(arr, PASTA_NET_PAD, mode="constant", constant_values=0)
-        mni = nd_zoom(padded.astype(np.float64), 1.5, order=1).astype(np.float32)
-        return mni
-
-    def _pasta_to_ref_space(arr, tgt_shape, raw_mri=None):
-        """Map PASTA (96,112,96) @ 1.5mm to Plasma's reference space.
-
-        Steps:
-          (A) Invert PASTA transforms → (182,218,182) @ 1.0mm (MNI space)
-          (B) Apply CropForeground using raw MRI bounding box (matches Plasma pipeline)
-          (C) Center crop/pad to tgt_shape (160,192,160)
-
-        Without raw_mri, falls back to simple center-crop (less accurate).
-        """
-        # Step A: invert to MNI space
-        mni = _pasta_to_mni(arr)
-
-        # Step B: CropForeground using raw MRI (same as Plasma's CropForegroundd)
+    def _crop_foreground_then_ref_space(arr, tgt_shape, raw_mri):
         if raw_mri is not None:
             nonzero = np.nonzero(raw_mri)
             if len(nonzero[0]) > 0:
                 bbox_min = [int(n.min()) for n in nonzero]
                 bbox_max = [int(n.max()) + 1 for n in nonzero]
-                mni = mni[bbox_min[0]:bbox_max[0],
-                          bbox_min[1]:bbox_max[1],
-                          bbox_min[2]:bbox_max[2]]
+                arr = arr[
+                    bbox_min[0]:bbox_max[0],
+                    bbox_min[1]:bbox_max[1],
+                    bbox_min[2]:bbox_max[2],
+                ]
+        return np.clip(_crop_or_pad(arr, tgt_shape), 0, 1)
 
-        # Step C: center crop/pad to tgt_shape (same as ResizeWithPadOrCropd)
-        result = _crop_or_pad(mni, tgt_shape)
-        return np.clip(result, 0, 1)
+    def _ficd_to_ref_space(arr, tgt_shape, raw_mri, preprocess, sid):
+        if preprocess is None:
+            raise ValueError("FiCD preprocessing metadata is required for unified comparison.")
+        if raw_mri is None:
+            raise ValueError(f"[FiCD] Raw MRI is required to align {sid} into reference display space.")
+
+        crop = tuple(preprocess["crop"])
+        target_shape = tuple(preprocess["target_shape"])
+        if arr.shape != target_shape:
+            raise ValueError(f"[FiCD] Expected prediction shape {target_shape} for {sid}, got {arr.shape}")
+
+        raw_shape = tuple(int(x) for x in raw_mri.shape[:3])
+        cropped_shape = (
+            raw_shape[0] - crop[0] - crop[1],
+            raw_shape[1] - crop[2] - crop[3],
+            raw_shape[2] - crop[4] - crop[5],
+        )
+        if any(dim <= 0 for dim in cropped_shape):
+            raise ValueError(f"[FiCD] Invalid crop {crop} for raw MRI shape {raw_shape} ({sid})")
+
+        crop_space = _resample(arr, cropped_shape)
+        mni_space = np.pad(
+            crop_space,
+            [(crop[0], crop[1]), (crop[2], crop[3]), (crop[4], crop[5])],
+            mode="constant",
+            constant_values=0,
+        )
+        if mni_space.shape != raw_shape:
+            raise ValueError(
+                f"[FiCD] Uncropped shape mismatch for {sid}: got {mni_space.shape}, expected {raw_shape}"
+            )
+
+        aligned = _crop_foreground_then_ref_space(mni_space, tgt_shape, raw_mri)
+        print(
+            f"  [FiCD align] {sid}: native={arr.shape} crop_space={crop_space.shape} "
+            f"mni={mni_space.shape} ref={aligned.shape}"
+        )
+        return aligned
+
+    def _pasta_to_mni(arr):
+        padded = np.pad(arr, [(12, 13), (16, 17), (12, 13)], mode="constant", constant_values=0)
+        return nd_zoom(padded.astype(np.float64), 1.5, order=1).astype(np.float32)
+
+    def _pasta_to_ref_space(arr, tgt_shape, raw_mri=None):
+        mni = _pasta_to_mni(arr)
+        return _crop_foreground_then_ref_space(mni, tgt_shape, raw_mri)
 
     def _blank_ax(ax):
-        """Remove all visual elements except the axes frame (keeps ylabel)."""
         ax.set_xticks([])
         ax.set_yticks([])
         for spine in ax.spines.values():
             spine.set_visible(False)
 
-    n = len(viz_subjects)
-    if n == 0:
+    if not viz_subjects:
         print("  [unified] No viz subjects, skipping.")
         return
-    indices = sorted(set([0, n // 2, n - 1]))
-    selected = [viz_subjects[i] for i in indices]
+
+    selected = [viz_subjects[i] for i in sorted(set([0, len(viz_subjects) // 2, len(viz_subjects) - 1]))]
+
+    native_gt_priority = [label for label in ["Plasma (Ours)", "Legacy"] if label in method_labels]
+    if not native_gt_priority:
+        native_gt_priority = method_labels[:1]
 
     for sid in selected:
-        # ── GT: always from Plasma (Ours) / Legacy nifti (uncropped reference) ──
         gt_vol = None
-        for _m in ["Plasma (Ours)", "Legacy"]:
-            entry = method_niftis.get(_m, {}).get(sid, {})
+        for label in native_gt_priority:
+            entry = method_niftis.get(label, {}).get(sid, {})
             if "gt" in entry:
                 gt_vol = entry["gt"]
                 break
         gt_shape = gt_vol.shape if gt_vol is not None else None
+        if gt_shape is not None and gt_shape != REFERENCE_VIS_SHAPE:
+            raise ValueError(
+                f"[unified] Expected reference GT shape {REFERENCE_VIS_SHAPE} for {sid}, got {gt_shape}"
+            )
 
-        # ── MRI ───────────────────────────────────────────────────────────
         mri_vol = None
-        for _m in ["Plasma (Ours)", "Legacy"]:
-            entry = method_niftis.get(_m, {}).get(sid, {})
+        for label in native_gt_priority:
+            entry = method_niftis.get(label, {}).get(sid, {})
             if "mri" in entry:
                 mri_vol = entry["mri"]
                 break
 
-        # ── Load raw MRI for CropForeground (needed by PASTA alignment) ───
         raw_mri = None
-        if raw_mri_paths and sid in raw_mri_paths:
-            raw_mri_path = raw_mri_paths[sid]
-            if os.path.exists(raw_mri_path):
-                raw_mri = nib.load(raw_mri_path).get_fdata().astype(np.float32)
-                if raw_mri.ndim == 4:
-                    raw_mri = raw_mri.mean(axis=-1)
+        if raw_mri_paths and sid in raw_mri_paths and os.path.exists(raw_mri_paths[sid]):
+            raw_mri = nib.load(raw_mri_paths[sid]).get_fdata().astype(np.float32)
+            if raw_mri.ndim == 4:
+                raw_mri = raw_mri.mean(axis=-1)
 
-        # ── Predictions → resampled to GT shape ──────────────────────────
-        # PASTA: eval_resolution=(96,112,96) @ 1.5mm — invert transforms to
-        #   MNI (182,218,182), then apply Plasma's CropForeground + crop/pad.
-        # FiCD is in (crop + resize) space from aligned_tau.yaml → inverse crop then zoom.
-        # Plasma (Ours) / Legacy are already in GT space.
         pred_vols = {}
-        for mk in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
-            entry = method_niftis.get(mk, {}).get(sid, {})
-            pred = entry.get("pred", None)
+        diff_gt_vols = {}
+        for method_id in method_ids:
+            label = get_method_label(method_id)
+            entry = method_niftis.get(label, {}).get(sid, {})
+            pred = entry.get("pred")
             if pred is not None and gt_shape is not None:
-                if mk == "FiCD":
-                    pred = _uncrop_resample(pred, gt_shape)
-                elif mk == "PASTA":
-                    # Undo PASTA transforms → MNI → CropForeground → crop/pad
+                alignment = METHOD_ALIGNMENT[method_id]
+                if alignment == "ficd":
+                    pred = _ficd_to_ref_space(pred, gt_shape, raw_mri, ficd_preprocess, sid)
+                elif alignment == "pasta":
                     pred = _pasta_to_ref_space(pred, gt_shape, raw_mri=raw_mri)
                 else:
-                    # Plasma (Ours), Legacy: already in GT space, just ensure shape
                     pred = _resample(pred, gt_shape)
-            pred_vols[mk] = pred
+            pred_vols[label] = pred
 
-        # ── Per-method GT for error maps ──────────────────────────────────
-        # PASTA uses its own native GT mapped through the same spatial pipeline
-        # as its prediction (invert → CropForeground → crop/pad) so the error
-        # map reflects synthesis quality rather than spatial misalignment.
-        # Other methods share gt_vol (plasma/legacy GT).
-        diff_gt_vols = {}
-        for mk in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
-            if mk == "PASTA" and gt_shape is not None:
-                pasta_gt_native = method_niftis.get("PASTA", {}).get(sid, {}).get("gt")
-                if pasta_gt_native is not None:
-                    diff_gt_vols[mk] = _pasta_to_ref_space(
-                        pasta_gt_native, gt_shape, raw_mri=raw_mri
-                    )
-                else:
-                    diff_gt_vols[mk] = gt_vol
+            if label == "PASTA" and gt_shape is not None:
+                pasta_gt_native = entry.get("gt")
+                diff_gt_vols[label] = _pasta_to_ref_space(pasta_gt_native, gt_shape, raw_mri=raw_mri)
             else:
-                diff_gt_vols[mk] = gt_vol
+                diff_gt_vols[label] = gt_vol
 
-        # ── Figure: 6 rows × (6 data cols + 1 colorbar) ──────────────────
-        width_ratios = [1] * N_DATA_COLS + [0.07]
-        fig_w = N_DATA_COLS * 1.9 + 0.6
-        fig_h = N_TOTAL_ROWS * 1.8 + 0.6
-        fig = plt.figure(figsize=(fig_w, fig_h))
+        width_ratios = [1] * n_data_cols + [0.07]
+        fig = plt.figure(figsize=(n_data_cols * 1.9 + 0.6, n_total_rows * 1.8 + 0.6))
         gs = gridspec.GridSpec(
-            N_TOTAL_ROWS, N_DATA_COLS + 1,
+            n_total_rows,
+            n_data_cols + 1,
             figure=fig,
             width_ratios=width_ratios,
             hspace=0.06,
             wspace=0.04,
-            left=0.11, right=0.97, top=0.95, bottom=0.02,
+            left=0.11,
+            right=0.97,
+            top=0.95,
+            bottom=0.02,
         )
-
-        axes = [
-            [fig.add_subplot(gs[r, c]) for c in range(N_DATA_COLS)]
-            for r in range(N_TOTAL_ROWS)
-        ]
-        cbar_ax = fig.add_subplot(gs[:, N_DATA_COLS])
+        axes = [[fig.add_subplot(gs[r, c]) for c in range(n_data_cols)] for r in range(n_total_rows)]
+        cbar_ax = fig.add_subplot(gs[:, n_data_cols])
         last_diff_im = None
 
         mri_vlo = float(np.percentile(mri_vol, 1)) if mri_vol is not None else 0
         mri_vhi = float(np.percentile(mri_vol, 99)) if mri_vol is not None else 1
 
-        for dir_idx, direction in enumerate(DIRECTIONS):
-            row_s = dir_idx * N_ROWS_PER_DIR      # synthesis row
-            row_e = dir_idx * N_ROWS_PER_DIR + 1  # error map row
+        for dir_idx, direction in enumerate(directions):
+            row_s = dir_idx * 2
+            row_e = row_s + 1
 
-            # ── Synthesis row ─────────────────────────────────────────────
-            ax = axes[row_s][0]   # MRI
+            ax = axes[row_s][0]
             if mri_vol is not None:
-                ax.imshow(_get_slice(mri_vol, direction).T,
-                          cmap="gray", origin="lower", vmin=mri_vlo, vmax=mri_vhi)
+                ax.imshow(_get_slice(mri_vol, direction).T, cmap="gray", origin="lower", vmin=mri_vlo, vmax=mri_vhi)
             else:
-                ax.text(0.5, 0.5, "N/A", ha="center", va="center",
-                        transform=ax.transAxes, fontsize=7, color="gray")
+                ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=7, color="gray")
 
-            ax = axes[row_s][1]   # GT PET
+            ax = axes[row_s][1]
             if gt_vol is not None:
-                ax.imshow(_get_slice(gt_vol, direction).T,
-                          cmap="inferno", origin="lower", vmin=0, vmax=1)
+                ax.imshow(_get_slice(gt_vol, direction).T, cmap="inferno", origin="lower", vmin=0, vmax=1)
             else:
-                ax.text(0.5, 0.5, "N/A", ha="center", va="center",
-                        transform=ax.transAxes, fontsize=7, color="gray")
+                ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=7, color="gray")
 
-            for mi, mk in enumerate(["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]):
-                ax = axes[row_s][2 + mi]
-                pred = pred_vols.get(mk)
+            for idx, label in enumerate(method_labels, start=2):
+                ax = axes[row_s][idx]
+                pred = pred_vols[label]
                 if pred is not None:
-                    ax.imshow(_get_slice(pred, direction).T,
-                              cmap="inferno", origin="lower", vmin=0, vmax=1)
+                    ax.imshow(_get_slice(pred, direction).T, cmap="inferno", origin="lower", vmin=0, vmax=1)
                 else:
-                    ax.text(0.5, 0.5, "N/A", ha="center", va="center",
-                            transform=ax.transAxes, fontsize=7, color="gray")
+                    ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=7, color="gray")
 
-            # ── Error map row ─────────────────────────────────────────────
-            _blank_ax(axes[row_e][0])   # MRI — empty
-            _blank_ax(axes[row_e][1])   # GT  — empty
-
-            for mi, mk in enumerate(["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]):
-                ax = axes[row_e][2 + mi]
-                pred = pred_vols.get(mk)
-                ref_gt = diff_gt_vols.get(mk, gt_vol)
+            _blank_ax(axes[row_e][0])
+            _blank_ax(axes[row_e][1])
+            for idx, label in enumerate(method_labels, start=2):
+                ax = axes[row_e][idx]
+                pred = pred_vols[label]
+                ref_gt = diff_gt_vols[label]
                 if pred is None or ref_gt is None:
-                    ax.text(0.5, 0.5, "N/A", ha="center", va="center",
-                            transform=ax.transAxes, fontsize=7, color="gray")
+                    ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=7, color="gray")
                 else:
                     diff = np.abs(pred - ref_gt)
-                    im = ax.imshow(_get_slice(diff, direction).T,
-                                   cmap="Reds", origin="lower", vmin=0, vmax=DIFF_VMAX)
-                    last_diff_im = im
+                    last_diff_im = ax.imshow(_get_slice(diff, direction).T, cmap="Reds", origin="lower", vmin=0, vmax=diff_vmax)
 
-            # ── Tick removal for all cells in both rows ───────────────────
             for row in (row_s, row_e):
-                for col in range(N_DATA_COLS):
+                for col in range(n_data_cols):
                     axes[row][col].set_xticks([])
                     axes[row][col].set_yticks([])
 
-            # ── Column titles (first direction group only) ─────────────────
             if dir_idx == 0:
-                for ci, label in enumerate(COL_LABELS):
+                for ci, label in enumerate(col_labels):
                     axes[0][ci].set_title(label, fontsize=8, pad=3, fontweight="bold")
 
-            # ── Row-group left labels ─────────────────────────────────────
-            # Synthesis: ylabel on col-0 (MRI visible)
-            axes[row_s][0].set_ylabel(
-                f"{direction}\nSynthesis", fontsize=8, fontweight="bold", labelpad=4
-            )
-            # Error map: col-0 is blanked, use fig.text in the left margin
-            # Compute approximate vertical center of this row in figure coords.
-            # GridSpec: top=0.95, bottom=0.02 → content height = 0.93
-            # Row row_e spans from bottom + (N_TOTAL_ROWS-1-row_e)/N * content to ...
+            axes[row_s][0].set_ylabel(f"{direction}\nSynthesis", fontsize=8, fontweight="bold", labelpad=4)
             content_h = 0.95 - 0.02
-            row_height = content_h / N_TOTAL_ROWS
-            row_center_y = 0.02 + (N_TOTAL_ROWS - 1 - row_e + 0.5) * row_height
-            fig.text(
-                0.025, row_center_y,
-                "Error\nMap",
-                va="center", ha="center",
-                fontsize=7, color="dimgray",
-                rotation=90,
-            )
+            row_height = content_h / n_total_rows
+            row_center_y = 0.02 + (n_total_rows - 1 - row_e + 0.5) * row_height
+            fig.text(0.025, row_center_y, "Error\nMap", va="center", ha="center", fontsize=7, color="dimgray", rotation=90)
 
-        # ── Colorbar ──────────────────────────────────────────────────────
         if last_diff_im is not None:
             cb = fig.colorbar(last_diff_im, cax=cbar_ax)
             cb.set_label("Absolute Error", fontsize=8)
@@ -710,40 +1113,38 @@ def generate_unified_comparison(viz_subjects, method_niftis, out_path,
         else:
             cbar_ax.axis("off")
 
-        # ── Figure title ──────────────────────────────────────────────────
-        fig.suptitle(
-            f"Method Comparison  |  Subject: {sid}",
-            fontsize=11, fontweight="bold", y=0.98,
-        )
-
+        fig.suptitle(f"Method Comparison  |  Subject: {sid}", fontsize=11, fontweight="bold", y=0.98)
         fig_path = out_path / f"unified_comparison_{sid}.png"
         plt.savefig(str(fig_path), dpi=200, bbox_inches="tight")
         plt.close(fig)
         print(f"  Saved {fig_path}")
 
 
-def generate_boxplot(all_metrics_df, out_path):
-    """Generate boxplot comparison of metrics across methods."""
+def generate_boxplot(all_metrics_df, out_path, method_labels):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     metric_cols = ["ssim", "psnr", "mae"]
-    method_order = ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]
-    colors = {"PASTA": "#1f77b4", "Legacy": "#ff7f0e", "Plasma (Ours)": "#2ca02c", "FiCD": "#d62728"}
+    colors = {
+        "PASTA": "#1f77b4",
+        "Legacy": "#ff7f0e",
+        "Plasma (Ours)": "#2ca02c",
+        "FiCD": "#d62728",
+    }
 
     fig, axes = plt.subplots(1, len(metric_cols), figsize=(5 * len(metric_cols), 5))
     for idx, metric in enumerate(metric_cols):
         ax = axes[idx]
-        data_to_plot = []
-        labels = []
-        cs = []
-        for m in method_order:
-            sub = all_metrics_df[all_metrics_df["method"] == m][metric].dropna()
-            if len(sub) > 0:
-                data_to_plot.append(sub.values)
-                labels.append(m)
-                cs.append(colors.get(m, "gray"))
+        data_to_plot, labels, cs = [], [], []
+        for label in method_labels:
+            sub = all_metrics_df[all_metrics_df["method"] == label][metric].dropna()
+            if len(sub) == 0:
+                continue
+            data_to_plot.append(sub.values)
+            labels.append(label)
+            cs.append(colors.get(label, "gray"))
 
         bp = ax.boxplot(data_to_plot, labels=labels, patch_artist=True, widths=0.6)
         for patch, color in zip(bp["boxes"], cs):
@@ -760,27 +1161,17 @@ def generate_boxplot(all_metrics_df, out_path):
     print(f"  Saved {fig_path}")
 
 
-def _get_mid_slices(vol):
-    """Get mid axial, coronal, sagittal slices."""
-    s = vol.shape
-    return [
-        vol[:, :, s[2] // 2],   # axial
-        vol[:, s[1] // 2, :],   # coronal
-        vol[s[0] // 2, :, :],   # sagittal
-    ]
-
-
-# ── Phase 5: Report Generation ──────────────────────────────────────────────
-def generate_report(summary_df, stat_tests, method_counts, out_path):
-    """Generate final Markdown report."""
+# ── Report ───────────────────────────────────────────────────────────────────
+def generate_report(summary_df, stat_tests, method_counts, out_path, enabled_methods):
+    enabled_labels = [get_method_label(m) for m in enabled_methods]
     lines = [
-        "# MRI → TAU PET 四方法对比实验报告",
+        "# MRI → TAU PET 多方法对比实验报告",
         "",
         "## 实验概述",
         "",
         "| 项目 | 说明 |",
         "|------|------|",
-        "| 对比方法 | PASTA, Legacy, Plasma (Ours), FiCD |",
+        f"| 对比方法 | {', '.join(enabled_labels)} |",
         f"| 公共测试集 | {method_counts.get('common', 'N/A')} subjects |",
         "| 评估指标 | SSIM, PSNR, MAE, MSE, NCC |",
         "| 统计检验 | Wilcoxon signed-rank test |",
@@ -789,39 +1180,43 @@ def generate_report(summary_df, stat_tests, method_counts, out_path):
         "",
         "| 方法 | 模型类型 | 输出分辨率 | 条件注入 |",
         "|------|----------|-----------|---------|",
-        "| PASTA | 2.5D DDIM-100 扩散 | 96×112×96 (1.5mm) | Slice-level conditioning |",
-        "| Legacy | Rectified-flow 1-step | 160×192×160 (1mm) | BiomedCLIP text token |",
-        "| Plasma (Ours) | Rectified-flow 1-step | 160×192×160 (1mm) | Plasma embedding + text token |",
-        "| FiCD | DDPM concat-conditioning | 160×180×160 | MRI concat + text embedding |",
-        "",
-        "## 定量结果",
-        "",
-        "### 整体指标 (Mean ± Std)",
-        "",
     ]
-
-    # Summary table
-    lines.append("| 方法 | N | SSIM ↑ | PSNR ↑ | MAE ↓ | MSE ↓ | NCC ↑ |")
-    lines.append("|------|---|--------|--------|-------|-------|-------|")
-    method_order = ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]
-    for m in method_order:
-        row = summary_df[summary_df["method"] == m]
-        if len(row) == 0:
-            lines.append(f"| {m} | 0 | - | - | - | - | - |")
-            continue
-        r = row.iloc[0]
-        ncc_str = f"{r['ncc_mean']:.4f}±{r['ncc_std']:.4f}" if not np.isnan(r.get("ncc_mean", np.nan)) else "N/A"
+    for method_id in enabled_methods:
+        spec = METHOD_SPECS[method_id]
+        summary = spec["summary"]
         lines.append(
-            f"| {m} | {int(r['n'])} | "
-            f"{r['ssim_mean']:.4f}±{r['ssim_std']:.4f} | "
-            f"{r['psnr_mean']:.2f}±{r['psnr_std']:.2f} | "
-            f"{r['mae_mean']:.4f}±{r['mae_std']:.4f} | "
-            f"{r['mse_mean']:.6f}±{r['mse_std']:.6f} | "
+            f"| {spec['label']} | {summary['model_type']} | "
+            f"{summary['resolution']} | {summary['conditioning']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## 定量结果",
+            "",
+            "### 整体指标 (Mean ± Std)",
+            "",
+            "| 方法 | N | SSIM ↑ | PSNR ↑ | MAE ↓ | MSE ↓ | NCC ↑ |",
+            "|------|---|--------|--------|-------|-------|-------|",
+        ]
+    )
+
+    for label in enabled_labels:
+        row = summary_df[summary_df["method"] == label]
+        if len(row) == 0:
+            lines.append(f"| {label} | 0 | - | - | - | - | - |")
+            continue
+        record = row.iloc[0]
+        ncc_str = f"{record['ncc_mean']:.4f}±{record['ncc_std']:.4f}" if not np.isnan(record.get("ncc_mean", np.nan)) else "N/A"
+        lines.append(
+            f"| {label} | {int(record['n'])} | "
+            f"{record['ssim_mean']:.4f}±{record['ssim_std']:.4f} | "
+            f"{record['psnr_mean']:.2f}±{record['psnr_std']:.2f} | "
+            f"{record['mae_mean']:.4f}±{record['mae_std']:.4f} | "
+            f"{record['mse_mean']:.6f}±{record['mse_std']:.6f} | "
             f"{ncc_str} |"
         )
-    lines.append("")
 
-    # Best method highlight
+    lines.extend(["", "### 最优方法", ""])
     best = {}
     for metric in ["ssim", "psnr", "ncc"]:
         col = f"{metric}_mean"
@@ -833,35 +1228,35 @@ def generate_report(summary_df, stat_tests, method_counts, out_path):
         valid = summary_df[summary_df[col].notna()]
         if len(valid) > 0:
             best[metric] = valid.loc[valid[col].idxmin(), "method"]
-
-    lines.append("### 最优方法")
-    lines.append("")
     for metric, method in best.items():
-        direction = "↑" if metric in ["ssim", "psnr", "ncc"] else "↓"
+        direction = "↑" if metric in {"ssim", "psnr", "ncc"} else "↓"
         lines.append(f"- **{metric.upper()}** {direction}: **{method}**")
-    lines.append("")
 
-    # Statistical tests
-    lines.append("## 统计检验 (Wilcoxon signed-rank test)")
-    lines.append("")
-    lines.append("| 指标 | 对比 | N | Statistic | p-value | 显著性 |")
-    lines.append("|------|------|---|-----------|---------|--------|")
-    for t in stat_tests:
-        p_str = f"{t['p_value']:.2e}" if not np.isnan(t["p_value"]) else "N/A"
-        s_str = f"{t['statistic']:.1f}" if not np.isnan(t["statistic"]) else "N/A"
-        lines.append(f"| {t['metric']} | {t['pair']} | {t['n']} | {s_str} | {p_str} | {t['sig']} |")
-    lines.append("")
+    lines.extend(
+        [
+            "",
+            "## 统计检验 (Wilcoxon signed-rank test)",
+            "",
+            "| 指标 | 对比 | N | Statistic | p-value | 显著性 |",
+            "|------|------|---|-----------|---------|--------|",
+        ]
+    )
+    for test in stat_tests:
+        p_str = f"{test['p_value']:.2e}" if not np.isnan(test["p_value"]) else "N/A"
+        s_str = f"{test['statistic']:.1f}" if not np.isnan(test["statistic"]) else "N/A"
+        lines.append(f"| {test['metric']} | {test['pair']} | {test['n']} | {s_str} | {p_str} | {test['sig']} |")
 
-    # Notes
-    lines.append("## 注意事项")
-    lines.append("")
-    lines.append("1. **分辨率差异**: PASTA 在 96×112×96 (1.5mm) 下评估，其余方法在 ~160³ (1mm) 下评估。"
-                 "各方法使用自身分辨率下的配对 GT 计算指标，因此指标间存在分辨率偏差。")
-    lines.append("2. **FiCD 训练不足**: FiCD 仅进行了 1 epoch smoke test 训练，指标预期较差。")
-    lines.append("3. **NCC**: FiCD 的 NCC 未计算（缺少同分辨率 GT NIfTI）。")
-    lines.append("4. **Plasma (Ours)** 使用预训练 plasma embedding 作为条件 token，"
-                 "是本项目的核心创新方法。")
-    lines.append("")
+    lines.extend(
+        [
+            "",
+            "## 注意事项",
+            "",
+            "1. PASTA 在 96×112×96 (1.5mm) 分辨率下评估，其余方法在约 160³ (1mm) 或相近空间下评估。",
+            "2. FiCD 的 NCC 仍未计算，因为当前保存结果缺少可直接对齐的 GT NIfTI。",
+            "3. 若启用 `rerun_inference`，所有新生成结果统一保存在当前 `OUT_DIR` 下。",
+            "",
+        ]
+    )
 
     report_path = out_path / "comparison_report.md"
     with open(report_path, "w") as f:
@@ -872,261 +1267,122 @@ def generate_report(summary_df, stat_tests, method_counts, out_path):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "figures").mkdir(exist_ok=True)
+    config = CONFIG
+    validate_config(config)
 
-    with open(ROOT / "analysis" / "_common_subjects.json") as f:
-        subjects = sorted(json.load(f))
+    config["out_dir"].mkdir(parents=True, exist_ok=True)
+    outputs = output_paths(config)
+    outputs["figures_dir"].mkdir(parents=True, exist_ok=True)
+
+    subject_records = load_subject_records(config)
+    subjects = [record["name"] for record in subject_records]
+    enabled_methods = get_enabled_methods(config)
+    enabled_labels = get_enabled_labels(config)
+    ficd_preprocess = validate_ficd_subject_records(config, subjects)
+    print(f"Run mode: {config['run_mode']}")
+    print(f"Enabled methods: {enabled_methods}")
     print(f"Common subjects: {len(subjects)}")
 
-    # ── Phase 1: Run Inference ──
-    print("\n" + "=" * 60)
-    print("  PHASE 1: RUNNING INFERENCE")
-    print("=" * 60)
+    maybe_run_inference(config)
 
-    ok_plasma = run_plasma_inference("plasma")
-    ok_legacy = run_plasma_inference("legacy")
-    ok_ficd = run_ficd_eval()
-    print(f"\nInference status: Plasma={ok_plasma}, Legacy={ok_legacy}, FiCD={ok_ficd}")
-
-    # ── Phase 2: Load & Compute Metrics ──
     print("\n" + "=" * 60)
     print("  PHASE 2: COMPUTING UNIFIED METRICS")
     print("=" * 60)
-
-    per_subject_csv = OUT_DIR / "per_subject_metrics.csv"
-    if per_subject_csv.exists():
-        print(f"\n  [跳过计算] 检测到历史 metrics 文件，直接加载: {per_subject_csv}")
-        print("  如需重新计算，请删除该文件后重新运行。")
-        df = pd.read_csv(per_subject_csv)
-        print(f"  已加载 {len(df)} 条历史 metrics 记录（{df['method'].value_counts().to_dict()}）")
+    if config["run_mode"] == "use_existing_results" and outputs["per_subject_csv"].exists():
+        print(f"\n  [跳过计算] 检测到历史 metrics 文件，直接加载: {outputs['per_subject_csv']}")
+        df = pd.read_csv(outputs["per_subject_csv"])
+        df = df[df["method"].isin(enabled_labels)].copy()
     else:
-        all_rows = []
-
-        print("\n[PASTA] Computing metrics from NIfTI pairs...")
-        pasta_rows = load_pasta_metrics(subjects)
-        for r in pasta_rows:
-            r["method"] = "PASTA"
-        all_rows.extend(pasta_rows)
-
-        print(f"\n[Plasma] Computing metrics from NIfTI pairs...")
-        plasma_rows = load_plasma_legacy_metrics("plasma", subjects)
-        for r in plasma_rows:
-            r["method"] = "Plasma (Ours)"
-        all_rows.extend(plasma_rows)
-
-        print(f"\n[Legacy] Computing metrics from NIfTI pairs...")
-        legacy_rows = load_plasma_legacy_metrics("legacy", subjects)
-        for r in legacy_rows:
-            r["method"] = "Legacy"
-        all_rows.extend(legacy_rows)
-
-        print(f"\n[FiCD] Loading metrics from subject_metrics.json...")
-        ficd_rows = load_ficd_metrics(subjects)
-        for r in ficd_rows:
-            r["method"] = "FiCD"
-        all_rows.extend(ficd_rows)
-
-        # Create unified DataFrame
-        df = pd.DataFrame(all_rows)
-        df.to_csv(per_subject_csv, index=False)
+        df = compute_metrics_dataframe(config, subjects)
+        df.to_csv(outputs["per_subject_csv"], index=False)
 
     print(f"\nTotal metric rows: {len(df)}")
     print(df.groupby("method")[["ssim", "psnr", "mae"]].describe().round(4))
 
-    # Summary
-    summary_csv = OUT_DIR / "summary_metrics.csv"
-    if summary_csv.exists() and per_subject_csv.exists():
-        print(f"\n  [跳过汇总] 使用历史 summary: {summary_csv}")
-        summary_df = pd.read_csv(summary_csv)
+    if config["run_mode"] == "use_existing_results" and outputs["summary_csv"].exists() and outputs["per_subject_csv"].exists():
+        print(f"\n  [跳过汇总] 使用历史 summary: {outputs['summary_csv']}")
+        summary_df = pd.read_csv(outputs["summary_csv"])
+        summary_df = summary_df[summary_df["method"].isin(enabled_labels)].copy()
     else:
-        summary_rows = []
-        for method in ["PASTA", "Legacy", "Plasma (Ours)", "FiCD"]:
-            sub = df[df["method"] == method]
-            if len(sub) == 0:
-                continue
-            row = {"method": method, "n": len(sub)}
-            for metric in ["ssim", "psnr", "mae", "mse", "ncc"]:
-                vals = sub[metric].dropna()
-                row[f"{metric}_mean"] = vals.mean() if len(vals) > 0 else np.nan
-                row[f"{metric}_std"] = vals.std() if len(vals) > 0 else np.nan
-            summary_rows.append(row)
-        summary_df = pd.DataFrame(summary_rows)
-        summary_df.to_csv(summary_csv, index=False)
+        summary_df = build_summary(df, enabled_labels)
+        summary_df.to_csv(outputs["summary_csv"], index=False)
     print("\nSummary:")
     print(summary_df.to_string(index=False))
 
-    # ── Phase 3: Statistical Tests ──
     print("\n" + "=" * 60)
     print("  PHASE 3: STATISTICAL TESTS")
     print("=" * 60)
+    stat_tests = run_statistical_tests(df, enabled_labels)
+    pd.DataFrame(stat_tests).to_csv(outputs["stats_csv"], index=False)
 
-    stat_tests = []
-    # Compare Plasma (Ours) vs each other method
-    ours = "Plasma (Ours)"
-    for other in ["PASTA", "Legacy", "FiCD"]:
-        # Get paired subjects
-        ours_sub = df[df["method"] == ours].set_index("subject")
-        other_sub = df[df["method"] == other].set_index("subject")
-        common_sids = sorted(set(ours_sub.index) & set(other_sub.index))
-
-        if len(common_sids) < 5:
-            for metric in ["ssim", "psnr", "mae"]:
-                stat_tests.append({"metric": metric, "pair": f"{ours} vs {other}",
-                                   "n": len(common_sids), "statistic": np.nan,
-                                   "p_value": np.nan, "sig": "N/A"})
-            continue
-
-        for metric in ["ssim", "psnr", "mae"]:
-            a = ours_sub.loc[common_sids, metric].values
-            b = other_sub.loc[common_sids, metric].values
-            t = wilcoxon_test(a, b, metric.upper(), ours, other)
-            stat_tests.append(t)
-            print(f"  {t['metric']:5s} | {t['pair']:30s} | p={t['p_value']:.2e} {t['sig']}")
-
-    stat_df = pd.DataFrame(stat_tests)
-    stat_df.to_csv(OUT_DIR / "statistical_tests.csv", index=False)
-
-    # ── Phase 4: Visualizations ──
     print("\n" + "=" * 60)
     print("  PHASE 4: GENERATING VISUALIZATIONS")
     print("=" * 60)
+    viz_subjects = subjects[: config["max_viz_subjects"]]
+    method_niftis = load_method_niftis(config, viz_subjects, ficd_preprocess=ficd_preprocess)
 
-    fig_dir = OUT_DIR / "figures"
+    for label, subject_dict in method_niftis.items():
+        for sid, vols in subject_dict.items():
+            import matplotlib
 
-    # Load NIfTI volumes for visualization (subset)
-    method_niftis = {}
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
 
-    # PASTA
-    with open(PASTA_MAP) as f:
-        pasta_map = json.load(f)
-    method_niftis["PASTA"] = {}
-    for sid in subjects[:5]:  # first 5 for viz
-        if sid in pasta_map:
-            syn_path = PASTA_DIR / pasta_map[sid]["syn"]
-            gt_path = PASTA_DIR / pasta_map[sid]["gt"]
-            if syn_path.exists() and gt_path.exists():
-                pasta_gt_arr = nib.load(str(gt_path)).get_fdata().astype(np.float32)
-                pasta_pred_arr = nib.load(str(syn_path)).get_fdata().astype(np.float32)
-                # PASTA inference output is already in [0,1]:
-                #   - dataset.py applies tio.RescaleIntensity(out_min_max=(0,1))
-                #   - diffusion sample() applies unnormalize_to_zero_to_one + clamp(0,1)
-                # No additional re-scaling needed; just clip to [0,1].
-                method_niftis["PASTA"][sid] = {
-                    "pred": np.clip(pasta_pred_arr, 0, 1),
-                    "gt": np.clip(pasta_gt_arr, 0, 1),
-                }
+            has_gt = "gt" in vols
+            n_rows = 2 if has_gt else 1
+            fig, axes = plt.subplots(n_rows, 3, figsize=(12, 3.5 * n_rows))
+            if n_rows == 1:
+                axes = axes[np.newaxis, :]
 
-    # Plasma / Legacy
-    for mname, label in [("plasma", "Plasma (Ours)"), ("legacy", "Legacy")]:
-        method_niftis[label] = {}
-        nifti_dir = OUT_DIR / mname / "nifti"
-        for sid in subjects[:5]:
-            pred_p = nifti_dir / f"{sid}_tau_pred.nii.gz"
-            gt_p = nifti_dir / f"{sid}_tau_gt.nii.gz"
-            mri_p = nifti_dir / f"{sid}_mri.nii.gz"
-            if pred_p.exists() and gt_p.exists():
-                entry = {
-                    "pred": np.clip(nib.load(str(pred_p)).get_fdata().astype(np.float32), 0, 1),
-                    "gt": np.clip(nib.load(str(gt_p)).get_fdata().astype(np.float32), 0, 1),
-                }
-                if mri_p.exists():
-                    entry["mri"] = nib.load(str(mri_p)).get_fdata().astype(np.float32)
-                method_niftis[label][sid] = entry
+            pred_slices = _get_mid_slices(vols["pred"])
+            row = n_rows - 1
+            for j, slice_2d in enumerate(pred_slices):
+                axes[row, j].imshow(slice_2d.T, cmap="inferno", origin="lower", vmin=0, vmax=1)
+            axes[row, 0].set_ylabel(f"{label}\nPred", fontsize=10)
 
-    # FiCD - prediction only (different resolution, no GT NIfTI)
-    method_niftis["FiCD"] = {}
-    pred_dir = FICD_RUN_DIR / "predictions" / "eval"
-    for sid in subjects[:5]:
-        pred_p = pred_dir / f"{sid}.nii.gz"
-        if pred_p.exists():
-            raw = nib.load(str(pred_p)).get_fdata().astype(np.float32)
-            pred_unit = np.clip((raw + 1.0) / 2.0, 0, 1)
-            method_niftis["FiCD"][sid] = {"pred": pred_unit}
+            if has_gt:
+                gt_slices = _get_mid_slices(vols["gt"])
+                for j, slice_2d in enumerate(gt_slices):
+                    axes[0, j].imshow(slice_2d.T, cmap="inferno", origin="lower", vmin=0, vmax=1)
+                axes[0, 0].set_ylabel("GT", fontsize=10)
 
-    # Find common viz subjects (present in Plasma at minimum)
-    viz_subjects = [s for s in subjects[:5] if s in method_niftis.get("Plasma (Ours)", {})]
+            for ax in axes.flat:
+                ax.set_xticks([])
+                ax.set_yticks([])
+            axes[0, 0].set_title("Axial")
+            axes[0, 1].set_title("Coronal")
+            axes[0, 2].set_title("Sagittal")
+            fig.suptitle(f"{label} | {sid}", fontsize=12)
+            plt.tight_layout()
+            safe_name = label.replace(" ", "_").replace("(", "").replace(")", "")
+            plt.savefig(str(outputs["figures_dir"] / f"{safe_name}_{sid}.png"), dpi=150, bbox_inches="tight")
+            plt.close()
 
-    if viz_subjects:
-        print(f"\nGenerating tri-planar for {len(viz_subjects)} subjects...")
-        # Per-method tri-planar (each at own resolution)
-        for mname in method_niftis:
-            msubs = [s for s in viz_subjects if s in method_niftis[mname]]
-            if msubs:
-                for sid in msubs:
-                    import matplotlib
-                    matplotlib.use("Agg")
-                    import matplotlib.pyplot as plt
+    raw_mri_paths = load_raw_mri_paths(config)
+    generate_unified_comparison(
+        viz_subjects,
+        method_niftis,
+        outputs["figures_dir"],
+        enabled_methods,
+        raw_mri_paths=raw_mri_paths,
+        ficd_preprocess=ficd_preprocess,
+    )
+    generate_boxplot(df, outputs["figures_dir"], enabled_labels)
 
-                    vols = method_niftis[mname][sid]
-                    has_gt = "gt" in vols
-                    n_rows = 2 if has_gt else 1
-                    fig, axes = plt.subplots(n_rows, 3, figsize=(12, 3.5 * n_rows))
-                    if n_rows == 1:
-                        axes = axes[np.newaxis, :]
-
-                    pred = vols["pred"]
-                    pred_slices = _get_mid_slices(pred)
-                    row = n_rows - 1
-                    for j, s in enumerate(pred_slices):
-                        axes[row, j].imshow(s.T, cmap="inferno", origin="lower", vmin=0, vmax=1)
-                    axes[row, 0].set_ylabel(f"{mname}\nPred", fontsize=10)
-
-                    if has_gt:
-                        gt = vols["gt"]
-                        gt_slices = _get_mid_slices(gt)
-                        for j, s in enumerate(gt_slices):
-                            axes[0, j].imshow(s.T, cmap="inferno", origin="lower", vmin=0, vmax=1)
-                        axes[0, 0].set_ylabel("GT", fontsize=10)
-
-                    for ax in axes.flat:
-                        ax.set_xticks([])
-                        ax.set_yticks([])
-                    axes[0, 0].set_title("Axial")
-                    axes[0, 1].set_title("Coronal")
-                    axes[0, 2].set_title("Sagittal")
-                    fig.suptitle(f"{mname} | {sid}", fontsize=12)
-                    plt.tight_layout()
-                    safe_name = mname.replace(" ", "_").replace("(", "").replace(")", "")
-                    plt.savefig(str(fig_dir / f"{safe_name}_{sid}.png"), dpi=150, bbox_inches="tight")
-                    plt.close()
-
-        # Build raw MRI path mapping for CropForeground alignment
-        raw_mri_paths = {}
-        if PLASMA_VAL_JSON.exists():
-            with open(PLASMA_VAL_JSON) as f:
-                plasma_val_data = json.load(f)
-            for item in plasma_val_data:
-                raw_mri_paths[item["name"]] = item["mri"]
-
-        # Unified comparison figure
-        print("Generating unified comparison figures...")
-        generate_unified_comparison(viz_subjects, method_niftis, fig_dir,
-                                    raw_mri_paths=raw_mri_paths)
-
-        # Boxplot
-        print("Generating metric boxplots...")
-        generate_boxplot(df, fig_dir)
-    else:
-        print("No common viz subjects found, skipping visualization.")
-
-    # ── Phase 5: Report ──
     print("\n" + "=" * 60)
     print("  PHASE 5: GENERATING REPORT")
     print("=" * 60)
-
-    method_counts = {"common": len(subjects)}
-    report_path = generate_report(summary_df, stat_tests, method_counts, OUT_DIR)
+    report_path = generate_report(summary_df, stat_tests, {"common": len(subjects)}, config["out_dir"], enabled_methods)
 
     print("\n" + "=" * 60)
     print("  ALL DONE!")
     print("=" * 60)
-    print(f"\nOutput directory: {OUT_DIR}")
+    print(f"\nOutput directory: {config['out_dir']}")
     print(f"Report: {report_path}")
-    print(f"Per-subject metrics: {OUT_DIR / 'per_subject_metrics.csv'}")
-    print(f"Summary: {OUT_DIR / 'summary_metrics.csv'}")
-    print(f"Statistical tests: {OUT_DIR / 'statistical_tests.csv'}")
-    print(f"Figures: {fig_dir}")
+    print(f"Per-subject metrics: {outputs['per_subject_csv']}")
+    print(f"Summary: {outputs['summary_csv']}")
+    print(f"Statistical tests: {outputs['stats_csv']}")
+    print(f"Figures: {outputs['figures_dir']}")
 
 
 if __name__ == "__main__":
