@@ -218,7 +218,7 @@ def main():
         adp.eval()
     
     # ============ 加载 Plasma 数据（与 train.py 相同）============
-    from adapter_finetune.dataset import build_plasma_text as build_plasma_text_ds, _default_config
+    from dataprocess_pipeline.dataset import build_plasma_text as build_plasma_text_ds, _default_config
     
     def _load_plasma_table(path: str) -> pd.DataFrame:
         df = pd.read_csv(path)

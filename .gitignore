@@ -17,3 +17,42 @@ adapter_finetune/runs/
 */*.pth
 test_extracted/*
 *prism*
+*.pt
+*.nii.gz
+*.md
+tmp_logs/sync_logs_wc.txt
+tmp_logs/sync_meta.txt
+tmp_logs/zsh_locate.txt
+tmp_logs/zsh_rprompt_verify.txt
+tmp_logs/zshrc_rprompt_snippet.txt
+pasta/data/test.h5
+pasta/data/train.h5
+pasta/data/valid.h5
+pasta/replicaLT_comparison/data/test.h5
+pasta/replicaLT_comparison/data/train.h5
+pasta/replicaLT_comparison/data/valid.h5
+pasta/replicaLT_comparison/results/2026-04-12_331111/_hyperparameters.yaml
+pasta/replicaLT_comparison/results/2026-04-12_331111/scores.txt
+pasta/replicaLT_comparison/results/2026-04-12_331111/inference_output/eval_scores.txt
+pasta/replicaLT_comparison/results/2026-04-12_331111/logs/events.out.tfevents.1775987718.pnxc.331111.0
+pasta/replicaLT_comparison/results/2026-04-12_331111/t-inference_output/eval_scores.txt
+sync/changes-log.md
+sync/chat-log.md
+pasta/1-s2.0-S1361841526001040-main.pdf
+analysis/Chen 等 - 2021 - Staging tau pathology with tau PET in Alzheimer’s disease a longitudinal study.pdf
+analysis/Chen 等 - 2026 - MRI-to-PET synthesis via deep learning for amyloid-β quantification in Alzheimer’s disease.pdf
+analysis/Janelidze 等 - 2021 - Associations of Plasma Phospho-Tau217 Levels With Tau Positron Emission Tomography in Early Alzheime.pdf
+analysis/Li 等 - 2026 - Translating MRI to PET through conditional diffusion models with enhanced pathology awareness.pdf
+analysis/Yu 等 - 2026 - Functional imaging constrained diffusion for brain PET synthesis from structural MRI.pdf
+analysis/comparison_results/extended/clinical_fidelity.csv
+analysis/comparison_results/extended/correlation_analysis.csv
+analysis/comparison_results/extended/deployability_table.csv
+analysis/comparison_results/extended/diagnosis_classification.csv
+analysis/comparison_results/extended/robustness_by_diagnosis.csv
+analysis/comparison_results/extended/robustness_by_vendor.csv
+analysis/comparison_results/extended/robustness_kruskal_wallis.csv
+analysis/comparison_results/extended/staging_positivity.csv
+analysis/comparison_results/extended/staging_thresholds.json
+pasta/replicaLT_comparison/data/test_tabular.json
+pasta/replicaLT_comparison/t/train_tabular.json
+pasta/replicaLT_comparison/t/val_tabular.json

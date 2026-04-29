@@ -31,8 +31,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "num_res_blocks": 2,
         "norm_num_groups": 8,
         "use_flash_attention": True,
-        "with_conditioning": True,
-        "cross_attention_dim": 64,
+        "with_conditioning": False,
     },
     "train": {
         "batch_size_train": 2,
@@ -70,7 +69,7 @@ def _resolve_path(repo_root: Path, value: str) -> str:
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
     config_path = Path(config_path).resolve()
-    repo_root = config_path.parents[2]
+    repo_root = config_path.parents[1]
 
     with config_path.open("r", encoding="utf-8") as handle:
         file_config = yaml.safe_load(handle) or {}

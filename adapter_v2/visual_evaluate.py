@@ -25,7 +25,7 @@ def _build_val_loader(config: dict, split_json: Path):
     from torch.utils.data import DataLoader
 
     from dataset import TAUPlasmaDataset, collate_fn, split_by_subject
-    from train import apply_fixed_split, resolve_plasma_config
+    from train_legacy import apply_fixed_split, resolve_plasma_config
 
     script_dir = Path(__file__).parent
     seed = int(config["training"].get("seed", 42))
@@ -436,7 +436,7 @@ def parse_args():
 
 
 def main():
-    from train import load_config
+    from train_legacy import load_config
 
     args = parse_args()
 

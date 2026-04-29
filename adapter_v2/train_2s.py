@@ -36,7 +36,7 @@ from dataset import TAUPlasmaDataset, SubjectBatchSampler, collate_fn, split_by_
 from models import CoCoOpTAUModel
 from losses import compute_total_loss
 
-from train import (
+from train_legacy import (
     set_seed,
     load_config,
     resolve_plasma_config,

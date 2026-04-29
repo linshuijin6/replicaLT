@@ -1,0 +1,41 @@
+seed: 42
+
+data:
+  data_root: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF
+  train_json: train_data_with_description.json
+  val_json: val_data_with_description.json
+  metadata_mode: aligned
+  tracer: tau
+  training_split_ratio: 0.9
+  crop: [11, 10, 20, 17, 0, 21]
+  target_shape: [160, 180, 160]
+  num_workers: 4
+  pin_memory: false
+
+model:
+  spatial_dims: 3
+  in_channels: 2
+  out_channels: 1
+  num_channels: [16, 32, 64]
+  attention_levels: [false, false, true]
+  num_head_channels: [0, 0, 64]
+  num_res_blocks: 2
+  norm_num_groups: 8
+  use_flash_attention: true
+  with_conditioning: true
+  cross_attention_dim: 64
+
+train:
+  batch_size_train: 2
+  batch_size_val: 1
+  epochs: 50
+  lr: 1.0e-4
+  num_train_timesteps: 1000
+  num_inference_steps: 1000
+  save_every: 5
+  val_every: 5
+  image_log_interval: 1
+
+logging:
+  run_root: runs/ficd_aligned_tau
+  tensorboard: true
