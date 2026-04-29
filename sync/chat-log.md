@@ -31,3 +31,11 @@
 **A:** 计划合理，代码实现与原始 FICD notebook 完全一致（模型结构、loss、scheduler、预处理）。发现并修复两个 Critical 问题：(1) `rfc3987-syntax` 包导致 MONAI 导入挂起，已卸载；(2) `pin_memory=True` 与 torchio SubjectsDataset 不兼容，已改为 false。smoke test 在 GPU 6 成功运行，训练 loop、TensorBoard 记录、run 目录结构均正确。注意正式训练需选空闲 GPU（>=22GB 显存）。
 
 ---
+
+## 2026-04-16 10:41 | Val极慢原因排查
+
+**Q:** val阶段极其耗时，检查原因。train和val的steps都是1000。
+
+**A:** 根本原因：训练每步仅1次前向（随机加噪+预测），验证调用 `inferer.sample()` 执行完整DDPM逆扩散，需循环 `num_inference_steps=1000` 次前向。88 batch × ~47min/batch ≈ 69小时完成一次val，是训练速度的1000倍。已将两个config（aligned_tau.yaml 和 strict_tau.yaml）的 `num_inference_steps` 从1000改为100，预计val约4小时。如需更快可进一步降到50或限制val batch数。
+
+---

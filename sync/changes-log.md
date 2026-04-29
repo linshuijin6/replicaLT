@@ -26,3 +26,12 @@
 | `configs/ficd/smoke_test.yaml` | 新建 | 用于快速验证训练 loop 的 1-epoch 测试配置 |
 
 ---
+
+## 2026-04-16 10:42 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `configs/ficd/aligned_tau.yaml` | 编辑 | 将 num_inference_steps 从 1000 改为 100，解决val极慢问题 |
+| `configs/ficd/strict_tau.yaml` | 编辑 | 将 num_inference_steps 从 1000 改为 100，解决val极慢问题 |
+
+---
