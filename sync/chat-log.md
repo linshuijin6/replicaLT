@@ -255,3 +255,102 @@
 **A:** 已修复 FiCD 可视化路径：删除对 FiCD NIfTI 的二次 `(raw + 1) / 2` 转换，改为检查并直接 `clip` 已保存的 `[0,1]` `pred_unit`；从 FiCD run 的 `hparams.json` 读取 `crop=(11,10,20,17,0,21)` 和 `target_shape=(160,180,160)`，按“逆 resize 到 crop 后原始空间 -> pad 回 182×218×182 -> 参考 MRI foreground crop/pad 到 160×192×160”统一显示空间；新增 FiCD `(subject_id, examdate)` 与 `mri/tau` 路径一致性校验。已运行 `conda run -n xiaochou python -m py_compile analysis/run_comparison.py` 和 `conda run -n xiaochou python analysis/run_comparison.py` 成功；额外生成并查看 `analysis/comparison_results/figures/unified_comparison_006_S_6441.png`，FiCD 背景已恢复黑色，不再出现整块粉红背景，脑区尺寸与 GT/Plasma 同一显示空间。
 
 ---
+
+## 2026-04-29 20:54 | Codex同步
+
+**Q:** 将 Copilot 自动同步规则改造成 Codex 用户级自动指令，要求每次对话自动执行，不放在项目级，并检查当前用户级是否已有类似指令。
+
+**A:** 已检查当前机器的 Codex 用户级配置，未发现已有同步记录指令，`~/.codex/AGENTS.md` 原为空文件。已将 Codex 全局同步完成门槛写入 `~/.codex/AGENTS.md`，覆盖每轮 chat-log、有文件变更时 changes-log、Notion 每日日记同步尝试、续聊读取历史等规则。另在 `~/.config/sync-logger.instructions.md` 新建用户级源副本，便于后续迁移或核对；项目级规则文件未改动。
+
+---
+
+## 2026-04-29 20:57 | Notion插件
+
+**Q:** 唤起 Notion 插件能力，用于搜索 Notion 工作区、更新页面或将规格/笔记/会议上下文整理为结构化输出。
+
+**A:** 已确认 Notion 插件可用于后续任务；由于本轮未提供具体搜索关键词、目标页面或写入内容，回复请求用户补充具体操作对象。
+
+---
+
+## 2026-04-29 20:59 | Notion页面读取
+
+**Q:** 使用 Notion 插件读取页面“整理下游验证（郭腾飞NatAging）”及其中子页面内容。
+
+**A:** 已加载 Notion 研究整理技能并尝试发现 Notion 搜索/读取工具；当前会话未暴露可调用的 Notion 工具，因此无法实际读取页面内容。建议启用或授权 Notion app 后重试。
+
+---
+## 2026-04-29 21:07 | Notion下游验证检查
+
+**Q:** 检查 Notion 页面“整理下游验证（郭腾飞NatAging）”。
+
+**A:** 已读取目标页面及其关联子页面，确认核心方向是用真实/生成 AV45-PET 的 SUVR 对 Aβ+/Aβ- 判定能力做 ROC/AUC 下游验证；同时指出页面里混合了 plasma p-tau217 预测任务和生成 PET 验证任务，建议拆分并明确 AV45 阈值、ROI/reference mask、标签来源和报告指标。
+
+---
+## 2026-04-29 22:24 | E1真实AV45 SUVr
+
+**Q:** 按计划在 `validation/E1` 实现真实 AV45-PET Lan 2025 composite SUVR 下游验证，使用 frontal/cingulate/parietal/temporal 目标 ROI 与 whole cerebellum 参考区，输出 Aβ+/-、ROC/AUC 和图表。
+
+**A:** 已新增 E1 计算脚本、说明文档和正式结果。脚本使用 Harvard-Oxford `cort-prob-1mm` 构建目标概率 ROI，使用 AAL3 cerebellum/vermis 构建 whole cerebellum 参考区，并支持 AAL SSL 失败时的本地 fallback。完整运行 390 条真实 AV45，成功 388 条、失败 2 条全零 PET，Aβ- 185、Aβ+ 203，ROC/AUC sanity check 为 1.0。
+
+---
+## 2026-04-30 | plasma_train 三 Token 方案设计与实现
+
+**Q:** 将临床量表信息（old_descr：CDR/MMSE/GDS/FAQ/NPI-Q）加入 plasma_train.py 的生成条件。先从方法角度设计插入思路（不考虑代码实现），再实现方案 A（三 Token 并列）。
+
+**A:** 方法设计提供了三种方案：方案 A（三 Token 并列，context 扩展为 (B,3,512)）、方案 B（Token 0 晚期融合，免架构改动）、方案 C（上游 adapter_v2 增强）。推荐方案 A，因为语义最解耦（plasma=分子病理、clinical=认知表型、modality=示踪剂语义），且 cross-attention seq_len 灵活不需改模型参数。已确认 `with_conditioning=True` 走 cross-attention K/V 注入而非 concat。实现共 6 处修改：(1) cache_dir 改为 `ADNI_cache_tau_fp16_3tok` 避免旧缓存污染；(2) hparams 更新 guidance_mode 和 context_tokens=3；(3) Section 1 注释更新；(4) 删除旧 BiomedCLIP 提前释放；(5) 新增 Section 4.5 批量编码 old_descr 为 `all_clinical_embs`（L2 归一化对齐 plasma 尺度）；(6) 三个 `*_index_transform` 从 (2,512) 扩展为 (3,512)，新 Token 1 为 clinical_emb。
+
+---
+
+## 2026-04-30 10:43 | 更新 sync-logger 规则
+
+**Q:** 检查用户级 sync-logger.instructions.md，若内容不完整则写入详细版完整规则。
+
+**A:** 原文件 `/home/ssddata/linshuijin/.config/sync-logger.instructions.md` 存在但为旧的简化版（缺少强制完成门槛、规则 1-5、长任务防跳过机制等）。已用用户提供的完整版覆盖写入，新版包含：YAML frontmatter、Completion Gate 前置块、核心原则 6 条、执行时机 A/B/C、规则 1-5（对话记录、代码修改记录、Notion 同步、续聊支持、长任务防跳过机制）、优先级与失败处理、最终约束。
+
+---
+## 2026-04-30 10:49 | plasma_train_codex 三 Token
+
+**Q:** 按方案 A 实现三 Token 并列条件，但新建 `plasma_train_codex.py`，不要覆盖现有训练文件。
+
+**A:** 已新建 `plasma_train_codex.py`，实现 clinical_emb 预计算、BiomedCLIP 延迟释放、3-token context 构造、3tok 缓存目录、hparams 记录和首个 batch `tau_index.shape` 诊断打印；同步更新项目规则文档，并通过 `conda run -n xiaochou python -m py_compile plasma_train_codex.py` 语法检查。
+
+---
+
+## 2026-04-30 15:07 | TAU→AV45示踪剂可配置化
+
+**Q:** 计划将 adapter_v2/train.py 中的 TAU PET 改为 AV45 PET，在 yaml 配置中增加设置入口，检查是否可用及需修改哪些内容，并执行方案。
+
+**A:** 完成最小侵入式改造，`precompute_cache.py` 无需修改（已有参数化接口）。4 个文件改动：
+1. `adapter_v2/config.yaml`：新增 `data.tracer: "av45"`、`model.ctx_init: "an av45 pet scan of"`，`prompt_template` 改为 AV45 文本；
+2. `adapter_v2/dataset.py`：`TAUPlasmaDataset.__init__` 增加 `pet_id_column` 参数（默认 `"id_av1451"` 向后兼容），过滤行与 `_build_samples` 统一使用该参数，样本 dict key `tau_id` → `pet_id`；
+3. `adapter_v2/models.py`：`CoCoOpTAUModel.__init__` 增加 `ctx_init` 参数，替换内部硬编码 `"a tau pet scan of"`；
+4. `adapter_v2/train.py`：解析 tracer 字段并派生 `pet_id_column`/`pet_subdir`/`ctx_init`，传入 `get_cache_stats`（2处）、`generate_missing_caches`、`TAUPlasmaDataset`（3处）、`CoCoOpTAUModel`；`_TRACER_MAP` 顺带预留 `fdg` 支持。py_compile 语法校验全通过。
+
+---
+
+## 2026-04-30 15:30 | prompt_template/ctx_init联动修复
+
+**Q:** config.yaml 中 `classes.prompt_template` 硬编码 "AV45"、`model.ctx_init` 硬编码，不随 `data.tracer` 变化是否正确？
+
+**A:** 不正确。`prompt_template` 参与 class branch 文本 embedding 和对比损失，语义错误会导致训练信号错误。修复：在 `train.py` 的 `_TRACER_MAP` 中加入 `prompt_template_default`，两者均改为"tracer 派生值为默认，yaml 中设置视为 override"；config.yaml 中将两字段注释掉，由 `data.tracer` 唯一控制。
+
+---
+
+## 2026-04-30 15:45 | 覆写Copilot指令文件
+
+**Q:** 检查用户级目录下的 GitHub Copilot 指令文件，用提供的新版本覆写。
+
+**A:** 文件位于 `/home/ssddata/linshuijin/.config/sync-logger.instructions.md`，已用新版本覆写（352行）。新版本改动：Completion Gate 前置到 YAML 之后；保留完整规则 5（长任务防跳过 5.1–5.5）；末尾加入显式完成口令；修复原文 `## description:` 格式错误；整体结构更清晰。
+
+---
+
+## 2026-04-30 16:04 | Phase1多示踪剂扩展完成
+
+**Q:** 续上轮 Phase 1 多示踪剂扩展，完成 Step 3（run_probe_and_retrieval.py 加 --tracer CLI）及语法验证。
+
+**A:** 从对话摘要恢复进度，三步修改全部完成并通过 py_compile 语法验证：
+1. `precompute_cache.py`：`build_sample_list` modality 分支从 `== "tau"` 改为 `in ("tau", "av45", "fdg")`，error message 同步更新；
+2. `retrieval_eval.py`：顶部加入 `_TRACER_MAP`（tau/av45/fdg），`PlasmaTextEncoder`、`ClassTextEncoder`、`DiagnosisTextRetrievalEvaluator` 的 `__init__` 均新增 `tracer: str = "tau"` 参数，`ctx_init` 和 `class_prompt_template` 均从 tracer 派生；
+3. `run_probe_and_retrieval.py`：`parse_args()` 新增 `--tracer` 参数（choices: tau/av45/fdg）；`ContextConditionedClassifier.__init__` 新增 `tracer` 参数并内联 `_TRACER_MAP`，将 `ctx_init` 和 `class_prompt_template` 传入 `CoCoOpTAUModel`；实例化调用处透传 `tracer=getattr(args, "tracer", "tau")`。所有文件 py_compile 通过。
+
+---

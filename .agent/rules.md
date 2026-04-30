@@ -12,6 +12,7 @@
 
 1. `adapter_v2/train.py`：预训练图文对齐（CoCoOpTAUModel）
 2. `plasma_train.py`：MRI 生成 PET（FDG/AV45/TAU 三种示踪剂分别训练，不建模示踪剂间关系）
+   - `plasma_train_codex.py` 是其三 token 条件变体入口，保持模型架构不变。
 
 回答实现细节时，只追踪这两条主链及其 **实际 import 到的模块**，不要扩展到未被 import 的实验脚本。
 
@@ -21,7 +22,7 @@
 这是一个“先对齐、后生成”的两阶段体系：
 
 - 阶段 A（`adapter_v2/train.py`）：用 TAU 图像 token、MRI token、诊断文本和 plasma 数值做多路对齐训练，得到可复用的 plasma 语义嵌入能力。
-- 阶段 B（`plasma_train.py`）：把阶段 A 预计算的 `plasma_emb` 作为条件 token，联合模态文本 token，驱动 3D 扩散/rectified-flow 风格的 MRI->PET 生成。
+- 阶段 B（`plasma_train.py` / `plasma_train_codex.py`）：把阶段 A 预计算的 `plasma_emb` 作为条件 token，联合模态文本 token，驱动 3D 扩散/rectified-flow 风格的 MRI->PET 生成；三 token 变体会额外注入临床量表文本 token。
 
 ---
 
@@ -81,6 +82,13 @@
 
 条件张量形状保持 `(B, 2, 512)`，因此无需改动扩散模型主架构。
 
+`plasma_train_codex.py` 使用三 token 条件变体：
+- Token 0：预计算 `plasma_emb`（来自阶段 A）
+- Token 1：BiomedCLIP 编码的 `old_descr` 临床量表文本（缺失时回退 `description`）
+- Token 2：BiomedCLIP 编码的“示踪剂模态优化文本”
+
+条件张量形状为 `(B, 3, 512)`，仍保持 `cross_attention_dim=512` 和原扩散模型架构不变。
+
 ### 4.2 三示踪剂策略
 - FDG / AV45 / TAU 被视作三种独立目标模态。
 - 每步从当前样本可用模态中随机选一个训练（不是联合建模示踪剂关系）。
@@ -95,7 +103,7 @@
 
 ### 4.4 关键依赖
 - `DistributedDiffusionModelUNet`（多 GPU 模型并行）
-- `BiomedCLIP`（仅用于模态文本特征编码）
+- `BiomedCLIP`（用于模态文本特征编码；三 token 变体还用于临床量表文本编码）
 - `PersistentDataset`（MONAI 缓存）
 - 预计算 `plasma_emb` 缓存目录
 
@@ -109,7 +117,7 @@
 3. 对齐模型结构 -> `adapter_v2/models.py`
 4. 对齐损失定义 -> `adapter_v2/losses.py`
 5. 缓存生成逻辑 -> `adapter_v2/precompute_cache.py`
-6. 生成训练问题 -> `plasma_train.py`
+6. 生成训练问题 -> `plasma_train.py`；若问题涉及三 token 临床文本条件 -> `plasma_train_codex.py`
 
 若问题超出以上文件，先明确“该结论不在核心链路中”，再决定是否扩展。
 
@@ -144,7 +152,7 @@
 - 文档更新应最小化且可追踪：只改受影响条目，不重写无关部分。
 
 ### 7.3 提交前检查清单（Antigravity 默认执行）
-- 检查 `adapter_v2/train.py`、`plasma_train.py` 及其核心 import 依赖是否有重要变更。
+- 检查 `adapter_v2/train.py`、`plasma_train.py`、`plasma_train_codex.py` 及其核心 import 依赖是否有重要变更。
 - 若有，逐项核对本文件及 `.github/copilot-instructions.md` 中的对应章节是否仍准确。
 - 若未更新文档，视为任务未完成，需先补齐 md 再结束。
 
@@ -152,6 +160,6 @@
 
 ## 8. 常见提问快速模板
 - “对齐阶段如何计算总损失与各项权重？” -> 看 `adapter_v2/losses.py` + `adapter_v2/train.py`
-- “plasma 在生成阶段具体注入到哪里？” -> 看 `plasma_train.py` 中 index_transform 与 context 构造
+- “plasma 在生成阶段具体注入到哪里？” -> 看 `plasma_train.py` 中 index_transform 与 context 构造；三 token 变体看 `plasma_train_codex.py`
 - “为什么说是 rectified-flow 风格？” -> 看 `plasma_train.py` 中 `x_t` 与 `v = PET - MRI` 的训练目标定义
 - “三种 PET 如何训练？” -> 看 `plasma_train.py` 中可用模态随机选择逻辑

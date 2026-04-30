@@ -1,5 +1,13 @@
 # Changes Log
 
+## 2026-04-30 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `plasma_train.py` | 编辑 | 三 Token 并列方案：新增 Section 4.5 预计算 clinical_emb，index_transform 从 (2,512) 扩展为 (3,512)，cache_dir 改为 `_3tok` 避免旧缓存污染 |
+
+---
+
 ## 2026-04-24 14:20 | 多文件修改
 
 | 文件 | 操作 | 摘要 |
@@ -239,5 +247,78 @@
 | `analysis/comparison_results/figures/unified_comparison_114_S_6429.png` | 生成/编辑 | 执行 `run_comparison.py` 后自动刷新 unified 图 |
 | `analysis/comparison_results/figures/unified_comparison_130_S_6688.png` | 生成/编辑 | 执行 `run_comparison.py` 后自动刷新 unified 图 |
 | `analysis/comparison_results/figures/unified_comparison_033_S_6889.png` | 生成/编辑 | 执行 `run_comparison.py` 后自动刷新 unified 图 |
+
+---
+
+## 2026-04-29 20:54 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `~/.codex/AGENTS.md` | 编辑 | 写入 Codex 用户级 Sync Logger 完成门槛，使每轮对话自动记录 chat-log，并在文件变更时记录 changes-log 与尝试 Notion 同步 |
+| `~/.config/sync-logger.instructions.md` | 新建 | 新增用户级同步规则源副本，保存 Codex 自动日志与 Notion 同步流程 |
+
+---
+## 2026-04-29 22:24 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `validation/E1/compute_real_av45_suvr.py` | 新建 | 新增真实 AV45/FBP composite SUVR 计算脚本，按 Lan 2025 的 frontal/cingulate/parietal/temporal 目标 ROI 和 whole cerebellum 参考区定义 Aβ+/- 并生成 ROC/AUC |
+| `validation/E1/README.md` | 新建 | 记录 E1 验证任务命令、方法、4D PET 处理方式和 ROC/AUC 解释约束 |
+| `validation/E1/results/real_av45_suvr.csv` | 新建 | 保存 388 条成功计算的真实 AV45 SUVR、Aβ 标签和四类 ROI 分项均值 |
+| `validation/E1/results/failed_samples.csv` | 新建 | 保存 2 条全零 PET 失败样本及错误原因 |
+| `validation/E1/results/roi_labels_used.json` | 新建 | 保存 Harvard-Oxford 目标 ROI 标签、AAL3 小脑标签和 atlas 缓存来源 |
+| `validation/E1/results/roc_auc.json` | 新建 | 保存阈值 1.11、Aβ-/Aβ+ 数量 185/203 和 ROC/AUC sanity check |
+| `validation/E1/results/roc_curve.csv` | 新建 | 保存 ROC 曲线点 |
+| `validation/E1/results/roc_curve.png` | 新建 | 保存真实 AV45 SUVR ROC 图 |
+| `validation/E1/results/suvr_histogram.png` | 新建 | 保存真实 AV45 composite SUVR 分布直方图 |
+| `validation/E1/results/summary.json` | 新建 | 保存完整运行摘要，记录 390 条真实 AV45、388 条成功、2 条失败 |
+| `validation/E1/nilearn_data/` | 新建 | 固定缓存 nilearn Harvard-Oxford atlas 和 AAL3 fallback 数据，保证脚本复跑可复用 |
+
+---
+
+## 2026-04-30 10:43 | 编辑文件
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `~/.config/sync-logger.instructions.md` | 编辑 | 用完整详细版规则（含 YAML frontmatter、规则 1-5、防跳过机制）替换旧的简化版 |
+
+---
+## 2026-04-30 10:49 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `plasma_train_codex.py` | 新建 | 新增 3-token 训练入口，将 `old_descr`/`description` 经 BiomedCLIP 编码为 `clinical_emb`，组成 `[plasma_emb, clinical_emb, modality_text]` context，并使用独立 3tok 缓存目录 |
+| `.agent/rules.md` | 编辑 | 补充 `plasma_train_codex.py` 作为三 token 条件变体入口及对应 context shape、BiomedCLIP 用途和检索优先级 |
+| `.github/copilot-instructions.md` | 编辑 | 同步记录三 token 条件变体入口、token 含义和文档检查范围 |
+
+---
+
+## 2026-04-30 15:07 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `adapter_v2/config.yaml` | 编辑 | 新增 `data.tracer`、`model.ctx_init`，更新 `prompt_template` 为 AV45 |
+| `adapter_v2/dataset.py` | 编辑 | `TAUPlasmaDataset` 增加 `pet_id_column` 参数，替换 3 处 `id_av1451` 硬编码，`tau_id` key 改为 `pet_id` |
+| `adapter_v2/models.py` | 编辑 | `CoCoOpTAUModel` 增加 `ctx_init` 参数，替换内部硬编码初始化 token |
+| `adapter_v2/train.py` | 编辑 | 解析 tracer 字段，传参到 `get_cache_stats`/`generate_missing_caches`/`TAUPlasmaDataset`/`CoCoOpTAUModel`（共 8 处） |
+
+---
+
+## 2026-04-30 15:30 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `adapter_v2/train.py` | 编辑 | `_TRACER_MAP` 加入 `prompt_template_default`，两者改为 tracer 派生+可选 override |
+| `adapter_v2/config.yaml` | 编辑 | `prompt_template` 和 `ctx_init` 改为注释状态，由 `data.tracer` 唯一控制 |
+
+---
+
+## 2026-04-30 16:04 | 多文件修改
+
+| 文件 | 操作 | 摘要 |
+|------|------|------|
+| `adapter_v2/precompute_cache.py` | 编辑 | build_sample_list 支持 av45/fdg modality（已于上轮完成） |
+| `adapter_v2/retrieval_eval.py` | 编辑 | 加 _TRACER_MAP，PlasmaTextEncoder/ClassTextEncoder/DiagnosisTextRetrievalEvaluator 新增 tracer 参数 |
+| `adapter_v2/run_probe_and_retrieval.py` | 编辑 | parse_args 加 --tracer；ContextConditionedClassifier 加 tracer，透传 ctx_init/class_prompt_template |
 
 ---
