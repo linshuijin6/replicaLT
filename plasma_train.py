@@ -19,7 +19,7 @@ plasma_train.py
 # ============ GPU 设备锁定（必须在 import torch 之前设置） ============
 import os
 
-DEFAULT_GPU_IDS = [5,6]  # 模型并行，支持 2~4 张 GPU
+DEFAULT_GPU_IDS = [3]  # 模型并行，支持 2~4 张 GPU
 GPU_ENV_VAR = "PLASMA_TRAIN_GPUS"
 
 
@@ -192,12 +192,11 @@ def main():
     base_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF"
     # ★ 使用独立的缓存目录，避免与 train.py 缓存冲突（因 index_transform 不同）
     # ★ 方案B：TAU-only + float16，单文件 76MB → 19MB，总缓存约 19 GB
-    cache_dir = '/mnt/linshuijin/ADNI_cache_tau_fp16'
-    plasma_csv_path = "adapter_finetune/ADNI_csv/UPENN_PLASMA_FUJIREBIO_QUANTERIX_21Dec2025.csv"
+    cache_dir = '/home/ssddata/linshuijin/ADNI_cache_tau_fp16_3tok'  # ★ 3-token context，与旧 2-token 缓存隔离
 
     # ★ plasma_emb 预计算缓存目录（由 precompute_plasma_emb.py 生成）
     # ★ 已迁移到本地 NVMe 盘
-    plasma_emb_dir = "/mnt/linshuijin/ADNI_plasma_cache"
+    plasma_emb_dir = "/mnt/nfsdata/nfsdata/lsj.14/ADNI_plasma_cache"
 
     os.makedirs(cache_dir, exist_ok=True)
     os.makedirs(os.path.join(cache_dir, "train"), exist_ok=True)
@@ -272,7 +271,8 @@ def main():
         "bs": bs,
         "log_every": log_every,
         "image_log_interval": image_log_interval,
-        "guidance_mode": "plasma_emb",
+        "guidance_mode": "plasma_emb+clinical_emb+modality_text",
+        "context_tokens": 3,
     }
     hparam_path = run_dir / "hparams.json"
     with hparam_path.open("w", encoding="utf-8") as f:
@@ -280,7 +280,7 @@ def main():
     print(f"✅ 超参数已保存到: {hparam_path}")
 
     # ================================================================
-    # 1. 加载 BiomedCLIP（仅用于编码模态优化文本 → Token 1）
+    # 1. 加载 BiomedCLIP（用于编码模态优化文本 → Token 2，以及临床量表文本 → Token 1）
     # ================================================================
     local_model_path = "./BiomedCLIP"
     processor = AutoProcessor.from_pretrained(local_model_path, trust_remote_code=True)
@@ -334,10 +334,7 @@ def main():
     av45_feature_optimized = modality_optimized_features["AV45"]
     tau_feature_optimized = modality_optimized_features["TAU"]
 
-    # 释放 BiomedCLIP（不再需要）
-    del bio_model, processor
-    torch.cuda.empty_cache()
-    print("✅ BiomedCLIP 已释放（仅用于编码模态文本）")
+    # BiomedCLIP 暂不释放，Section 4.5 还需编码临床量表文本（old_descr → Token 1）
 
     # ================================================================
     # 3. 数据准备
@@ -409,6 +406,35 @@ def main():
     if size_of_dataset:
         paired_data = paired_data[:size_of_dataset]
     print(f"Total matched pairs: {len(paired_data)}")
+
+    # ================================================================
+    # 4.5 ★ 预计算临床量表 embedding（Token 1：认知/功能表型）
+    # ================================================================
+    print(f"\n🏥 预计算临床量表 embedding（old_descr → BiomedCLIP → 512d）...")
+    clinical_emb_list = []
+    CLINICAL_BATCH = 32
+    clinical_texts = [
+        item.get("old_descr") or item.get("description") or ""
+        for item in paired_data
+    ]
+    for i in range(0, len(clinical_texts), CLINICAL_BATCH):
+        batch_texts = clinical_texts[i: i + CLINICAL_BATCH]
+        inputs = processor(
+            text=batch_texts, return_tensors="pt",
+            padding=True, truncation=True, max_length=256
+        ).to(device)
+        with torch.no_grad():
+            feats = bio_model.get_text_features(**inputs)   # (batch, 512)
+            feats = torch.nn.functional.normalize(feats, dim=-1)  # L2 归一化，对齐 plasma_emb 尺度
+        clinical_emb_list.append(feats.cpu())
+    all_clinical_embs = torch.cat(clinical_emb_list, dim=0)  # (N, 512)
+    print(f"   clinical_emb shape: {all_clinical_embs.shape}")
+    print(f"   clinical_emb L2 norm: mean={all_clinical_embs.norm(dim=-1).mean():.4f}")
+
+    # ★ 现在可以释放 BiomedCLIP（模态文本 + 临床量表 均已编码）
+    del bio_model, processor
+    torch.cuda.empty_cache()
+    print("✅ BiomedCLIP 已释放（模态文本 + 临床量表 编码完成）")
 
     # 为每个样本分配索引
     for idx, data in enumerate(paired_data):
@@ -512,23 +538,36 @@ def main():
                     d[k] = v.half()
             return d
 
-    # ★ 核心改动：Token 0 是 plasma_emb，Token 1 是模态优化文本
-    all_plasma_embs_cpu = all_plasma_embs.cpu()  # (N, 512)
+    # ★ 核心改动：Token 0 = plasma_emb，Token 1 = clinical_emb，Token 2 = modality_text
+    all_plasma_embs_cpu = all_plasma_embs.cpu()     # (N, 512)
+    all_clinical_embs_cpu = all_clinical_embs.cpu() # (N, 512) ★ 新增
     fdg_feature_optimized_cpu = fdg_feature_optimized.cpu()  # (1, 512)
     av45_feature_optimized_cpu = av45_feature_optimized.cpu()
     tau_feature_optimized_cpu = tau_feature_optimized.cpu()
 
     def fdg_index_transform(x):
-        """context = [plasma_emb, FDG_modality_text] → (2, 512)"""
-        return torch.cat([all_plasma_embs_cpu[x].unsqueeze(0), fdg_feature_optimized_cpu], dim=0)
+        """context = [plasma_emb, clinical_emb, FDG_modality_text] → (3, 512)"""
+        return torch.cat([
+            all_plasma_embs_cpu[x].unsqueeze(0),    # Token 0: 分子病理
+            all_clinical_embs_cpu[x].unsqueeze(0),  # Token 1: 认知/功能表型 ★
+            fdg_feature_optimized_cpu,              # Token 2: 示踪剂成像语义
+        ], dim=0)
 
     def av45_index_transform(x):
-        """context = [plasma_emb, AV45_modality_text] → (2, 512)"""
-        return torch.cat([all_plasma_embs_cpu[x].unsqueeze(0), av45_feature_optimized_cpu], dim=0)
+        """context = [plasma_emb, clinical_emb, AV45_modality_text] → (3, 512)"""
+        return torch.cat([
+            all_plasma_embs_cpu[x].unsqueeze(0),
+            all_clinical_embs_cpu[x].unsqueeze(0),  # ★
+            av45_feature_optimized_cpu,
+        ], dim=0)
 
     def tau_index_transform(x):
-        """context = [plasma_emb, TAU_modality_text] → (2, 512)"""
-        return torch.cat([all_plasma_embs_cpu[x].unsqueeze(0), tau_feature_optimized_cpu], dim=0)
+        """context = [plasma_emb, clinical_emb, TAU_modality_text] → (3, 512)"""
+        return torch.cat([
+            all_plasma_embs_cpu[x].unsqueeze(0),
+            all_clinical_embs_cpu[x].unsqueeze(0),  # ★
+            tau_feature_optimized_cpu,
+        ], dim=0)
 
     def get_expected_cache_paths(dataset):
         cache_root = Path(dataset.cache_dir)
