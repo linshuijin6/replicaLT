@@ -4,12 +4,12 @@
 
 # 数据配置
 data:
-  csv_path: /mnt/nfsdata/nfsdata/lsj.14/replicaLT/adapter_finetune/gen_csv/pairs_180d_dx_plasma_90d_matched.csv
+  csv_path: /home/ssddata/linshuijin/replicaLT/adapter_v2/data_csv/pairs_180d_dx_plasma_90d_matched.csv
   # TAU 缓存目录（需预先用 precompute_cache.py 生成 .vision.pt）
-  cache_dir: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_Adapter_cache
+  cache_dir: /mnt/nfsdata/nfsdata/lsj.2/ADNI_CSF_Adapter_cache
   # MRI 缓存目录（用于 context_net 输入，文件名: {PTID}_{id_mri}.mri_vision.pt）
   # 不配置时默认复用 cache_dir
-  mri_cache_dir: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF_Adapter_cache
+  mri_cache_dir: /mnt/nfsdata/nfsdata/lsj.2/ADNI_CSF_Adapter_cache
   # ADNI 数据根目录（用于生成缓存）
   adni_root: /mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF
   # MRI NIfTI 子目录（用于 MRI 缓存生成）
@@ -19,6 +19,8 @@ data:
   # 训练/验证划分比例
   val_ratio: 0.1
   seed: 42
+  # 示踪剂类型："tau"（id_av1451，PET_MNI/TAU）或 "av45"（id_av45，PET_MNI/AV45）
+  tracer: "av45"
 
 # Plasma 配置
 plasma:
@@ -73,7 +75,8 @@ classes:
     2: MCI
     3: AD
   # 类别语义提示模板（{label} 会被替换为具体诊断）
-  prompt_template: "This is a TAU PET scan of a subject diagnosed with {label}."
+  # 不填则自动从 data.tracer 派生（推荐），填写则覆盖自动派生值
+  # prompt_template: "This is an AV45 PET scan of a subject diagnosed with {label}."
 
 # 模型配置
 model:
@@ -83,6 +86,10 @@ model:
   ctx_len: 4
   # projection head 输出维度（对齐到 BiomedCLIP 的 512）
   proj_dim: 512
+  # CoCoOp prompt learner 初始化 token（与 tracer 匹配）
+  # 不填则自动从 data.tracer 派生（推荐），填写则覆盖自动派生值
+  # 可选值: "a tau pet scan of" / "an av45 pet scan of" / "an fdg pet scan of"
+  # ctx_init: "an av45 pet scan of"
   # ContextNet 隐藏层维度（仅用于 V1）
   ctx_hidden_dim: 1024
   # Context Net bottleneck 维度（V2 低秩约束，默认 8）
@@ -93,7 +100,7 @@ model:
 # 训练配置
 training:
   # 指定使用的 GPU 卡号（如 0 或 "0,1"），留空或 null 则使用全部可见卡
-  gpu: 2
+  gpu: 3
   batch_size: 16
   epochs: 200
   patience: 150  # 早停：验证指标连续多少个 epoch 未提升则停止训练

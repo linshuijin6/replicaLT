@@ -232,6 +232,7 @@ class TAUPlasmaDataset(Dataset):
         skip_cache_set: set = None,
         inter_norm: str = "minmax",
         plasma_source_filter: List[str] | None = None,
+        pet_id_column: str = "id_av1451",
     ):
         """
         Args:
@@ -245,6 +246,7 @@ class TAUPlasmaDataset(Dataset):
             skip_cache_set: Set of (ptid, tau_id) tuples to skip (missing caches)
             inter_norm: 归一化方式，"minmax" 或 "zscore"
             plasma_source_filter: plasma source 过滤列表，如 ["UPENN"]/["C2N"]；None 表示不过滤
+            pet_id_column: CSV 中 PET 图像 ID 列名（"id_av1451" 对应 TAU，"id_av45" 对应 AV45）
         """
         self.csv_path = Path(csv_path)
         self.cache_dir = Path(cache_dir)
@@ -258,6 +260,7 @@ class TAUPlasmaDataset(Dataset):
         # 归一化方式
         self.inter_norm = inter_norm
         self.plasma_source_filter = [str(src).strip().upper() for src in plasma_source_filter] if plasma_source_filter else None
+        self.pet_id_column = pet_id_column
         
         # 加载 CSV - 显式指定 image_id 相关列为字符串，避免被解析为 float
         # 只有 plasma 相关字段是数值，其余字段都应当是字符串
@@ -271,9 +274,9 @@ class TAUPlasmaDataset(Dataset):
             # 假设 PTID 列可以 join
             self.df = self.df.merge(diag_df[["PTID", "diagnosis"]], on="PTID", how="left")
         
-        # 过滤只有 TAU (id_av1451) 的样本 - 注意 dtype=str 时 NaN 变为字符串 "nan"
+        # 过滤只有 PET（pet_id_column）的样本 - 注意 dtype=str 时 NaN 变为字符串 "nan"
         self.df = self.df[
-            (self.df["id_av1451"].notna()) & (self.df["id_av1451"] != "nan")
+            (self.df[self.pet_id_column].notna()) & (self.df[self.pet_id_column] != "nan")
         ].reset_index(drop=True)
 
         # 可选：按 plasma source 过滤样本
@@ -329,7 +332,7 @@ class TAUPlasmaDataset(Dataset):
         skipped = 0
         for idx, row in self.df.iterrows():
             ptid = str(row["PTID"])
-            tau_id = str(row["id_av1451"])
+            pet_id = str(row[self.pet_id_column])
             mri_id = row.get("id_mri")
             if pd.isna(mri_id) or mri_id == "nan":
                 skipped += 1
@@ -337,7 +340,7 @@ class TAUPlasmaDataset(Dataset):
             mri_id = str(mri_id)
             
             # 跳过缺失缓存的样本
-            if (ptid, tau_id) in self.skip_cache_set:
+            if (ptid, pet_id) in self.skip_cache_set:
                 skipped += 1
                 continue
             
@@ -376,8 +379,8 @@ class TAUPlasmaDataset(Dataset):
                         plasma_mask.append(False)
             
             # 缓存文件名：{subject_id}_{image_id}.vision.pt
-            # image_id 来自 TAU ID (id_av1451)
-            cache_name = f"{ptid}_{tau_id}.vision.pt"
+            # image_id 来自 PET ID
+            cache_name = f"{ptid}_{pet_id}.vision.pt"
             cache_path = self.cache_dir / cache_name
             mri_cache_name = f"{ptid}_{mri_id}.mri_vision.pt"
             mri_cache_path = self.mri_cache_dir / mri_cache_name
@@ -390,7 +393,7 @@ class TAUPlasmaDataset(Dataset):
             samples.append({
                 "subject_id": ptid,
                 "mri_id": mri_id,
-                "tau_id": tau_id,
+                "pet_id": pet_id,
                 "diagnosis": diagnosis,  # 可能为 None
                 "plasma_values": plasma_vals,
                 "plasma_mask": plasma_mask,

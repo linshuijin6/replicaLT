@@ -236,6 +236,7 @@ class CoCoOpTAUModel(nn.Module):
         plasma_temperature: float = 1.0,
         intra_norm: str = "none",
         intra_temperature: float = 1.0,
+        ctx_init: str = "a tau pet scan of",
     ):
         """
         Args:
@@ -250,6 +251,7 @@ class CoCoOpTAUModel(nn.Module):
             plasma_temperature: plasma 权重温度（向后兼容）
             intra_norm: 样本内归一化方式，"none" / "softmax" / "sigmoid"
             intra_temperature: softmax 温度参数
+            ctx_init: prompt learner 初始化 token 文本，与示踪剂类型匹配
         """
         super().__init__()
         
@@ -282,7 +284,7 @@ class CoCoOpTAUModel(nn.Module):
             clip_model=clip_model,
             classnames=self.class_names,
             num_groups=ctx_len,
-            ctx_init="a tau pet scan of",
+            ctx_init=ctx_init,
         )
         self.tokenizer = self.prompt_learner.tokenizer
         self.context_length = self.prompt_learner.context_length

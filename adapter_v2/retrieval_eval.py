@@ -44,6 +44,22 @@ from clip_mri2pet.models.biomedclip_text import BiomedCLIPTextEncoder
 from clip_mri2pet.models.biomedclip_image import load_biomedclip_model
 from models import ProjectionHead           # adapter_v2/models.py
 
+# tracer → (ctx_init_str, class_prompt_template) 映射（与 train.py 保持一致）
+_TRACER_MAP = {
+    "tau":  {
+        "ctx_init": "a tau pet scan of",
+        "class_prompt_template": "This is a TAU PET scan of a subject diagnosed with {label}.",
+    },
+    "av45": {
+        "ctx_init": "an av45 pet scan of",
+        "class_prompt_template": "This is an AV45 PET scan of a subject diagnosed with {label}.",
+    },
+    "fdg":  {
+        "ctx_init": "an fdg pet scan of",
+        "class_prompt_template": "This is an FDG PET scan of a subject diagnosed with {label}.",
+    },
+}
+
 
 # ============================================================================
 # PlasmaTextEncoder（固定，不训练）
@@ -78,6 +94,7 @@ class PlasmaTextEncoder(nn.Module):
         plasma_temperature: float = 1.0,
         device: torch.device | str = "cpu",
         proj_dim: int = 512,
+        tracer: str = "tau",
     ):
         """
         Parameters
@@ -88,12 +105,14 @@ class PlasmaTextEncoder(nn.Module):
         plasma_temperature: plasma 权重 softmax 温度
         device            : 推理设备
         proj_dim          : 投影维度（默认 512）
+        tracer            : 示踪剂类型 tau/av45/fdg，影响内部 ctx_init 字符串
         """
         super().__init__()
 
         self.plasma_prompts = plasma_prompts or self.DEFAULT_PLASMA_PROMPTS
         self.plasma_temperature = plasma_temperature
         self._dev = torch.device(device) if isinstance(device, str) else device
+        _tcfg = _TRACER_MAP.get(tracer.lower(), _TRACER_MAP["tau"])
 
         # ── 加载 BiomedCLIP TextEncoder ──────────────────────────────────
         clip_model, _ = load_biomedclip_model()
@@ -110,7 +129,7 @@ class PlasmaTextEncoder(nn.Module):
                 clip_model=clip_model,
                 classnames=["CN"],
                 num_groups=1,
-                ctx_init="a tau pet scan of",
+                ctx_init=_tcfg["ctx_init"],
             )
             self.tokenizer = _pl.tokenizer
             self.context_length = _pl.context_length
@@ -315,23 +334,26 @@ class ClassTextEncoder(nn.Module):
         device: torch.device | str = "cpu",
         proj_dim: int = 512,
         use_ckpt_proj_class: bool = True,
+        tracer: str = "tau",
     ):
         """
         Parameters
         ----------
         ckpt_path              : CoCoOpTAUModel checkpoint（用于加载 proj_class）
         class_names            : 诊断类别名，默认 ["CN", "MCI", "AD"]
-        class_prompt_template  : 文本模板，需含 {label} 占位符
+        class_prompt_template  : 文本模板，需含 {label} 占位符；None 则从 tracer 自动派生
         device                 : 推理设备
         proj_dim               : 投影维度（默认 512）
         use_ckpt_proj_class    : 是否使用 checkpoint 的 proj_class。
                      True=checkpoint空间；False=纯BiomedCLIP空间。
+        tracer                 : 示踪剂类型 tau/av45/fdg，影响默认 prompt 文本和 ctx_init
         """
         super().__init__()
 
+        _tcfg = _TRACER_MAP.get(tracer.lower(), _TRACER_MAP["tau"])
         self.class_names = class_names or self.DEFAULT_CLASS_NAMES
         self.class_prompt_template = (
-            class_prompt_template or self.DEFAULT_CLASS_PROMPT_TEMPLATE
+            class_prompt_template or _tcfg["class_prompt_template"]
         )
         self.class_prompts: List[str] = [
             self.class_prompt_template.format(label=name)
@@ -351,7 +373,7 @@ class ClassTextEncoder(nn.Module):
                 clip_model=clip_model,
                 classnames=["CN"],
                 num_groups=1,
-                ctx_init="a tau pet scan of",
+                ctx_init=_tcfg["ctx_init"],
             )
             self.tokenizer = _pl.tokenizer
             self.context_length = _pl.context_length
@@ -535,6 +557,7 @@ class DiagnosisTextRetrievalEvaluator:
         class_prompt_template: Optional[str] = None,
         device: torch.device | str = "cpu",
         use_ckpt_proj_class: bool = True,
+        tracer: str = "tau",
     ):
         self._dev         = torch.device(device) if isinstance(device, str) else device
         self.class_names  = class_names or ClassTextEncoder.DEFAULT_CLASS_NAMES
@@ -545,6 +568,7 @@ class DiagnosisTextRetrievalEvaluator:
             class_prompt_template=class_prompt_template,
             device=device,
             use_ckpt_proj_class=use_ckpt_proj_class,
+            tracer=tracer,
         )
 
     # -------------------------------------------------------------------------

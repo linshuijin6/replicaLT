@@ -407,11 +407,21 @@ class ContextConditionedClassifier:
         ckpt_path: str | Path,
         class_names: List[str],
         device: torch.device,
+        tracer: str = "tau",
     ):
         self.device = device
+        # 从 tracer 派生 class_prompt_template 和 ctx_init（与 train.py 保持一致）
+        _TRACER_MAP = {
+            "tau":  {"ctx_init": "a tau pet scan of",   "class_prompt_template": "This is a TAU PET scan of a subject diagnosed with {label}."},
+            "av45": {"ctx_init": "an av45 pet scan of", "class_prompt_template": "This is an AV45 PET scan of a subject diagnosed with {label}."},
+            "fdg":  {"ctx_init": "an fdg pet scan of",  "class_prompt_template": "This is an FDG PET scan of a subject diagnosed with {label}."},
+        }
+        _tcfg = _TRACER_MAP.get(tracer.lower(), _TRACER_MAP["tau"])
         self.model = CoCoOpTAUModel(
             biomedclip_path="",
             class_names=class_names,
+            ctx_init=_tcfg["ctx_init"],
+            class_prompt_template=_tcfg["class_prompt_template"],
         )
         state = torch.load(str(ckpt_path), map_location="cpu")
         if "model_state_dict" in state:
@@ -536,6 +546,7 @@ def run_one_seed(args: argparse.Namespace, seed: int, output_dir: Path) -> Tuple
         ckpt_path=args.ckpt,
         class_names=class_names,
         device=device,
+        tracer=getattr(args, "tracer", "tau"),
     )
 
     val_labels = val_embs["labels"].long()
@@ -788,6 +799,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val_ratio",  type=float, default=0.1,  help="验证集比例")
     parser.add_argument("--val_split_json", type=str, default='fixed_split.json',
                         help="可选：固定 train/val 划分 JSON（包含 train_subjects/val_subjects）；不存在时自动生成并保存")
+    parser.add_argument("--tracer", type=str, default="tau", choices=["tau", "av45", "fdg"],
+                        help="PET 示踪剂类型，影响 class prompt 和 ctx_init 语义（默认 tau）")
     parser.add_argument("--class_names", type=str, default="CN,MCI,AD",
                         help="类别名称，逗号分隔")
     parser.add_argument("--num_classes", type=int, default=3, help="类别数")

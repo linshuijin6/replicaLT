@@ -380,7 +380,8 @@ def build_sample_list(
             mri_id = str(mri_id)
         
         # 查找 NIfTI 文件
-        if modality.lower() == "tau":
+        if modality.lower() in ("tau", "av45", "fdg"):
+            # 三种 PET 示踪剂共用同一套文件命名逻辑，路径由 tau_subdir 参数控制
             nifti_path = find_tau_nifti(adni_root, ptid, mri_id, image_id, tau_subdir)
         elif modality.lower() == "mri":
             if mri_id is None:
@@ -388,7 +389,7 @@ def build_sample_list(
                 continue
             nifti_path = find_mri_nifti(adni_root, ptid, mri_id, mri_subdir)
         else:
-            raise ValueError(f"不支持的 modality: {modality}")
+            raise ValueError(f"不支持的 modality: {modality!r}，可选 tau/av45/fdg/mri")
         
         if nifti_path is None:
             missing_count += 1

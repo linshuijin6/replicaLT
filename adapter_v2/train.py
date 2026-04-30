@@ -1232,6 +1232,24 @@ def main():
         print("[Plasma] Source filter: ALL (UPENN + C2N)")
     else:
         print(f"[Plasma] Source filter: {plasma_source_filter}")
+
+    # 解析 tracer 配置（tau / av45）
+    tracer = config["data"].get("tracer", "tau").lower().strip()
+    _TRACER_MAP = {
+        "tau":  {"id_column": "id_av1451", "pet_subdir": "PET_MNI/TAU",  "ctx_init_default": "a tau pet scan of",   "prompt_template_default": "This is a TAU PET scan of a subject diagnosed with {label}."},
+        "av45": {"id_column": "id_av45",   "pet_subdir": "PET_MNI/AV45", "ctx_init_default": "an av45 pet scan of", "prompt_template_default": "This is an AV45 PET scan of a subject diagnosed with {label}."},
+        "fdg":  {"id_column": "id_fdg",    "pet_subdir": "PET_MNI/FDG",  "ctx_init_default": "an fdg pet scan of",  "prompt_template_default": "This is an FDG PET scan of a subject diagnosed with {label}."},
+    }
+    if tracer not in _TRACER_MAP:
+        raise ValueError(f"config.data.tracer 不支持的值: {tracer!r}，可选 {list(_TRACER_MAP.keys())}")
+    _tracer_cfg = _TRACER_MAP[tracer]
+    pet_id_column = _tracer_cfg["id_column"]
+    pet_subdir    = _tracer_cfg["pet_subdir"]
+    # ctx_init / prompt_template 以 tracer 派生值为默认，yaml 中显式设置则视为 override
+    model_cfg_ctx_init = config.get("model", {}).get("ctx_init") or _tracer_cfg["ctx_init_default"]
+    prompt_template    = config.get("classes", {}).get("prompt_template") or _tracer_cfg["prompt_template_default"]
+    print(f"[Tracer] tracer={tracer}, id_column={pet_id_column}, pet_subdir={pet_subdir}")
+    print(f"[Tracer] ctx_init={model_cfg_ctx_init!r}, prompt_template={prompt_template!r}")
     
     # =========================================================================
     # 缓存验证与补充生成
@@ -1246,6 +1264,7 @@ def main():
     cache_stats = get_cache_stats(
         csv_path=str(csv_path),
         cache_dir=str(cache_dir),
+        id_column=pet_id_column,
     )
     mri_cache_stats = get_cache_stats(
         csv_path=str(csv_path),
@@ -1269,6 +1288,9 @@ def main():
             csv_path=str(csv_path),
             cache_dir=str(cache_dir),
             adni_root=adni_root,
+            modality=tracer,
+            id_column=pet_id_column,
+            tau_subdir=pet_subdir,
             device="cuda" if torch.cuda.is_available() else "cpu",
             gpu=gpu_cfg,
         )
@@ -1281,6 +1303,7 @@ def main():
         cache_stats = get_cache_stats(
             csv_path=str(csv_path),
             cache_dir=str(cache_dir),
+            id_column=pet_id_column,
         )
         print(f"\n缓存更新后: 已缓存 {cache_stats['cached']}, 仍缺失 {cache_stats['missing']}")
         
@@ -1330,6 +1353,7 @@ def main():
         skip_cache_set=missing_cache_set,
         inter_norm=inter_norm,
         plasma_source_filter=plasma_source_filter,
+        pet_id_column=pet_id_column,
     )
     print(f"Total samples: {len(full_dataset)}")
     if missing_cache_set:
@@ -1367,6 +1391,7 @@ def main():
         skip_cache_set=missing_cache_set,
         inter_norm=inter_norm,
         plasma_source_filter=plasma_source_filter,
+        pet_id_column=pet_id_column,
     )
     val_dataset = TAUPlasmaDataset(
         csv_path=str(csv_path),
@@ -1381,6 +1406,7 @@ def main():
         skip_cache_set=missing_cache_set,
         inter_norm=inter_norm,
         plasma_source_filter=plasma_source_filter,
+        pet_id_column=pet_id_column,
     )
     print(f"Train dataset: {len(train_dataset)}, Val dataset: {len(val_dataset)}")
     
@@ -1417,8 +1443,7 @@ def main():
     # =========================================================================
     # 模型
     # =========================================================================
-    # 从 config 读取类别和提示信息
-    prompt_template = config["classes"]["prompt_template"]
+    # prompt_template / ctx_init 已在 tracer 解析阶段确定（见上方 _TRACER_MAP）
 
     if len(plasma_prompts) != len(selected_plasma_keys):
         raise ValueError(
@@ -1438,6 +1463,7 @@ def main():
         plasma_temperature=config["plasma"].get("temperature", 1.0),
         intra_norm=intra_norm,
         intra_temperature=intra_norm_temperature,
+        ctx_init=model_cfg_ctx_init,
     )
     model = model.to(device)
     
