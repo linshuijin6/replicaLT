@@ -1,0 +1,13 @@
+{
+  "input_json": "/home/ssddata/linshuijin/replicaLT/train_data_with_description.json",
+  "real_av45_rows": 390,
+  "computed_rows": 388,
+  "failed_rows": 2,
+  "out_dir": "/home/ssddata/linshuijin/replicaLT/validation/E1/results",
+  "threshold": 1.11,
+  "expected_shape": [
+    182,
+    218,
+    182
+  ]
+}

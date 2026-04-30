@@ -1,0 +1,210 @@
+{
+  "target_atlas": "Harvard-Oxford cortical probabilistic atlas, cort-prob-1mm",
+  "target_roi_definition": {
+    "frontal": [
+      "Frontal Pole",
+      "Superior Frontal Gyrus",
+      "Middle Frontal Gyrus",
+      "Inferior Frontal Gyrus, pars triangularis",
+      "Inferior Frontal Gyrus, pars opercularis",
+      "Frontal Medial Cortex",
+      "Frontal Orbital Cortex"
+    ],
+    "cingulate": [
+      "Cingulate Gyrus, anterior division",
+      "Cingulate Gyrus, posterior division"
+    ],
+    "parietal": [
+      "Superior Parietal Lobule",
+      "Supramarginal Gyrus, anterior division",
+      "Supramarginal Gyrus, posterior division",
+      "Angular Gyrus",
+      "Precuneous Cortex"
+    ],
+    "temporal": [
+      "Superior Temporal Gyrus, anterior division",
+      "Superior Temporal Gyrus, posterior division",
+      "Middle Temporal Gyrus, anterior division",
+      "Middle Temporal Gyrus, posterior division",
+      "Middle Temporal Gyrus, temporooccipital part",
+      "Inferior Temporal Gyrus, anterior division",
+      "Inferior Temporal Gyrus, posterior division",
+      "Inferior Temporal Gyrus, temporooccipital part",
+      "Temporal Pole"
+    ]
+  },
+  "target_labels_used": {
+    "frontal": [
+      "Frontal Pole",
+      "Superior Frontal Gyrus",
+      "Middle Frontal Gyrus",
+      "Inferior Frontal Gyrus, pars triangularis",
+      "Inferior Frontal Gyrus, pars opercularis",
+      "Frontal Medial Cortex",
+      "Frontal Orbital Cortex"
+    ],
+    "cingulate": [
+      "Cingulate Gyrus, anterior division",
+      "Cingulate Gyrus, posterior division"
+    ],
+    "parietal": [
+      "Superior Parietal Lobule",
+      "Supramarginal Gyrus, anterior division",
+      "Supramarginal Gyrus, posterior division",
+      "Angular Gyrus",
+      "Precuneous Cortex"
+    ],
+    "temporal": [
+      "Superior Temporal Gyrus, anterior division",
+      "Superior Temporal Gyrus, posterior division",
+      "Middle Temporal Gyrus, anterior division",
+      "Middle Temporal Gyrus, posterior division",
+      "Middle Temporal Gyrus, temporooccipital part",
+      "Inferior Temporal Gyrus, anterior division",
+      "Inferior Temporal Gyrus, posterior division",
+      "Inferior Temporal Gyrus, temporooccipital part",
+      "Temporal Pole"
+    ]
+  },
+  "reference_atlas": "AAL3 manual SSL fallback",
+  "reference_labels_used": [
+    {
+      "index": 95,
+      "name": "Cerebellum_Crus1_L"
+    },
+    {
+      "index": 96,
+      "name": "Cerebellum_Crus1_R"
+    },
+    {
+      "index": 97,
+      "name": "Cerebellum_Crus2_L"
+    },
+    {
+      "index": 98,
+      "name": "Cerebellum_Crus2_R"
+    },
+    {
+      "index": 99,
+      "name": "Cerebellum_3_L"
+    },
+    {
+      "index": 100,
+      "name": "Cerebellum_3_R"
+    },
+    {
+      "index": 101,
+      "name": "Cerebellum_4_5_L"
+    },
+    {
+      "index": 102,
+      "name": "Cerebellum_4_5_R"
+    },
+    {
+      "index": 103,
+      "name": "Cerebellum_6_L"
+    },
+    {
+      "index": 104,
+      "name": "Cerebellum_6_R"
+    },
+    {
+      "index": 105,
+      "name": "Cerebellum_7b_L"
+    },
+    {
+      "index": 106,
+      "name": "Cerebellum_7b_R"
+    },
+    {
+      "index": 107,
+      "name": "Cerebellum_8_L"
+    },
+    {
+      "index": 108,
+      "name": "Cerebellum_8_R"
+    },
+    {
+      "index": 109,
+      "name": "Cerebellum_9_L"
+    },
+    {
+      "index": 110,
+      "name": "Cerebellum_9_R"
+    },
+    {
+      "index": 111,
+      "name": "Cerebellum_10_L"
+    },
+    {
+      "index": 112,
+      "name": "Cerebellum_10_R"
+    },
+    {
+      "index": 113,
+      "name": "Vermis_1_2"
+    },
+    {
+      "index": 114,
+      "name": "Vermis_3"
+    },
+    {
+      "index": 115,
+      "name": "Vermis_4_5"
+    },
+    {
+      "index": 116,
+      "name": "Vermis_6"
+    },
+    {
+      "index": 117,
+      "name": "Vermis_7"
+    },
+    {
+      "index": 118,
+      "name": "Vermis_8"
+    },
+    {
+      "index": 119,
+      "name": "Vermis_9"
+    },
+    {
+      "index": 120,
+      "name": "Vermis_10"
+    }
+  ],
+  "nilearn_data_dir": "/home/ssddata/linshuijin/replicaLT/validation/E1/nilearn_data",
+  "reference_pet_grid": {
+    "shape": [
+      182,
+      218,
+      182
+    ],
+    "affine": [
+      [
+        -1.0,
+        0.0,
+        0.0,
+        90.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        -126.0
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        -72.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  }
+}

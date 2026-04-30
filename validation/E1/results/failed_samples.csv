@@ -1,0 +1,3 @@
+name,examdate,diagnosis,av45_path,target_mean,cerebellum_mean,suvr,amyloid_label,input_shape,n_frames,frontal_mean,cingulate_mean,parietal_mean,temporal_mean,error
+099_S_4076,2024-06-25,MCI,/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF/PET_MNI/AV45/099_S_4076__I10676972__I10670750.nii.gz,,,,,,,,,,,ValueError: PET volume is empty or all zero
+129_S_7042,2025-05-12,CN,/mnt/nfsdata/nfsdata/lsj.14/ADNI_CSF/PET_MNI/AV45/129_S_7042__I11294671__I11311444.nii.gz,,,,,,,,,,,ValueError: PET volume is empty or all zero

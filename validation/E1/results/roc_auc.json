@@ -1,0 +1,9 @@
+{
+  "threshold": 1.11,
+  "n_total": 388,
+  "n_abeta_positive": 203,
+  "n_abeta_negative": 185,
+  "auc": 1.0,
+  "note": "AUC uses real AV45 SUVR to predict labels defined from the same real AV45 SUVR threshold; interpret as sanity check / upper bound.",
+  "auc_trapezoid": 1.0
+}
